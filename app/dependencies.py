@@ -45,6 +45,7 @@ _url_scraper_rapidapi_service = None
 _google_query_scraper_service = None
 _opportunity_service = None
 _matched_opportunities_email_service = None
+_opportunity_email_content_service = None
 _subscription_service = None
 
 
@@ -223,6 +224,18 @@ def get_matched_opportunities_email_service():
     return _matched_opportunities_email_service
 
 
+def get_opportunity_email_content_service():
+    """Get singleton OpportunityEmailContentService instance."""
+    global _opportunity_email_content_service
+    if _opportunity_email_content_service is None:
+        from app.services.OpportunityEmailContent import OpportunityEmailContentService
+        _opportunity_email_content_service = OpportunityEmailContentService(
+            speaker_profile_model=get_speaker_profile_model(),
+            opportunity_model=get_opportunity_service().model,
+        )
+    return _opportunity_email_content_service
+
+
 def cleanup_resources():
     """
     Cleanup all singleton resources. Call this on application shutdown.
@@ -234,7 +247,7 @@ def cleanup_resources():
     global _background_mapping_service, _image_caption_service, _booking_service, _airbnb_service
     global _image_analysis_helper, _temporary_competitor_service, _deployment_cues_service
     global _image_analysis_helper, _temporary_competitor_service, _cue_properties_service
-    global _onboarding_status_service, _queue_status_service, _analytics_cues_preset_service, _excel_schedule_service, _speaker_profile_model, _speaker_topics_model, _speaker_target_audience_model, _delivery_modes_model, _speaking_formats_model, _chat_session_model, _speaker_profile_chatbot_service, _scraper_service, _url_scraper_rapidapi_service, _google_query_scraper_service, _opportunity_service, _matched_opportunities_email_service, _user_management_service, _subscription_service
+    global _onboarding_status_service, _queue_status_service, _analytics_cues_preset_service, _excel_schedule_service, _speaker_profile_model, _speaker_topics_model, _speaker_target_audience_model, _delivery_modes_model, _speaking_formats_model, _chat_session_model, _speaker_profile_chatbot_service, _scraper_service, _url_scraper_rapidapi_service, _google_query_scraper_service, _opportunity_service, _matched_opportunities_email_service, _opportunity_email_content_service, _user_management_service, _subscription_service
 
     # Reset all services
     _auth_service = None
@@ -277,4 +290,5 @@ def cleanup_resources():
     _google_query_scraper_service = None
     _opportunity_service = None
     _matched_opportunities_email_service = None
+    _opportunity_email_content_service = None
     _subscription_service = None

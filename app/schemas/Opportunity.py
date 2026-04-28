@@ -37,3 +37,9 @@ class UrlScrapeCreateSchema(BaseModel):
 
     url: str
     topics: Optional[List[str]] = None  # Optional; allowed values from speaker_profile_chatbot.TOPICS
+
+
+class GenerateOpportunityEmailContentSchema(BaseModel):
+    speaker_profile_id: str
+    opportunity_id: str
+    user_suggestion_prompt: Optional[str] = None
