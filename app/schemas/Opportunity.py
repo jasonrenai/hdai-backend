@@ -43,3 +43,13 @@ class GenerateOpportunityEmailContentSchema(BaseModel):
     speaker_profile_id: str
     opportunity_id: str
     user_suggestion_prompt: Optional[str] = None
+
+
+class OpportunityActivityUpdateSchema(BaseModel):
+    """Partial update for opportunity activity (wishlist / applied / expired)."""
+
+    opportunityId: str
+    speaker_id: str
+    isWishlist: Optional[bool] = None
+    isApplied: Optional[bool] = None
+    isExpired: Optional[bool] = None

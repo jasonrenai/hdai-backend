@@ -2,13 +2,14 @@
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from app.schemas.ServerResponse import ServerResponse
-from app.schemas.Opportunity import GenerateOpportunityEmailContentSchema
+from app.schemas.Opportunity import GenerateOpportunityEmailContentSchema, OpportunityActivityUpdateSchema
 from app.helpers.Utilities import Utils
 from app.middleware.JWTVerification import jwt_validator
 from app.dependencies import (
     get_opportunity_service,
     get_matched_opportunities_email_service,
     get_opportunity_email_content_service,
+    get_opportunity_activity_service,
 )
 
 router = APIRouter(prefix="/api/v1/opportunities", tags=["Opportunities"])
@@ -197,6 +198,57 @@ async def get_matched_opportunities_by_speaker(
         )
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"data": None, "error": str(e), "success": False},
+        )
+
+
+@router.get("/activity", response_model=ServerResponse)
+async def get_opportunity_activity(
+    opportunityId: str = Query(..., description="Opportunity ID"),
+    speaker_id: str = Query(..., description="Speaker ID (speaker profile)"),
+    service=Depends(get_opportunity_activity_service),
+    jwt_payload: dict = Depends(jwt_validator),
+):
+    """Get wishlist / applied / expired flags for this speaker and opportunity."""
+    try:
+        result = await service.get_activity(speaker_id, opportunityId)
+        return Utils.create_response(result, True)
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=400,
+            detail={"data": None, "error": str(ve), "success": False},
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"data": None, "error": str(e), "success": False},
+        )
+
+
+@router.patch("/activity", response_model=ServerResponse)
+async def patch_opportunity_activity(
+    body: OpportunityActivityUpdateSchema = Body(...),
+    service=Depends(get_opportunity_activity_service),
+    jwt_payload: dict = Depends(jwt_validator),
+):
+    """Create or update opportunity activity flags (only fields sent are changed)."""
+    try:
+        result = await service.update_activity(
+            speaker_id=body.speaker_id,
+            opportunity_id=body.opportunityId,
+            is_wishlist=body.isWishlist,
+            is_applied=body.isApplied,
+            is_expired=body.isExpired,
+        )
+        return Utils.create_response(result, True)
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=400,
+            detail={"data": None, "error": str(ve), "success": False},
+        )
     except Exception as e:
         raise HTTPException(
             status_code=400,
