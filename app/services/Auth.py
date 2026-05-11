@@ -8,11 +8,11 @@ from app.models.Otp import OTPModel
 from app.helpers.Utilities import Utils
 from datetime import datetime, timedelta
 from fastapi import HTTPException, UploadFile
-from postmarker.core import PostmarkClient
 from app.helpers.AzureStorage import AzureBlobUploader
 import os
 import random 
 from bson import ObjectId
+from app.email.enums import EmailEventType
 class AuthService:
     
     def __init__(self):
@@ -193,23 +193,39 @@ class AuthService:
             otp = random.randint(100000, 999999)
             await self.otp_model.save_otp(email, otp)
 
-            # Get environment variables
-            from_email = os.getenv('FROM_EMAIL_ID')
-            postmark_token = os.getenv('POSTMARK-SERVER-API-TOKEN')
+            # Build reset URL and dynamic content for the shared Postmark template
+            base_url = os.getenv("API_BASE_URL", "https://app.speakerpitcher.ai").rstrip("/")
+            reset_url = f"{base_url}/reset-password?email={email}&otp={otp}"
+            user_name = (user.fullName if getattr(user, "fullName", None) else "").strip()
 
-            if not from_email or not postmark_token:
-                raise ValueError("Missing required environment variables")
+            from app.dependencies import get_email_service
 
-            # Send email
-            postmark = PostmarkClient(postmark_token)
-            response = postmark.emails.send_with_template(
-                From=from_email,
-                To=email,
-                TemplateId=41238531,  
-                TemplateModel={
-                    "otp_code": otp
-                }
+            body_text = (
+                f"Use this one-time code to reset your password: {otp}. "
+                "For security, this code expires in 10 minutes."
             )
+            sent = get_email_service().send_event_email(
+                event_type=EmailEventType.PASSWORD_RESET,
+                to_email=email,
+                user_name=user_name,
+                cta_url=reset_url,
+                template_model_overrides={
+                    "subject": "Reset your SpeakerPitcher password",
+                    "title": "Password reset request",
+                    "intro": "We received a request to reset your password.",
+                    "body": body_text,
+                    "cta_text": "Reset Password",
+                    "secondary_note": "If you did not request this reset, you can safely ignore this email.",
+                    "preheader": "Your one-time reset code is ready.",
+                    "badge": "Security",
+                },
+            )
+            if not sent:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": "Failed to send reset email.",
+                }
 
             return {
                 "success": True,

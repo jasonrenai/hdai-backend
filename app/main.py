@@ -13,6 +13,7 @@ from app.controllers import Auth, Profile, Common
 from app.middleware.JWTVerification import jwt_validator
 from app.controllers import SpeakerProfileOnboarding, SpeakerOptions, Scraper, UrlScraperRapidAPI, GoogleQueryScraper, Opportunity, Dashboard, Users
 from app.controllers import Subscriptions
+from app.controllers import EmailTest
 from app.services.Subscriptions import init_stripe_from_env
 from app.dependencies import get_url_scraper_rapidapi_service
 from fastapi.middleware.gzip import GZipMiddleware
@@ -58,6 +59,7 @@ app.include_router(Dashboard.router, dependencies=[Depends(jwt_validator)])
 app.include_router(Users.router, dependencies=[Depends(jwt_validator)])
 app.include_router(Subscriptions.public_router)
 app.include_router(Subscriptions.auth_router, dependencies=[Depends(jwt_validator)])
+app.include_router(EmailTest.router, dependencies=[Depends(jwt_validator)])
 
 
 @app.on_event("startup")
