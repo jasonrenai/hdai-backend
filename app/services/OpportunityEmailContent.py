@@ -9,11 +9,14 @@ from app.models.Opportunity import OpportunityModel
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.schemas.Opportunity import EmailAuthorityType
 
-# Shared for all authority prompts: avoid echoing empty or placeholder profile data.
+# Shared for all authority prompts: avoid echoing empty, placeholder, or test profile data.
 _SYSTEM_PROMPT_SKIP_PLACEHOLDER_DATA = (
     "If any field in the provided data is missing, empty, or looks like generic placeholder text "
     "(for example 'key takeaway 1' / 'key takeaway 2'), do not mention, list, or build on it—"
-    "use only clearly real, specific details and keep the email natural."
+    "use only clearly real, specific details and keep the email natural. "
+    "Strictly ignore any content in the speaker profile that is clearly for testing or QA "
+    "(for example text about 'test', 'testing', dummy/sample/lorem-style filler, or obvious sandbox data)—"
+    "never quote it or build the pitch on it."
 )
 
 _SYSTEM_PROMPT_ASSOCIATION_MEMBERSHIP = (
