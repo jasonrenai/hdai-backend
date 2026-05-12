@@ -6,10 +6,10 @@ def send_welcome_email_example(email_service: EmailService, recipient_email: str
     return email_service.send_event_email(
         event_type=EmailEventType.WELCOME_EMAIL,
         to_email=recipient_email,
-        user_name=user_name,
-        cta_url="https://app.speakerpitcher.ai/dashboard",
-        template_model_overrides={
-            "body": "Your account is active. Complete your profile to get better speaking opportunity matches.",
+        template_model={
+            "preheader": "Your account is ready to explore speaking opportunities.",
+            "user_name": user_name,
+            "cta_url": "https://app.speakerpitcher.ai/dashboard",
         },
     )
 
@@ -23,10 +23,9 @@ def send_password_reset_email_example(
     return email_service.send_event_email(
         event_type=EmailEventType.PASSWORD_RESET,
         to_email=recipient_email,
-        user_name=user_name,
-        cta_url=reset_url,
-        template_model_overrides={
-            "preheader": "Reset your password securely.",
+        template_model={
+            "user_name": user_name,
+            "reset_password_url": reset_url,
         },
     )
 
@@ -40,10 +39,8 @@ def send_account_confirmation_email_example(
     return email_service.send_event_email(
         event_type=EmailEventType.ACCOUNT_CONFIRMATION,
         to_email=recipient_email,
-        user_name=user_name,
-        cta_url=confirmation_url,
-        template_model_overrides={
-            "body": "Verify your email to complete account setup and unlock all features.",
+        template_model={
+            "user_name": user_name,
+            "verification_url": confirmation_url,
         },
     )
-

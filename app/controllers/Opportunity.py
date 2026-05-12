@@ -94,7 +94,7 @@ async def send_matched_opportunities_email(
     """
     Send matched opportunities to the speaker's email (from speaker profile).
     Email contains event_name and a link per opportunity; the link calls GET /api/v1/opportunities/{id}.
-    Uses Postmark (FROM_EMAIL_ID and POSTMARK-SERVER-API-TOKEN from env).
+    Uses Postmark (EMAIL_FROM_ALERTS or alerts@; POSTMARK-SERVER-API-TOKEN from env).
     """
     try:
         sent = await service.send_matched_opportunities_email(speaker_profile_id)

@@ -200,24 +200,12 @@ class AuthService:
 
             from app.dependencies import get_email_service
 
-            body_text = (
-                f"Use this one-time code to reset your password: {otp}. "
-                "For security, this code expires in 10 minutes."
-            )
             sent = get_email_service().send_event_email(
                 event_type=EmailEventType.PASSWORD_RESET,
                 to_email=email,
-                user_name=user_name,
-                cta_url=reset_url,
-                template_model_overrides={
-                    "subject": "Reset your SpeakerPitcher password",
-                    "title": "Password reset request",
-                    "intro": "We received a request to reset your password.",
-                    "body": body_text,
-                    "cta_text": "Reset Password",
-                    "secondary_note": "If you did not request this reset, you can safely ignore this email.",
-                    "preheader": "Your one-time reset code is ready.",
-                    "badge": "Security",
+                template_model={
+                    "user_name": user_name or "there",
+                    "reset_password_url": reset_url,
                 },
             )
             if not sent:

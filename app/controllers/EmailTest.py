@@ -3,10 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.dependencies import get_email_service
 from app.email.enums import EmailEventType
 from app.helpers.Utilities import Utils
-from app.schemas.Email import (
-    SendEventByTypeRequest,
-    SendSpecificEmailRequest,
-)
+from app.schemas.Email import EmailEventTestRequest, SendSpecificEmailRequest
 from app.schemas.ServerResponse import ServerResponse
 
 router = APIRouter(prefix="/api/v1/email-test", tags=["Email Test"])
@@ -21,11 +18,8 @@ router = APIRouter(prefix="/api/v1/email-test", tags=["Email Test"])
 #         sent = service.send_event_email(
 #             event_type=body.event_type,
 #             to_email=str(body.to_email),
-#             user_name=body.user_name,
-#             subject=body.subject,
-#             cta_url=body.cta_url,
 #             sender=body.sender,
-#             template_model_overrides=body.template_model_overrides,
+#             template_model=_merge_test_template_model(body.event_type, body),
 #         )
 #         return Utils.create_response(
 #             {
@@ -174,14 +168,29 @@ async def send_support_billing_question_email(
     )
 
 
+def _merge_test_template_model(
+    event_type: EmailEventType,
+    body: SendSpecificEmailRequest | EmailEventTestRequest,
+) -> dict:
+    merged = dict(body.template_model)
+    if body.user_name:
+        merged.setdefault("user_name", body.user_name)
+    if body.cta_url:
+        if event_type == EmailEventType.PASSWORD_RESET:
+            merged.setdefault("reset_password_url", body.cta_url)
+        elif event_type == EmailEventType.ACCOUNT_CONFIRMATION:
+            merged.setdefault("verification_url", body.cta_url)
+        else:
+            merged.setdefault("cta_url", body.cta_url)
+    return merged
+
+
 async def _send_specific_event(service, event_type: EmailEventType, body: SendSpecificEmailRequest):
     try:
         sent = service.send_event_email(
             event_type=event_type,
             to_email=str(body.to_email),
-            user_name=body.user_name,
-            subject=body.subject,
-            cta_url=body.cta_url,
+            template_model=_merge_test_template_model(event_type, body),
         )
         return Utils.create_response(
             {

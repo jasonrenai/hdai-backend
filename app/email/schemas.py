@@ -1,14 +1,12 @@
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
 
 from app.email.enums import EmailEventType, SenderType
 
 
 @dataclass(frozen=True)
 class EmailEventConfig:
+    """Maps a logical email event to sender and default Postmark template model keys."""
+
     event_type: EmailEventType
     sender: SenderType
-    template_id: Optional[int] = None
-    template_alias: Optional[str] = None
-    defaults: Dict[str, Any] = field(default_factory=dict)
-
+    default_template_model: dict[str, str]

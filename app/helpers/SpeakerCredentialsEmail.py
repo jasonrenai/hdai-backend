@@ -1,9 +1,11 @@
 """Send speaker login credentials via Postmark (HTML + plain text, no template)."""
 import html
 import logging
-import os
 
 from postmarker.core import PostmarkClient
+
+from app.email.enums import SenderType
+from app.email.helpers import get_postmark_server_token, resolve_sender_email
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +39,12 @@ def build_speaker_credentials_text(full_name: str, login_email: str, plain_passw
 
 
 def send_speaker_credentials_email(to_email: str, full_name: str, plain_password: str) -> bool:
-    from_email = os.getenv("FROM_EMAIL_ID")
-    token = os.getenv("POSTMARK-SERVER-API-TOKEN")
+    from_email = resolve_sender_email(SenderType.HELLO)
+    token = get_postmark_server_token()
     if not from_email or not token or not (to_email or "").strip():
-        logger.warning("Skipping speaker credentials email: missing FROM_EMAIL_ID, POSTMARK-SERVER-API-TOKEN, or recipient")
+        logger.warning(
+            "Skipping speaker credentials email: missing sender (EMAIL_FROM_HELLO or default), Postmark token, or recipient"
+        )
         return False
     to_addr = to_email.strip()
     try:

@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any, Dict
 
@@ -25,29 +26,14 @@ def resolve_sender_email(sender: SenderType) -> str:
     return SENDER_EMAILS[sender]
 
 
-def _normalize_scalar_or_nested(value: Any, key: str) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, dict):
-        nested = value.get(key)
-        if nested is None:
-            return ""
-        return str(nested)
-    return str(value)
-
-
-def normalize_template_model(payload: Dict[str, Any]) -> Dict[str, str]:
-    model = {
-        "subject": _normalize_scalar_or_nested(payload.get("subject"), "subject"),
-        "preheader": _normalize_scalar_or_nested(payload.get("preheader"), "preheader"),
-        "badge": _normalize_scalar_or_nested(payload.get("badge"), "badge"),
-        "title": _normalize_scalar_or_nested(payload.get("title"), "title"),
-        "user_name": _normalize_scalar_or_nested(payload.get("user_name"), "user_name"),
-        "intro": _normalize_scalar_or_nested(payload.get("intro"), "intro"),
-        "body": _normalize_scalar_or_nested(payload.get("body"), "body"),
-        "cta_url": _normalize_scalar_or_nested(payload.get("cta_url"), "cta_url"),
-        "cta_text": _normalize_scalar_or_nested(payload.get("cta_text"), "cta_text"),
-        "secondary_note": _normalize_scalar_or_nested(payload.get("secondary_note"), "secondary_note"),
-    }
-    return model
-
+def normalize_template_model(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerce Postmark TemplateModel values to JSON-friendly scalars (strings for simple types)."""
+    out: Dict[str, Any] = {}
+    for key, value in payload.items():
+        if value is None:
+            out[key] = ""
+        elif isinstance(value, (dict, list)):
+            out[key] = json.dumps(value)
+        else:
+            out[key] = str(value)
+    return out

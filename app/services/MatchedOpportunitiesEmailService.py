@@ -6,6 +6,8 @@ from typing import List
 
 from postmarker.core import PostmarkClient
 
+from app.email.enums import SenderType
+from app.email.helpers import resolve_sender_email
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.services.Opportunity import OpportunityService
 
@@ -28,9 +30,9 @@ class MatchedOpportunitiesEmailService:
             return None
         return PostmarkClient(token)
 
-    def _get_from_email(self) -> str | None:
-        """From address from env."""
-        return os.getenv("FROM_EMAIL_ID", None)
+    def _get_from_email(self) -> str:
+        """From address: EMAIL_FROM_ALERTS or default alerts@speakerpitcher.ai."""
+        return resolve_sender_email(SenderType.ALERTS)
 
     LOGO_URL = "https://kind-cliff-0e3c6e210.6.azurestaticapps.net/assets/images/logo.png"
     BRAND_NAME = "HD AI"
@@ -80,8 +82,8 @@ class MatchedOpportunitiesEmailService:
     async def send_matched_opportunities_email(self, speaker_profile_id: str) -> bool:
         """
         Get email from speaker profile, fetch matched opportunities, send one email
-        with event_name and link per opportunity via Postmark. Uses FROM_EMAIL_ID and
-        POSTMARK-SERVER-API-TOKEN from env.
+        with event_name and link per opportunity via Postmark. Uses POSTMARK-SERVER-API-TOKEN
+        from env; From is EMAIL_FROM_ALERTS or alerts@speakerpitcher.ai.
         Returns True if email was sent, False otherwise (missing profile/email, no opportunities, or Postmark failure).
         """
         profile = await self.speaker_profile_model.get_profile(speaker_profile_id)
@@ -95,10 +97,10 @@ class MatchedOpportunitiesEmailService:
         )
         if status != "completed" or not opportunities:
             return False
-        from_email = self._get_from_email()
         client = self._get_postmark_client()
-        if not from_email or not client:
+        if not client:
             return False
+        from_email = self._get_from_email()
         full_name = (profile.get("full_name") or "").strip()
         html_body = self._build_html_body(opportunities, full_name=full_name)
         try:
