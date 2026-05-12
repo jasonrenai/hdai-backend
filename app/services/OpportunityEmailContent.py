@@ -9,6 +9,13 @@ from app.models.Opportunity import OpportunityModel
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.schemas.Opportunity import EmailAuthorityType
 
+# Shared for all authority prompts: avoid echoing empty or placeholder profile data.
+_SYSTEM_PROMPT_SKIP_PLACEHOLDER_DATA = (
+    "If any field in the provided data is missing, empty, or looks like generic placeholder text "
+    "(for example 'key takeaway 1' / 'key takeaway 2'), do not mention, list, or build on it—"
+    "use only clearly real, specific details and keep the email natural."
+)
+
 _SYSTEM_PROMPT_ASSOCIATION_MEMBERSHIP = (
     "You are an expert executive communications assistant. "
     "Generate a professional outreach email for a speaker applying to speak at an event opportunity. "
@@ -19,6 +26,7 @@ _SYSTEM_PROMPT_ASSOCIATION_MEMBERSHIP = (
     "Best suited tone for industry associations, professional societies, and member-driven organizations "
     "(e.g. PRSA, IABC-style contexts). "
     "The email should be concise, warm, and persuasive while sounding natural and human. "
+    f"{_SYSTEM_PROMPT_SKIP_PLACEHOLDER_DATA} "
     "Return ONLY strict JSON with keys: mail_title, mail_content."
 )
 
@@ -31,6 +39,7 @@ _SYSTEM_PROMPT_EXPERIENCE_EXPERTISE = (
     "without sounding boastful. "
     "Best suited tone for corporate conferences, leadership summits, and marketing or innovation events. "
     "The email should be concise, relevant, and persuasive while sounding natural and human. "
+    f"{_SYSTEM_PROMPT_SKIP_PLACEHOLDER_DATA} "
     "Return ONLY strict JSON with keys: mail_title, mail_content."
 )
 
@@ -42,6 +51,7 @@ _SYSTEM_PROMPT_CASE_STUDY_RESULTS = (
     "Emphasize evidence, clarity of results, and practical takeaways for performance-driven attendees. "
     "Best suited tone for tactical conferences, workshops, and audiences who care about execution and ROI. "
     "The email should be concise, specific, and persuasive while sounding natural and human. "
+    f"{_SYSTEM_PROMPT_SKIP_PLACEHOLDER_DATA} "
     "Return ONLY strict JSON with keys: mail_title, mail_content."
 )
 
