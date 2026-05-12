@@ -129,12 +129,16 @@ async def generate_opportunity_email_content(
     """
     Generate professional outreach email title/content for a speaker and opportunity,
     then save it to EmailContent collection.
+
+    Body field `type` (string slug) selects the authority angle: association_membership,
+    experience_expertise, or case_study_results — each uses a dedicated system prompt.
     """
     try:
         created = await service.generate_and_save_email_content(
             speaker_profile_id=body.speaker_profile_id,
             opportunity_id=body.opportunity_id,
             user_suggestion_prompt=body.user_suggestion_prompt,
+            authority_type=body.authority_type,
         )
         return Utils.create_response(created, True)
     except ValueError as ve:

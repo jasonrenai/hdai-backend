@@ -1,6 +1,14 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from typing import Any, List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+# JSON body field "type" for POST /opportunities/email-content/generate (string slugs only).
+EmailAuthorityType = Literal[
+    "association_membership",
+    "experience_expertise",
+    "case_study_results",
+]
 
 
 class OpportunitySourceSchema(BaseModel):
@@ -40,9 +48,23 @@ class UrlScrapeCreateSchema(BaseModel):
 
 
 class GenerateOpportunityEmailContentSchema(BaseModel):
+    """Body for POST /email-content/generate. Use JSON key \"type\" (string slug)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
     speaker_profile_id: str
     opportunity_id: str
     user_suggestion_prompt: Optional[str] = None
+    authority_type: EmailAuthorityType = Field(
+        "experience_expertise",
+        alias="type",
+        description=(
+            "Authority framing (string): association_membership = Association/Membership "
+            "('I belong to your world'); experience_expertise = Experience/Expertise "
+            "('I've done this at scale'); case_study_results = Case Study/Results "
+            "('Here's proof it works')."
+        ),
+    )
 
 
 class OpportunityActivityUpdateSchema(BaseModel):

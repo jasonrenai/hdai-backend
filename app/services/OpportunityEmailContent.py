@@ -7,6 +7,51 @@ from openai import OpenAI
 from app.models.EmailContent import EmailContentModel
 from app.models.Opportunity import OpportunityModel
 from app.models.SpeakerProfile import SpeakerProfileModel
+from app.schemas.Opportunity import EmailAuthorityType
+
+_SYSTEM_PROMPT_ASSOCIATION_MEMBERSHIP = (
+    "You are an expert executive communications assistant. "
+    "Generate a professional outreach email for a speaker applying to speak at an event opportunity. "
+    "Use the ASSOCIATION / MEMBERSHIP AUTHORITY angle: credibility comes from belonging to the same "
+    "professional world as the organizer and audience — shared industry, peer community, or member ecosystem. "
+    "Emphasize alignment with the association's mission, member value, and collective professional identity; "
+    "sound like an insider peer, not a distant vendor. "
+    "Best suited tone for industry associations, professional societies, and member-driven organizations "
+    "(e.g. PRSA, IABC-style contexts). "
+    "The email should be concise, warm, and persuasive while sounding natural and human. "
+    "Return ONLY strict JSON with keys: mail_title, mail_content."
+)
+
+_SYSTEM_PROMPT_EXPERIENCE_EXPERTISE = (
+    "You are an expert executive communications assistant. "
+    "Generate a professional outreach email for a speaker applying to speak at an event opportunity. "
+    "Use the EXPERIENCE / EXPERTISE AUTHORITY angle: credibility comes from having done this work at scale — "
+    "senior roles, high-stakes forums, repeat delivery, and depth of practice. "
+    "Emphasize track record, relevance to strategic and leadership audiences, and command of the topic "
+    "without sounding boastful. "
+    "Best suited tone for corporate conferences, leadership summits, and marketing or innovation events. "
+    "The email should be concise, relevant, and persuasive while sounding natural and human. "
+    "Return ONLY strict JSON with keys: mail_title, mail_content."
+)
+
+_SYSTEM_PROMPT_CASE_STUDY_RESULTS = (
+    "You are an expert executive communications assistant. "
+    "Generate a professional outreach email for a speaker applying to speak at an event opportunity. "
+    "Use the CASE STUDY / RESULTS AUTHORITY angle: credibility comes from proof — measurable outcomes, "
+    "before-and-after impact, concrete examples, and tactics the audience can apply. "
+    "Emphasize evidence, clarity of results, and practical takeaways for performance-driven attendees. "
+    "Best suited tone for tactical conferences, workshops, and audiences who care about execution and ROI. "
+    "The email should be concise, specific, and persuasive while sounding natural and human. "
+    "Return ONLY strict JSON with keys: mail_title, mail_content."
+)
+
+
+def _system_prompt_for_authority_type(authority_type: EmailAuthorityType) -> str:
+    if authority_type == "association_membership":
+        return _SYSTEM_PROMPT_ASSOCIATION_MEMBERSHIP
+    if authority_type == "experience_expertise":
+        return _SYSTEM_PROMPT_EXPERIENCE_EXPERTISE
+    return _SYSTEM_PROMPT_CASE_STUDY_RESULTS
 
 
 class OpportunityEmailContentService:
@@ -25,6 +70,7 @@ class OpportunityEmailContentService:
         speaker_profile_id: str,
         opportunity_id: str,
         user_suggestion_prompt: Optional[str] = None,
+        authority_type: EmailAuthorityType = "experience_expertise",
     ) -> dict:
         if not self.email_content_model.is_valid_object_id(speaker_profile_id):
             raise ValueError("Invalid speaker_profile_id")
@@ -39,7 +85,12 @@ class OpportunityEmailContentService:
         if not opportunity:
             raise ValueError("Opportunity not found")
 
-        generated = self._generate_email_from_llm(profile, opportunity, user_suggestion_prompt)
+        generated = self._generate_email_from_llm(
+            profile,
+            opportunity,
+            user_suggestion_prompt,
+            authority_type=authority_type,
+        )
         created = await self.email_content_model.create(
             speaker_profile_id=speaker_profile_id,
             opportunity_id=opportunity_id,
@@ -85,6 +136,7 @@ class OpportunityEmailContentService:
         profile: dict,
         opportunity: dict,
         user_suggestion_prompt: Optional[str],
+        authority_type: EmailAuthorityType = "experience_expertise",
     ) -> dict:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
@@ -117,13 +169,7 @@ class OpportunityEmailContentService:
             "link": opportunity.get("link"),
         }
 
-        system_prompt = (
-            "You are an expert executive communications assistant. "
-            "Generate a professional outreach email for a speaker applying to speak at an event opportunity. "
-            "The email should be concise, relevant, and persuasive while sounding natural and human. "
-            "Use speaker experience and talk content to align with the opportunity. "
-            "Return ONLY strict JSON with keys: mail_title, mail_content."
-        )
+        system_prompt = _system_prompt_for_authority_type(authority_type)
         if user_suggestion_prompt and user_suggestion_prompt.strip():
             system_prompt += f" Additional user instruction: {user_suggestion_prompt.strip()}"
 
