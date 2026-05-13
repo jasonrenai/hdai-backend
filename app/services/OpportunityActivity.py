@@ -21,6 +21,7 @@ class OpportunityActivityService:
             "speaker_id": doc.get("speaker_id", ""),
             "isWishlist": bool(doc.get("isWishlist", False)),
             "isApplied": bool(doc.get("isApplied", False)),
+            "isAccepted": bool(doc.get("isAccepted", False)),
             "isExpired": bool(doc.get("isExpired", False)),
         }
 
@@ -34,6 +35,7 @@ class OpportunityActivityService:
             "speaker_id": str(speaker_id),
             "isWishlist": False,
             "isApplied": False,
+            "isAccepted": False,
             "isExpired": False,
         }
 
@@ -43,6 +45,7 @@ class OpportunityActivityService:
         opportunity_id: str,
         is_wishlist: Optional[bool] = None,
         is_applied: Optional[bool] = None,
+        is_accepted: Optional[bool] = None,
         is_expired: Optional[bool] = None,
     ) -> dict:
         self._validate_ids(speaker_id, opportunity_id)
@@ -51,6 +54,8 @@ class OpportunityActivityService:
             set_fields["isWishlist"] = is_wishlist
         if is_applied is not None:
             set_fields["isApplied"] = is_applied
+        if is_accepted is not None:
+            set_fields["isAccepted"] = is_accepted
         if is_expired is not None:
             set_fields["isExpired"] = is_expired
         if not set_fields:
