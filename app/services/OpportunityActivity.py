@@ -59,6 +59,7 @@ class OpportunityActivityService:
         is_accepted: Optional[bool] = None,
         is_expired: Optional[bool] = None,
         outcomes: Optional[str] = None,
+        outcomes_provided: bool = False,
     ) -> dict:
         self._validate_ids(speaker_id, opportunity_id)
         set_fields: dict[str, Any] = {}
@@ -70,7 +71,7 @@ class OpportunityActivityService:
             set_fields["isAccepted"] = is_accepted
         if is_expired is not None:
             set_fields["isExpired"] = is_expired
-        if outcomes is not None:
+        if outcomes_provided:
             set_fields["outcomes"] = outcomes
         if not set_fields:
             return await self.get_activity(speaker_id, opportunity_id)

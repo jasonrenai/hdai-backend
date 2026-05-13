@@ -76,4 +76,4 @@ class OpportunityActivityUpdateSchema(BaseModel):
     isApplied: Optional[bool] = None
     isAccepted: Optional[bool] = None
     isExpired: Optional[bool] = None
-    outcomes: Optional[str] = None  # User-written outcome notes for this opportunity
+    outcomes: Optional[str] = None  # User notes; omit to leave unchanged, send null to clear

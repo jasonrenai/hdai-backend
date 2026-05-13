@@ -238,7 +238,7 @@ async def patch_opportunity_activity(
     service=Depends(get_opportunity_activity_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """Create or update opportunity activity flags (only fields sent are changed)."""
+    """Create or update opportunity activity flags (only fields sent are changed). Send outcomes: null to clear stored outcomes."""
     try:
         result = await service.update_activity(
             speaker_id=body.speaker_id,
@@ -248,6 +248,7 @@ async def patch_opportunity_activity(
             is_accepted=body.isAccepted,
             is_expired=body.isExpired,
             outcomes=body.outcomes,
+            outcomes_provided="outcomes" in body.model_fields_set,
         )
         return Utils.create_response(result, True)
     except ValueError as ve:
