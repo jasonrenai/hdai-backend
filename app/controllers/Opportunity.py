@@ -216,7 +216,7 @@ async def get_opportunity_activity(
     service=Depends(get_opportunity_activity_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """Get wishlist / applied / accepted / expired flags for this speaker and opportunity."""
+    """Get wishlist / applied / accepted / expired flags and optional user outcomes for this speaker and opportunity."""
     try:
         result = await service.get_activity(speaker_id, opportunityId)
         return Utils.create_response(result, True)
@@ -247,6 +247,7 @@ async def patch_opportunity_activity(
             is_applied=body.isApplied,
             is_accepted=body.isAccepted,
             is_expired=body.isExpired,
+            outcomes=body.outcomes,
         )
         return Utils.create_response(result, True)
     except ValueError as ve:

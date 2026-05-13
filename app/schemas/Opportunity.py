@@ -68,7 +68,7 @@ class GenerateOpportunityEmailContentSchema(BaseModel):
 
 
 class OpportunityActivityUpdateSchema(BaseModel):
-    """Partial update for opportunity activity (wishlist / applied / accepted / expired)."""
+    """Partial update for opportunity activity (wishlist / applied / accepted / expired / outcomes)."""
 
     opportunityId: str
     speaker_id: str
@@ -76,3 +76,4 @@ class OpportunityActivityUpdateSchema(BaseModel):
     isApplied: Optional[bool] = None
     isAccepted: Optional[bool] = None
     isExpired: Optional[bool] = None
+    outcomes: Optional[str] = None  # User-written outcome notes for this opportunity

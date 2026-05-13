@@ -8,7 +8,7 @@ from app.helpers.Database import MongoDB
 
 
 class OpportunityActivityModel:
-    """Per-speaker, per-opportunity flags: wishlist, applied, accepted, expired. Collection: opportunityActivity."""
+    """Per-speaker, per-opportunity flags: wishlist, applied, accepted, expired, outcomes. Collection: opportunityActivity."""
 
     def __init__(self, db_name=os.getenv("DB_NAME"), collection_name="opportunityActivity"):
         self.collection = MongoDB.get_database(db_name)[collection_name]

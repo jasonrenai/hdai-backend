@@ -16,6 +16,15 @@ class OpportunityActivityService:
     def _serialize_public(self, doc: Optional[dict]) -> dict:
         if not doc:
             return {}
+        raw_outcomes = doc.get("outcomes")
+        outcomes_val: Optional[str]
+        if raw_outcomes is None:
+            outcomes_val = None
+        elif isinstance(raw_outcomes, str):
+            outcomes_val = raw_outcomes
+        else:
+            outcomes_val = str(raw_outcomes)
+
         return {
             "opportunityId": doc.get("opportunityId", ""),
             "speaker_id": doc.get("speaker_id", ""),
@@ -23,6 +32,7 @@ class OpportunityActivityService:
             "isApplied": bool(doc.get("isApplied", False)),
             "isAccepted": bool(doc.get("isAccepted", False)),
             "isExpired": bool(doc.get("isExpired", False)),
+            "outcomes": outcomes_val,
         }
 
     async def get_activity(self, speaker_id: str, opportunity_id: str) -> dict:
@@ -37,6 +47,7 @@ class OpportunityActivityService:
             "isApplied": False,
             "isAccepted": False,
             "isExpired": False,
+            "outcomes": None,
         }
 
     async def update_activity(
@@ -47,6 +58,7 @@ class OpportunityActivityService:
         is_applied: Optional[bool] = None,
         is_accepted: Optional[bool] = None,
         is_expired: Optional[bool] = None,
+        outcomes: Optional[str] = None,
     ) -> dict:
         self._validate_ids(speaker_id, opportunity_id)
         set_fields: dict[str, Any] = {}
@@ -58,6 +70,8 @@ class OpportunityActivityService:
             set_fields["isAccepted"] = is_accepted
         if is_expired is not None:
             set_fields["isExpired"] = is_expired
+        if outcomes is not None:
+            set_fields["outcomes"] = outcomes
         if not set_fields:
             return await self.get_activity(speaker_id, opportunity_id)
 
