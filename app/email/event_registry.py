@@ -1,13 +1,24 @@
-from app.email.constants import empty_template_model
+from app.email.constants import WELCOME_EMAIL_CTA_URL, empty_template_model
 from app.email.enums import EmailEventType, SenderType
 from app.email.schemas import EmailEventConfig
+
+
+def _default_welcome_template_model() -> dict[str, str]:
+    m = empty_template_model(EmailEventType.WELCOME_EMAIL)
+    m["cta_url"] = WELCOME_EMAIL_CTA_URL
+    return m
+
+
+def _default_new_opportunity_template_model() -> dict:
+    """Postmark matched-opportunities template: user_name + opportunities[]."""
+    return {"user_name": "", "opportunities": []}
 
 
 EMAIL_EVENT_REGISTRY = {
     EmailEventType.WELCOME_EMAIL: EmailEventConfig(
         event_type=EmailEventType.WELCOME_EMAIL,
         sender=SenderType.HELLO,
-        default_template_model=empty_template_model(EmailEventType.WELCOME_EMAIL),
+        default_template_model=_default_welcome_template_model(),
     ),
     EmailEventType.PASSWORD_RESET: EmailEventConfig(
         event_type=EmailEventType.PASSWORD_RESET,
@@ -32,7 +43,7 @@ EMAIL_EVENT_REGISTRY = {
     EmailEventType.ALERT_NEW_OPPORTUNITY: EmailEventConfig(
         event_type=EmailEventType.ALERT_NEW_OPPORTUNITY,
         sender=SenderType.ALERTS,
-        default_template_model=empty_template_model(EmailEventType.ALERT_NEW_OPPORTUNITY),
+        default_template_model=_default_new_opportunity_template_model(),
     ),
     EmailEventType.ALERT_SUBMISSION_REMINDER: EmailEventConfig(
         event_type=EmailEventType.ALERT_SUBMISSION_REMINDER,

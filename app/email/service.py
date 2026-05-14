@@ -14,6 +14,9 @@ from app.email.helpers import (
 
 logger = logging.getLogger(__name__)
 
+# Postmark inactive template error (send by alias fallback).
+_POSTMARK_TEMPLATE_INACTIVE_MARKER = "[1101]"
+
 
 class EmailService:
     def __init__(
@@ -42,16 +45,18 @@ class EmailService:
         template_id: Optional[int] = None,
         template_alias: Optional[str] = None,
     ) -> bool:
-        if not (to_email or "").strip():
+        to = (to_email or "").strip()
+        if not to:
             raise ValueError("Recipient email is required.")
-        if not (from_email or "").strip():
+        frm = (from_email or "").strip()
+        if not frm:
             raise ValueError("Sender email is required.")
         if not template_id and not template_alias:
             raise ValueError("Either template_id or template_alias is required.")
 
         payload = {
-            "From": from_email.strip(),
-            "To": to_email.strip(),
+            "From": frm,
+            "To": to,
             "TemplateModel": normalize_template_model(template_model),
         }
         if template_id:
@@ -70,56 +75,60 @@ class EmailService:
         template_model: Optional[Dict[str, Any]] = None,
         sender: Optional[SenderType] = None,
     ) -> bool:
+        recipient = (to_email or "").strip()
+        if not recipient:
+            logger.warning("Skipped %s email: empty recipient", event_type.value)
+            return False
+
         config = self.event_registry.get(event_type)
         if not config:
             raise ValueError(f"Unsupported email event: {event_type}")
 
         from_email = resolve_sender_email(sender or config.sender)
-        model: Dict[str, Any] = dict(config.default_template_model)
-        if template_model:
-            model.update(template_model)
+        overlay = template_model or {}
+        model: Dict[str, Any] = {**config.default_template_model, **overlay}
 
         template_id, template_alias = resolve_postmark_template(event_type)
+        used_template_id: Optional[int] = template_id
 
-        def _log_sent(*, used_template_id: Optional[int], used_alias: str) -> None:
-            logger.info(
-                "Sent %s email to %s from %s (template_id=%s, template_alias=%s)",
-                event_type.value,
-                to_email.strip(),
-                from_email,
-                used_template_id,
-                used_alias,
+        def _send(*, tid: Optional[int], alias: str) -> None:
+            self.send_template_email(
+                to_email=recipient,
+                from_email=from_email,
+                template_id=tid,
+                template_alias=alias,
+                template_model=model,
             )
 
         try:
-            self.send_template_email(
-                to_email=to_email,
-                from_email=from_email,
-                template_id=template_id,
-                template_alias=template_alias,
-                template_model=model,
-            )
-            _log_sent(used_template_id=template_id, used_alias=template_alias)
-            return True
+            _send(tid=template_id, alias=template_alias)
         except Exception as exc:
-            if "[1101]" in str(exc):
-                try:
-                    self.send_template_email(
-                        to_email=to_email,
-                        from_email=from_email,
-                        template_id=None,
-                        template_alias=template_alias,
-                        template_model=model,
-                    )
-                    _log_sent(used_template_id=None, used_alias=template_alias)
-                    return True
-                except Exception as alias_exc:
-                    logger.warning(
-                        "Failed sending %s email to %s with alias fallback: %s",
-                        event_type.value,
-                        to_email,
-                        alias_exc,
-                    )
-                    return False
-            logger.warning("Failed sending %s email to %s: %s", event_type.value, to_email, exc)
-            return False
+            if _POSTMARK_TEMPLATE_INACTIVE_MARKER not in str(exc):
+                logger.warning(
+                    "Failed sending %s email to %s: %s",
+                    event_type.value,
+                    recipient,
+                    exc,
+                )
+                return False
+            try:
+                _send(tid=None, alias=template_alias)
+                used_template_id = None
+            except Exception as alias_exc:
+                logger.warning(
+                    "Failed sending %s email to %s with alias fallback: %s",
+                    event_type.value,
+                    recipient,
+                    alias_exc,
+                )
+                return False
+
+        logger.info(
+            "Sent %s email to %s from %s (template_id=%s, template_alias=%s)",
+            event_type.value,
+            recipient,
+            from_email,
+            used_template_id,
+            template_alias,
+        )
+        return True

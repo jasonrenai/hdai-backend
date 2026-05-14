@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 
 from app.email.enums import EmailEventType, SenderType
 
@@ -16,6 +17,15 @@ SENDER_EMAILS = {
     SenderType.ALERTS: "alerts@speakerpitcher.ai",
     SenderType.SUPPORT: "support@speakerpitcher.ai",
 }
+
+# Welcome template `cta_url` — "complete your setup" / sign-in (all welcome sends).
+WELCOME_EMAIL_CTA_URL = "https://kind-cliff-0e3c6e210.6.azurestaticapps.net/signin"
+
+# Frontend base for “review your pitch” links in pitch-ready alerts.
+PITCH_REVIEW_FRONTEND_BASE = os.getenv(
+    "PITCH_REVIEW_FRONTEND_BASE",
+    "https://kind-cliff-0e3c6e210.6.azurestaticapps.net",
+).rstrip("/")
 
 # Default Postmark template id and alias per event (override with POSTMARK_TEMPLATE_ID_* / POSTMARK_TEMPLATE_ALIAS_*).
 DEFAULT_POSTMARK_TEMPLATES: dict[EmailEventType, tuple[int, str]] = {
@@ -36,7 +46,7 @@ DEFAULT_POSTMARK_TEMPLATES: dict[EmailEventType, tuple[int, str]] = {
 TEMPLATE_VARIABLE_KEYS: dict[EmailEventType, tuple[str, ...]] = {
     EmailEventType.WELCOME_EMAIL: ("preheader", "user_name", "cta_url"),
     EmailEventType.ACCOUNT_CONFIRMATION: ("user_name", "verification_url"),
-    EmailEventType.PASSWORD_RESET: ("user_name", "reset_password_url"),
+    EmailEventType.PASSWORD_RESET: ("user_name", "otp"),
     EmailEventType.SYSTEM_NOTIFICATION: (
         "hero_image_url",
         "update_title",
@@ -58,12 +68,7 @@ TEMPLATE_VARIABLE_KEYS: dict[EmailEventType, tuple[str, ...]] = {
     ),
     EmailEventType.ALERT_NEW_OPPORTUNITY: (
         "user_name",
-        "event_name",
-        "event_date",
-        "event_location",
-        "deadline_date",
-        "fit_score",
-        "opportunity_url",
+        "opportunities",
     ),
     EmailEventType.ALERT_SUBMISSION_REMINDER: (
         "user_name",
@@ -130,7 +135,9 @@ def get_postmark_template_for_event(event_type: EmailEventType) -> tuple[int | N
     return template_id, template_alias
 
 
+@lru_cache(maxsize=16)
 def resolve_postmark_template(event_type: EmailEventType) -> tuple[int, str]:
+    """Resolve template id/alias; cached per process (env assumed stable after startup)."""
     env_id, env_alias = get_postmark_template_for_event(event_type)
     default_id, default_alias = DEFAULT_POSTMARK_TEMPLATES[event_type]
     template_id = env_id if env_id is not None else default_id

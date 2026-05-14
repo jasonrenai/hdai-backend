@@ -8,11 +8,12 @@ import os
 import re
 import secrets
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from openai import OpenAI
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
+from app.email.welcome_account import try_send_welcome_email_on_account_created
 from app.helpers.SpeakerCredentialsEmail import send_speaker_credentials_email
 from app.helpers.Utilities import Utils
 from app.schemas.User import UserType
@@ -730,11 +731,13 @@ class SpeakerProfileChatbotService:
         self,
         email: str,
         full_name: str,
-    ) -> Optional[str]:
+    ) -> Tuple[Optional[str], bool]:
         """
         If the chat request already has a logged-in user, attach that id.
         Else if a users row exists for this email, attach it.
         Else create user (hash password, insert, email credentials)—silent in chat.
+
+        Returns (user_id_or_none, created_new_user_row).
         """
         # if session_user_id:
         #     return session_user_id
@@ -742,14 +745,14 @@ class SpeakerProfileChatbotService:
             normalized_email = TypeAdapter(EmailStr).validate_python((email or "").strip())
         except ValidationError:
             logger.warning("Chatbot: invalid email for user row: %s", email)
-            return None
+            return None, False
         try:
             existing = await self.user_model.get_user({"email": normalized_email})
         except Exception as e:
             logger.warning("Chatbot: user lookup failed for %s: %s", normalized_email, e)
-            return None
+            return None, False
         if existing is not None and getattr(existing, "id", None) is not None:
-            return str(existing.id)
+            return str(existing.id), False
 
         plain_password = secrets.token_urlsafe(12)
         hashed_password = Utils.hash_password(plain_password)
@@ -767,9 +770,9 @@ class SpeakerProfileChatbotService:
             inserted_id = await self.user_model.create_user(user_data_dict)
         except Exception as e:
             logger.warning("Chatbot: create_user failed for %s: %s", normalized_email, e)
-            return None
+            return None, False
         send_speaker_credentials_email(normalized_email, fn, plain_password)
-        return str(inserted_id)
+        return str(inserted_id), True
 
     async def _load_catalog_name_lists(self) -> Dict[str, List[str]]:
         async def sorted_names(model) -> List[str]:
@@ -1038,11 +1041,17 @@ class SpeakerProfileChatbotService:
         profile_doc["professional_title"] = professional_title
         profile_doc["company"] = company
         profile_doc["phone_number"] = phone_number
-        resolved_user_id = await self._user_id_for_new_chatbot_profile(
+        resolved_user_id, created_new_account = await self._user_id_for_new_chatbot_profile(
             email,
-            profile_doc["full_name"]
+            profile_doc["full_name"],
         )
-        created = await self.profile_model.create_chatbot_profile(profile_doc, user_id)
+        link_user_id = resolved_user_id or user_id
+        created = await self.profile_model.create_chatbot_profile(profile_doc, link_user_id)
+        if created_new_account:
+            try_send_welcome_email_on_account_created(
+                user_display_name=profile_doc["full_name"],
+                account_email=email,
+            )
         # isCompleted is set only when LLM calls mark_profile_complete (after all questions done)
         create_saved = _saved_field_keys_from_doc(profile_doc)
         return {"action": "created", "profile": created, "saved_fields": create_saved, "warnings": warnings}

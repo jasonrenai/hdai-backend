@@ -92,9 +92,8 @@ async def send_matched_opportunities_email(
     jwt_payload: dict = Depends(jwt_validator),
 ):
     """
-    Send matched opportunities to the speaker's email (from speaker profile).
-    Email contains event_name and a link per opportunity; the link calls GET /api/v1/opportunities/{id}.
-    Uses Postmark (EMAIL_FROM_ALERTS or alerts@; POSTMARK-SERVER-API-TOKEN from env).
+    Send matched opportunities email (Postmark New_opportunity template: user_name + opportunities[]).
+    Recipient is the contact email on the speaker profile. Matching may trigger this when a run completes.
     """
     try:
         sent = await service.send_matched_opportunities_email(speaker_profile_id)

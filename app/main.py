@@ -1,26 +1,42 @@
-import os
+import asyncio
 import logging
-from dotenv import load_dotenv
-from fastapi import FastAPI, Depends
-from starlette.responses import RedirectResponse
+import os
+
+import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
+from starlette.responses import RedirectResponse
 
+from app.controllers import (
+    Auth,
+    Common,
+    Dashboard,
+    GoogleQueryScraper,
+    Opportunity,
+    Profile,
+    Scraper,
+    SpeakerOptions,
+    SpeakerProfileOnboarding,
+    Subscriptions,
+    UrlScraperRapidAPI,
+    Users,
+)
+from app.dependencies import cleanup_resources
 from app.helpers.Database import MongoDB
+from app.helpers.scheduler_async import register_app_event_loop
 from app.middleware.Cors import add_cors_middleware
 from app.middleware.GlobalErrorHandling import GlobalErrorHandlingMiddleware
-from app.controllers import Auth, Profile, Common
 from app.middleware.JWTVerification import jwt_validator
-from app.controllers import SpeakerProfileOnboarding, SpeakerOptions, Scraper, UrlScraperRapidAPI, GoogleQueryScraper, Opportunity, Dashboard, Users
-from app.controllers import Subscriptions
-from app.controllers import EmailTest
+from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
+from app.services.SubmissionReminderCronService import run_submission_reminder_cron_sync
 from app.services.Subscriptions import init_stripe_from_env
-from app.dependencies import get_url_scraper_rapidapi_service
-from fastapi.middleware.gzip import GZipMiddleware
 
 load_dotenv()
 
-_tedx_scheduler = BackgroundScheduler(
+_cron_scheduler = BackgroundScheduler(
     job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 300},
 )
 
@@ -29,15 +45,19 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-for name in ("app.helpers.RapidAPIScraper", "app.helpers.SpeakingOpportunityExtractor", "app.services.UrlScraperRapidAPI"):
+for name in (
+    "app.helpers.RapidAPIScraper",
+    "app.helpers.SpeakingOpportunityExtractor",
+    "app.services.UrlScraperRapidAPI",
+):
     logging.getLogger(name).setLevel(logging.INFO)
 
 app = FastAPI(
     title="HD AI",
     description="HD AI Backend API's",
-    version='1.0.0',
+    version="1.0.0",
     docs_url="/api-docs",
-    redoc_url="/api-redoc"
+    redoc_url="/api-redoc",
 )
 
 # Middleware
@@ -47,8 +67,8 @@ add_cors_middleware(app)
 
 # Routes
 app.include_router(Auth.router)
-app.include_router(Profile.router,dependencies=[Depends(jwt_validator)])
-app.include_router(Common.router,dependencies=[Depends(jwt_validator)])
+app.include_router(Profile.router, dependencies=[Depends(jwt_validator)])
+app.include_router(Common.router, dependencies=[Depends(jwt_validator)])
 app.include_router(SpeakerProfileOnboarding.router)
 app.include_router(SpeakerOptions.router)
 app.include_router(Scraper.router, dependencies=[Depends(jwt_validator)])
@@ -59,43 +79,70 @@ app.include_router(Dashboard.router, dependencies=[Depends(jwt_validator)])
 app.include_router(Users.router, dependencies=[Depends(jwt_validator)])
 app.include_router(Subscriptions.public_router)
 app.include_router(Subscriptions.auth_router, dependencies=[Depends(jwt_validator)])
-app.include_router(EmailTest.router, dependencies=[Depends(jwt_validator)])
 
 
 @app.on_event("startup")
 async def startup_event():
     connection_string = os.getenv("MONGODB_CONNECTION_STRING")
-    # Connect async MongoDB (Motor)
     MongoDB.connect(connection_string)
     print("MongoDB connected (async with Motor)")
     init_stripe_from_env()
 
-    # # TedX cron: every 1 min for testing (max_instances=1 skips if already running)
-    # service = get_url_scraper_rapidapi_service()
-    # _tedx_scheduler.add_job(
-    #     service.run_tedx_daily_cron,
-    #     IntervalTrigger(minutes=1),
-    #     id="tedx_daily_cron",
-    # )
-    # _tedx_scheduler.start()
-    # print("TedX cron scheduled (every 1 min, skips if job already running)")
-   
+    register_app_event_loop(asyncio.get_running_loop())
+
+    log = logging.getLogger(__name__)
+
+    # Both crons always run in this process whenever the server starts (no opt-out env flags).
+    _cron_scheduler.add_job(
+        run_submission_reminder_cron_sync,
+        IntervalTrigger(minutes=60),
+        id="submission_reminder_cron",
+    )
+    log.info("Submission reminder cron registered (every 1 min)")
+
+    # Default 24h; set DEADLINE_APPROACHING_CRON_INTERVAL_MINUTES to override (e.g. 1 for tests).
+    raw_min = (os.getenv("DEADLINE_APPROACHING_CRON_INTERVAL_MINUTES") or "").strip()
+    if raw_min:
+        try:
+            interval_min = max(1, int(raw_min))
+        except ValueError:
+            interval_min = 1
+        deadline_trigger = IntervalTrigger(minutes=interval_min)
+        deadline_interval_desc = f"{interval_min} min"
+    else:
+        try:
+            interval_h = max(1, int(os.getenv("DEADLINE_APPROACHING_CRON_INTERVAL_HOURS", "24")))
+        except ValueError:
+            interval_h = 24
+        deadline_trigger = IntervalTrigger(hours=interval_h)
+        deadline_interval_desc = f"{interval_h} h"
+
+    _cron_scheduler.add_job(
+        run_deadline_approaching_cron_sync,
+        deadline_trigger,
+        id="deadline_approaching_cron",
+    )
+    log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
+
+    _cron_scheduler.start()
+    log.info("Background scheduler started")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup resources on shutdown"""
-    # _tedx_scheduler.shutdown(wait=False)
-    from app.dependencies import cleanup_resources
-
+    if _cron_scheduler.running:
+        _cron_scheduler.shutdown(wait=False)
     cleanup_resources()
     if MongoDB.client:
         MongoDB.client.close()
     print("App shutdown complete - resources cleaned up")
 
+
 @app.get("/")
 def api_docs():
     return RedirectResponse(url="/api-docs")
 
+
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=3003, reload=True)

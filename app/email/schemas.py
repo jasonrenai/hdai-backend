@@ -1,3 +1,5 @@
+from typing import Any
+
 from dataclasses import dataclass
 
 from app.email.enums import EmailEventType, SenderType
@@ -9,4 +11,4 @@ class EmailEventConfig:
 
     event_type: EmailEventType
     sender: SenderType
-    default_template_model: dict[str, str]
+    default_template_model: dict[str, Any]

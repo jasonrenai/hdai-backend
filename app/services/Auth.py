@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from pydantic import EmailStr, TypeAdapter, ValidationError
@@ -9,10 +10,12 @@ from app.helpers.Utilities import Utils
 from datetime import datetime, timedelta
 from fastapi import HTTPException, UploadFile
 from app.helpers.AzureStorage import AzureBlobUploader
-import os
 import random 
 from bson import ObjectId
 from app.email.enums import EmailEventType
+from app.email.welcome_account import try_send_welcome_email_on_account_created
+
+
 class AuthService:
     
     def __init__(self):
@@ -103,6 +106,11 @@ class AuthService:
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
+
+            try_send_welcome_email_on_account_created(
+                user_display_name=user_data_dict.get("fullName", ""),
+                account_email=user_data_dict.get("email"),
+            )
             
             # Prepare response data
             user_data_dict["_id"] = str(user_id)
@@ -169,6 +177,10 @@ class AuthService:
 
         try:
             user_id = await self.user_model.create_user(user_data_dict)
+            try_send_welcome_email_on_account_created(
+                user_display_name=fn,
+                account_email=str(normalized_email),
+            )
             return {
                 "success": True,
                 "user_id": str(user_id),
@@ -193,19 +205,16 @@ class AuthService:
             otp = random.randint(100000, 999999)
             await self.otp_model.save_otp(email, otp)
 
-            # Build reset URL and dynamic content for the shared Postmark template
-            base_url = os.getenv("API_BASE_URL", "https://app.speakerpitcher.ai").rstrip("/")
-            reset_url = f"{base_url}/reset-password?email={email}&otp={otp}"
             user_name = (user.fullName if getattr(user, "fullName", None) else "").strip()
 
             from app.dependencies import get_email_service
 
             sent = get_email_service().send_event_email(
                 event_type=EmailEventType.PASSWORD_RESET,
-                to_email=email,
+                to_email=(email or "").strip(),
                 template_model={
                     "user_name": user_name or "there",
-                    "reset_password_url": reset_url,
+                    "otp": str(otp),
                 },
             )
             if not sent:
@@ -527,6 +536,11 @@ class AuthService:
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
+
+            try_send_welcome_email_on_account_created(
+                user_display_name=user_data_dict.get("fullName", ""),
+                account_email=user_data_dict.get("email"),
+            )
             
             # Prepare response data
             response_data = {
