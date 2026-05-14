@@ -4,6 +4,7 @@ from typing import Optional
 
 from openai import OpenAI
 
+from app.email.pitch_ready_notification import try_send_pitch_ready_email_after_content_created
 from app.models.EmailContent import EmailContentModel
 from app.models.Opportunity import OpportunityModel
 from app.models.SpeakerProfile import SpeakerProfileModel
@@ -109,6 +110,14 @@ class OpportunityEmailContentService:
             opportunity_id=opportunity_id,
             mail_title=generated["mail_title"],
             mail_content=generated["mail_content"],
+        )
+
+        try_send_pitch_ready_email_after_content_created(
+            profile=profile,
+            opportunity=opportunity,
+            opportunity_id=opportunity_id,
+            speaker_profile_id=speaker_profile_id,
+            email_content_id=str(created.get("_id") or ""),
         )
 
         return created

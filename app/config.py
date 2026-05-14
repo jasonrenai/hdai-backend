@@ -21,8 +21,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
-    # Email Settings
-    FROM_EMAIL_ID: str
+    # Email Settings (sender addresses: EMAIL_FROM_HELLO / EMAIL_FROM_ALERTS / EMAIL_FROM_SUPPORT in env)
     POSTMARK_SERVER_API_TOKEN: str
     API_BASE_URL: Optional[str] = None
 

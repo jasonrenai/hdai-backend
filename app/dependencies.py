@@ -48,6 +48,7 @@ _matched_opportunities_email_service = None
 _opportunity_email_content_service = None
 _opportunity_activity_service = None
 _subscription_service = None
+_email_service = None
 
 
 def get_auth_service():
@@ -213,6 +214,15 @@ def get_subscription_service():
     return _subscription_service
 
 
+def get_email_service():
+    """Get singleton EmailService instance."""
+    global _email_service
+    if _email_service is None:
+        from app.email.service import EmailService
+        _email_service = EmailService()
+    return _email_service
+
+
 def get_matched_opportunities_email_service():
     """Get singleton MatchedOpportunitiesEmailService instance."""
     global _matched_opportunities_email_service
@@ -257,7 +267,7 @@ def cleanup_resources():
     global _background_mapping_service, _image_caption_service, _booking_service, _airbnb_service
     global _image_analysis_helper, _temporary_competitor_service, _deployment_cues_service
     global _image_analysis_helper, _temporary_competitor_service, _cue_properties_service
-    global _onboarding_status_service, _queue_status_service, _analytics_cues_preset_service, _excel_schedule_service, _speaker_profile_model, _speaker_topics_model, _speaker_target_audience_model, _delivery_modes_model, _speaking_formats_model, _chat_session_model, _speaker_profile_chatbot_service, _scraper_service, _url_scraper_rapidapi_service, _google_query_scraper_service, _opportunity_service, _matched_opportunities_email_service, _opportunity_email_content_service, _opportunity_activity_service, _user_management_service, _subscription_service
+    global _onboarding_status_service, _queue_status_service, _analytics_cues_preset_service, _excel_schedule_service, _speaker_profile_model, _speaker_topics_model, _speaker_target_audience_model, _delivery_modes_model, _speaking_formats_model, _chat_session_model, _speaker_profile_chatbot_service, _scraper_service, _url_scraper_rapidapi_service, _google_query_scraper_service, _opportunity_service, _matched_opportunities_email_service, _opportunity_email_content_service, _opportunity_activity_service, _user_management_service, _subscription_service, _email_service
 
     # Reset all services
     _auth_service = None
@@ -303,3 +313,4 @@ def cleanup_resources():
     _opportunity_email_content_service = None
     _opportunity_activity_service = None
     _subscription_service = None
+    _email_service = None

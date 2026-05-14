@@ -10,7 +10,6 @@ from typing import Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from postmarker.core import PostmarkClient
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from app.config.speaker_profile_steps import get_first_step, get_next_step, get_step_by_name, is_last_step, step_to_response
@@ -35,6 +34,7 @@ from app.services.SpeakerProfileConversation import (
 )
 from app.dependencies import (
     get_auth_service,
+    get_email_service,
     get_user_model,
     get_speaker_profile_model,
     get_speaker_topics_model,
@@ -42,6 +42,7 @@ from app.dependencies import (
     get_chat_session_model,
     get_speaker_profile_chatbot_service,
 )
+from app.email.enums import EmailEventType
 from app.helpers.SpeakerCredentialsEmail import send_speaker_credentials_email
 from app.helpers.Utilities import Utils
 from app.schemas.ServerResponse import ServerResponse
@@ -775,22 +776,29 @@ async def verify_step(
         )
         if is_last:
             to_email = profile.get("email")
-            full_name = profile.get("full_name") or ""
-            from_email = os.getenv("FROM_EMAIL_ID")
-            postmark_token = os.getenv("POSTMARK-SERVER-API-TOKEN")
-            if to_email and from_email and postmark_token:
+            full_name = (profile.get("full_name") or "").strip()
+            app_base = os.getenv("API_BASE_URL", "https://app.speakerpitcher.ai").rstrip("/")
+            if to_email:
                 try:
-                    postmark = PostmarkClient(postmark_token)
-                    postmark.emails.send_with_template(
-                        From=from_email,
-                        To=to_email,
-                        TemplateId=43586835,
-                        TemplateModel={"name": full_name},
+                    get_email_service().send_event_email(
+                        event_type=EmailEventType.SYSTEM_NOTIFICATION,
+                        to_email=str(to_email).strip(),
+                        template_model={
+                            "hero_image_url": "",
+                            "update_title": "Profile complete",
+                            "user_name": full_name or "there",
+                            "intro_message": "Thank you for completing your speaker profile.",
+                            "feature_title": "What happens next",
+                            "feature_description": "We will match you with speaking opportunities that fit your expertise.",
+                            "body_message": "You can update your profile anytime from your dashboard.",
+                            "cta_url": app_base,
+                            "cta_text": "Open SpeakerPitcher",
+                        },
                     )
                 except Exception as e:
-                    logger.warning("Failed to send onboarding-complete email via Postmark: %s", e)
+                    logger.warning("Failed to send onboarding-complete email: %s", e)
             else:
-                logger.warning("Skipping onboarding-complete email: missing to_email, FROM_EMAIL_ID, or POSTMARK-SERVER-API-TOKEN")
+                logger.warning("Skipping onboarding-complete email: missing profile email")
         profile_id = body.profile_id
 
     return {

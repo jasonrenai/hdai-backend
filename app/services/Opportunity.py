@@ -1,9 +1,12 @@
 """Service for Opportunities CRUD operations and speaker-based matching via Pinecone."""
 
 import asyncio
+import logging
 import os
 from datetime import date, datetime
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 from app.models.Opportunity import OpportunityModel
 from app.models.SpeakerProfile import SpeakerProfileModel
@@ -184,6 +187,20 @@ class OpportunityService:
                 filtered.append(opp)
         opportunity_ids = [str(o.get("_id")) for o in filtered if o.get("_id") is not None]
         await _finish(opportunity_ids)
+        if filtered:
+            try:
+                from app.services.MatchedOpportunitiesEmailService import MatchedOpportunitiesEmailService
+
+                mailer = MatchedOpportunitiesEmailService(
+                    opportunity_service=self,
+                    speaker_profile_model=self.speaker_profile_model,
+                )
+                await mailer.send_matched_opportunities_email(
+                    speaker_profile_id,
+                    opportunity_documents=filtered,
+                )
+            except Exception as e:
+                logger.warning("Matched opportunities notification email failed: %s", e)
 
     async def get_matched_opportunities_by_speaker_id(
         self, speaker_profile_id: str

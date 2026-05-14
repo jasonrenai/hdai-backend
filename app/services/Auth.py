@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from pydantic import EmailStr, TypeAdapter, ValidationError
@@ -8,11 +9,13 @@ from app.models.Otp import OTPModel
 from app.helpers.Utilities import Utils
 from datetime import datetime, timedelta
 from fastapi import HTTPException, UploadFile
-from postmarker.core import PostmarkClient
 from app.helpers.AzureStorage import AzureBlobUploader
-import os
 import random 
 from bson import ObjectId
+from app.email.enums import EmailEventType
+from app.email.welcome_account import try_send_welcome_email_on_account_created
+
+
 class AuthService:
     
     def __init__(self):
@@ -103,6 +106,11 @@ class AuthService:
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
+
+            try_send_welcome_email_on_account_created(
+                user_display_name=user_data_dict.get("fullName", ""),
+                account_email=user_data_dict.get("email"),
+            )
             
             # Prepare response data
             user_data_dict["_id"] = str(user_id)
@@ -169,6 +177,10 @@ class AuthService:
 
         try:
             user_id = await self.user_model.create_user(user_data_dict)
+            try_send_welcome_email_on_account_created(
+                user_display_name=fn,
+                account_email=str(normalized_email),
+            )
             return {
                 "success": True,
                 "user_id": str(user_id),
@@ -193,23 +205,24 @@ class AuthService:
             otp = random.randint(100000, 999999)
             await self.otp_model.save_otp(email, otp)
 
-            # Get environment variables
-            from_email = os.getenv('FROM_EMAIL_ID')
-            postmark_token = os.getenv('POSTMARK-SERVER-API-TOKEN')
+            user_name = (user.fullName if getattr(user, "fullName", None) else "").strip()
 
-            if not from_email or not postmark_token:
-                raise ValueError("Missing required environment variables")
+            from app.dependencies import get_email_service
 
-            # Send email
-            postmark = PostmarkClient(postmark_token)
-            response = postmark.emails.send_with_template(
-                From=from_email,
-                To=email,
-                TemplateId=41238531,  
-                TemplateModel={
-                    "otp_code": otp
-                }
+            sent = get_email_service().send_event_email(
+                event_type=EmailEventType.PASSWORD_RESET,
+                to_email=(email or "").strip(),
+                template_model={
+                    "user_name": user_name or "there",
+                    "otp": str(otp),
+                },
             )
+            if not sent:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": "Failed to send reset email.",
+                }
 
             return {
                 "success": True,
@@ -523,6 +536,11 @@ class AuthService:
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
+
+            try_send_welcome_email_on_account_created(
+                user_display_name=user_data_dict.get("fullName", ""),
+                account_email=user_data_dict.get("email"),
+            )
             
             # Prepare response data
             response_data = {
