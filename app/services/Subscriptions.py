@@ -10,13 +10,16 @@ from app.config.stripe import ProductConfig, StripeSettings, get_products
 from app.helpers.SubscriptionStripeUtil import (
     as_dict,
     compute_subscription_fields,
+    entitlements_for_mongo,
     get_subscription_entitlements,
+    plan_features_from_entitlements,
+    plan_limits_from_entitlements,
+    plan_name_from_stripe_product_id,
     plan_product_id_from_subscription,
     process_mongo_subscriptions_for_api,
     select_primary_subscription,
     stripe_timestamp_to_iso,
     subscription_timestamp_iso_fields,
-    tier_from_stripe_product_id,
     user_doc_for_stripe,
     user_set_stripe_customer_id,
 )
@@ -242,6 +245,7 @@ async def create_stripe_payment_link(
                         )
                         ud = as_dict(updated)
                         ent = get_subscription_entitlements(product.name)
+                        mongo_ent = entitlements_for_mongo(ent)
                         computed = compute_subscription_fields(
                             ud,
                             bool(ud.get("cancel_at_period_end")),
@@ -254,8 +258,7 @@ async def create_stripe_payment_link(
                             {
                                 "subscription_type": product.name,
                                 "interval": product.interval or "monthly",
-                                "speakerProfiles": ent["speakerProfiles"],
-                                "opportunities": ent["opportunities"],
+                                **mongo_ent,
                                 "productId": product.id,
                                 "subscription_price": str(product.price),
                                 "stripe_customer_id": stripe_customer_id,
@@ -406,13 +409,11 @@ class SubscriptionsService:
 
         mongo_subs_raw = await self._subscriptions.find_all_by_user_id(user_id)
         if not mongo_subs_raw:
-            free_limits = get_subscription_entitlements("Free")
             return {
-                "planName": "Free",
-                "planLimits": {
-                    "speakerProfiles": free_limits["speakerProfiles"],
-                    "opportunities": free_limits["opportunities"],
-                },
+                "hasActiveSubscription": False,
+                "planName": None,
+                "planLimits": None,
+                "planFeatures": None,
                 "planUsage": plan_usage,
                 "stripeProductId": None,
             }
@@ -420,20 +421,18 @@ class SubscriptionsService:
         processed_subscriptions = process_mongo_subscriptions_for_api(mongo_subs_raw)
         mongo_sub = mongo_subs_raw[0]
         cid = user.get("stripe_customer_id")
+        inactive = {
+            "hasActiveSubscription": False,
+            "planName": None,
+            "planLimits": None,
+            "planFeatures": None,
+            "planUsage": plan_usage,
+            "stripeProductId": None,
+        }
         if not cid:
             ts = subscription_timestamp_iso_fields(None, mongo_sub)
             root = _subscription_at_root(processed_subscriptions, ts)
-            free_limits = get_subscription_entitlements("Free")
-            payload: dict[str, Any] = {
-                **root,
-                "planUsage": plan_usage,
-                "planLimits": {
-                    "speakerProfiles": free_limits["speakerProfiles"],
-                    "opportunities": free_limits["opportunities"],
-                },
-                "tier": None,
-                "stripeProductId": None,
-            }
+            payload: dict[str, Any] = {**inactive, **root}
             if not root:
                 payload.update(ts)
             return payload
@@ -441,17 +440,23 @@ class SubscriptionsService:
         subs = _list_subscriptions_for_customer(str(cid), status=None, limit=10)
         primary = select_primary_subscription(subs)
         prod_id = plan_product_id_from_subscription(primary) if primary else None
-        tier = tier_from_stripe_product_id(prod_id)
+        plan_name = plan_name_from_stripe_product_id(prod_id)
+        if not plan_name and mongo_sub.get("subscription_type"):
+            plan_name = str(mongo_sub["subscription_type"])
+        ent = get_subscription_entitlements(plan_name) if plan_name else None
+        is_active = bool(mongo_sub.get("active")) and plan_name is not None
+        if primary:
+            sd = as_dict(primary)
+            is_active = sd.get("status") in ("active", "trialing")
         ts = subscription_timestamp_iso_fields(primary, mongo_sub)
         root = _subscription_at_root(processed_subscriptions, ts)
         payload = {
             **root,
+            "hasActiveSubscription": is_active,
             "stripeProductId": prod_id,
-            "planName": tier[0] if tier else None,
-            "planLimits": {
-                "speakerProfiles": tier[1] if tier else None,
-                "opportunities": tier[2] if tier else None,
-            },
+            "planName": plan_name if is_active else None,
+            "planLimits": plan_limits_from_entitlements(ent) if is_active and ent else None,
+            "planFeatures": plan_features_from_entitlements(ent) if is_active and ent else None,
             "planUsage": plan_usage,
         }
         if not root:

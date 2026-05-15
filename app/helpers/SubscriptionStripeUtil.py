@@ -72,15 +72,80 @@ async def user_set_stripe_customer_id(users: UserModel, user_id: str, stripe_cus
     await users.update_user(user_id, {"stripe_customer_id": stripe_customer_id})
 
 
-def get_subscription_entitlements(product_name: str) -> dict[str, int]:
-    by_name: dict[str, tuple[int, int]] = {
-        "Starter": (1, 3),
-        "Pro": (5, 5),
-        "Premium": (15, 12),
-        "Free": (1, 0),
+def get_subscription_entitlements(product_name: str) -> dict[str, Any]:
+    """Plan limits and feature flags keyed by catalog name (Solo / Core / Pro)."""
+    by_name: dict[str, dict[str, Any]] = {
+        "Solo": {
+            "speakerProfiles": 1,
+            "speakerProfilesMin": 1,
+            "speakerProfilesMax": 1,
+            "opportunities": None,
+            "opportunityIdentification": True,
+            "packagedSpeaker": False,
+            "firesideChat": False,
+        },
+        "Core": {
+            "speakerProfiles": 4,
+            "speakerProfilesMin": 2,
+            "speakerProfilesMax": 4,
+            "opportunities": None,
+            "opportunityIdentification": True,
+            "packagedSpeaker": True,
+            "firesideChat": False,
+        },
+        "Pro": {
+            "speakerProfiles": 10,
+            "speakerProfilesMin": 5,
+            "speakerProfilesMax": 10,
+            "opportunities": None,
+            "opportunityIdentification": True,
+            "packagedSpeaker": True,
+            "firesideChat": True,
+        },
     }
-    sp, opp = by_name.get(product_name, (0, 0))
-    return {"speakerProfiles": sp, "opportunities": opp}
+    return dict(by_name.get(product_name, _inactive_entitlements()))
+
+
+def _inactive_entitlements() -> dict[str, Any]:
+    return {
+        "speakerProfiles": 0,
+        "speakerProfilesMin": 0,
+        "speakerProfilesMax": 0,
+        "opportunities": 0,
+        "opportunityIdentification": False,
+        "packagedSpeaker": False,
+        "firesideChat": False,
+    }
+
+
+def plan_limits_from_entitlements(ent: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "speakerProfiles": ent.get("speakerProfilesMax") or ent.get("speakerProfiles"),
+        "speakerProfilesMin": ent.get("speakerProfilesMin"),
+        "speakerProfilesMax": ent.get("speakerProfilesMax"),
+        "opportunities": ent.get("opportunities"),
+    }
+
+
+def plan_features_from_entitlements(ent: dict[str, Any]) -> dict[str, bool]:
+    return {
+        "opportunityIdentification": bool(ent.get("opportunityIdentification")),
+        "packagedSpeaker": bool(ent.get("packagedSpeaker")),
+        "firesideChat": bool(ent.get("firesideChat")),
+    }
+
+
+def entitlements_for_mongo(ent: dict[str, Any]) -> dict[str, Any]:
+    """Fields persisted on subscription documents."""
+    return {
+        "speakerProfiles": ent.get("speakerProfilesMax") or ent.get("speakerProfiles") or 0,
+        "speakerProfilesMin": ent.get("speakerProfilesMin"),
+        "speakerProfilesMax": ent.get("speakerProfilesMax"),
+        "opportunities": ent.get("opportunities"),
+        "opportunityIdentification": ent.get("opportunityIdentification"),
+        "packagedSpeaker": ent.get("packagedSpeaker"),
+        "firesideChat": ent.get("firesideChat"),
+    }
 
 
 def _as_optional_int(value: Any) -> Optional[int]:
@@ -125,20 +190,25 @@ def compute_subscription_fields(
     }
 
 
-STRIPE_PRODUCT_TIER: dict[str, tuple[str, int, int]] = {
-    "prod_UL502HhmkXfZZB": ("Premium", 15, 12),
-    "prod_UL4zVwBSOsvUyH": ("Pro", 5, 5),
-    "prod_UL4zkiJieRAZ20": ("Starter", 1, 3),
-    "prod_UL4yIM1YBucxc5": ("Premium", 15, 12),
-    "prod_UL4yDwRO0O9bIJ": ("Pro", 5, 5),
-    "prod_UL4xCeKLlV8bem": ("Starter", 1, 3),
+# Current monthly products plus legacy annual ids mapped for existing Stripe subscriptions.
+STRIPE_PRODUCT_PLAN_NAME: dict[str, str] = {
+    "prod_UL4xCeKLlV8bem": "Solo",
+    "prod_UL4yDwRO0O9bIJ": "Core",
+    "prod_UL4yIM1YBucxc5": "Pro",
+    "prod_UL4zkiJieRAZ20": "Solo",
+    "prod_UL4zVwBSOsvUyH": "Core",
+    "prod_UL502HhmkXfZZB": "Pro",
 }
 
 
-def tier_from_stripe_product_id(product_id: Optional[str]) -> Optional[tuple[str, int, int]]:
+def plan_name_from_stripe_product_id(product_id: Optional[str]) -> Optional[str]:
     if not product_id:
         return None
-    return STRIPE_PRODUCT_TIER.get(str(product_id))
+    return STRIPE_PRODUCT_PLAN_NAME.get(str(product_id))
+
+
+def tier_from_stripe_product_id(product_id: Optional[str]) -> Optional[str]:
+    return plan_name_from_stripe_product_id(product_id)
 
 
 def select_primary_subscription(subscriptions: List[Any]) -> Optional[Any]:

@@ -19,15 +19,12 @@ def _env(name: str, default: Optional[str] = None) -> Optional[str]:
     return v if v is not None and v != "" else default
 
 
-# Single catalog — swap these rows when you move Stripe to live-mode products.
+# Monthly catalog only — swap product ids when you move Stripe to live-mode products.
 # USD list price (dollars). price_id None → payment-link flow resolves Price from Stripe by product id.
 STRIPE_PRODUCTS: List[ProductConfig] = [
-    ProductConfig("prod_UL4xCeKLlV8bem", None, "Starter", 89.0, "monthly"),
-    ProductConfig("prod_UL4yDwRO0O9bIJ", None, "Pro", 499.0, "monthly"),
-    ProductConfig("prod_UL4yIM1YBucxc5", None, "Premium", 1250.0, "monthly"),
-    ProductConfig("prod_UL4zkiJieRAZ20", None, "Starter", 890.0, "annualy"),
-    ProductConfig("prod_UL4zVwBSOsvUyH", None, "Pro", 4990.0, "annualy"),
-    ProductConfig("prod_UL502HhmkXfZZB", None, "Premium", 12500.0, "annualy"),
+    ProductConfig("prod_UL4xCeKLlV8bem", None, "Solo", 89.0, "monthly"),
+    ProductConfig("prod_UL4yDwRO0O9bIJ", None, "Core", 495.0, "monthly"),
+    ProductConfig("prod_UL4yIM1YBucxc5", None, "Pro", 1750.0, "monthly"),
 ]
 
 STRIPE_PRODUCT_IDS: frozenset[str] = frozenset(p.id for p in STRIPE_PRODUCTS)

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class CreatePaymentLinkRequest(BaseModel):
     productId: str = Field(
         ...,
-        description="One of the six Stripe product ids (Starter/Pro/Premium monthly or yearly)",
+        description="Stripe product id for Solo, Core, or Pro (monthly)",
     )
     userflow: Literal["registration", "subscription"] = Field(...)
     cancelUrl: Optional[str] = None

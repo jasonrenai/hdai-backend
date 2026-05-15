@@ -12,6 +12,7 @@ from app.config.stripe import ProductConfig, StripeSettings, get_products
 from app.helpers.SubscriptionStripeUtil import (
     as_dict,
     compute_subscription_fields,
+    entitlements_for_mongo,
     get_subscription_entitlements,
     user_set_stripe_customer_id,
 )
@@ -128,7 +129,7 @@ async def handle_checkout_session_completed(session_obj: Any, ctx: WebhookContex
         logger.error("Product not found for priceId=%s productId=%s", price_id, product_id_from_line)
         return
 
-    ent = get_subscription_entitlements(product.name)
+    ent = entitlements_for_mongo(get_subscription_entitlements(product.name))
     stripe_customer_id = session.get("customer")
     if not stripe_customer_id:
         logger.error("Checkout session missing customer")
@@ -182,8 +183,7 @@ async def handle_checkout_session_completed(session_obj: Any, ctx: WebhookContex
         "purchase_date_ms": purchase_ms,
         "stripe_customer_id": str(stripe_customer_id),
         "stripe_subscription_id": stripe_subscription_id,
-        "speakerProfiles": ent["speakerProfiles"],
-        "opportunities": ent["opportunities"],
+        **ent,
         **billing_period_data,
         **computed,
     }
@@ -194,8 +194,7 @@ async def handle_checkout_session_completed(session_obj: Any, ctx: WebhookContex
                 "user_id": user_id,
                 "interval": product.interval or "monthly",
                 "subscription_type": product.name,
-                "speakerProfiles": ent["speakerProfiles"],
-                "opportunities": ent["opportunities"],
+                **ent,
             }
         )
         await ctx.subscriptions.update_by_user_id(user_id, common_set)
@@ -315,13 +314,12 @@ async def handle_subscription_updated(subscription_obj: Any, ctx: WebhookContext
     )
 
     if product:
-        ent = get_subscription_entitlements(product.name)
+        ent = entitlements_for_mongo(get_subscription_entitlements(product.name))
         update_data["subscription_type"] = product.name
         update_data["productId"] = product.id
         update_data["subscription_price"] = str(product.price)
         update_data["interval"] = product.interval or "monthly"
-        update_data["speakerProfiles"] = ent["speakerProfiles"]
-        update_data["opportunities"] = ent["opportunities"]
+        update_data.update(ent)
 
     if product_changed and status == "active":
         update_data["cancel_at"] = None
@@ -359,13 +357,13 @@ async def handle_subscription_updated(subscription_obj: Any, ctx: WebhookContext
     update_data["is_cancelled"] = computed.get("is_cancelled")
 
     if is_cancelled:
+        inactive = entitlements_for_mongo(get_subscription_entitlements(""))
         update_data["active"] = False
         update_data["success"] = False
-        update_data["subscription_type"] = "Free"
-        update_data["speakerProfiles"] = 1
-        update_data["opportunities"] = 0
+        update_data["subscription_type"] = None
+        update_data.update(inactive)
         update_data["storage"] = None
-        update_data["interval"] = "monthly"
+        update_data["interval"] = None
         update_data["productId"] = None
         update_data["subscription_price"] = None
         update_data["current_period_start"] = None
@@ -375,7 +373,7 @@ async def handle_subscription_updated(subscription_obj: Any, ctx: WebhookContext
         update_data["cancel_at_period_end"] = False
         update_data["cancel_at"] = None
         update_data["is_scheduled_to_cancel"] = False
-        logger.info("Subscription cancelled for customer %s - moved to Free tier", stripe_customer_id)
+        logger.info("Subscription cancelled for customer %s - no active plan", stripe_customer_id)
     elif is_scheduled_to_cancel:
         update_data["active"] = True
         update_data["success"] = True
