@@ -14,6 +14,21 @@ def _default_new_opportunity_template_model() -> dict:
     return {"user_name": "", "opportunities": []}
 
 
+def _default_billing_template_model() -> dict:
+    """Postmark Billing_questions — nested invoice_pdf_url for {{invoice_pdf_url.invoice_pdf_url}}."""
+    return {
+        "billing_heading": "",
+        "user_name": "",
+        "billing_message": "",
+        "billing_title": "",
+        "invoice_id": "",
+        "plan_name": "",
+        "billing_amount": "",
+        "billing_status": "",
+        "invoice_pdf_url": {"invoice_pdf_url": ""},
+    }
+
+
 EMAIL_EVENT_REGISTRY = {
     EmailEventType.WELCOME_EMAIL: EmailEventConfig(
         event_type=EmailEventType.WELCOME_EMAIL,
@@ -68,6 +83,6 @@ EMAIL_EVENT_REGISTRY = {
     EmailEventType.SUPPORT_BILLING_QUESTION: EmailEventConfig(
         event_type=EmailEventType.SUPPORT_BILLING_QUESTION,
         sender=SenderType.SUPPORT,
-        default_template_model=empty_template_model(EmailEventType.SUPPORT_BILLING_QUESTION),
+        default_template_model=_default_billing_template_model(),
     ),
 }

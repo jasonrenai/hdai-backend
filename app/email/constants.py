@@ -103,16 +103,17 @@ TEMPLATE_VARIABLE_KEYS: dict[EmailEventType, tuple[str, ...]] = {
         "support_ticket_url",
         "response_time_estimate",
     ),
+    # Postmark Billing_questions — invoice_pdf_url is nested: {{invoice_pdf_url.invoice_pdf_url}}
     EmailEventType.SUPPORT_BILLING_QUESTION: (
         "billing_heading",
         "user_name",
+        "billing_message",
         "billing_title",
         "invoice_id",
         "plan_name",
         "billing_amount",
         "billing_status",
-        "billing_message",
-        "billing_portal_url",
+        "invoice_pdf_url",
     ),
 }
 

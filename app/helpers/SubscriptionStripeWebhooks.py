@@ -7,13 +7,20 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple
 
 import stripe
+from bson import ObjectId
 
 from app.config.stripe import ProductConfig, StripeSettings, get_products
+from app.email.billing_notification import (
+    BILLING_EMAIL_LOG_PREFIX,
+    build_billing_template_model_from_stripe_invoice,
+    send_billing_invoice_email,
+)
 from app.helpers.SubscriptionStripeUtil import (
     as_dict,
     compute_subscription_fields,
     entitlements_for_mongo,
     get_subscription_entitlements,
+    plan_name_from_stripe_product_id,
     user_set_stripe_customer_id,
 )
 from app.models.Subscriptions import SubscriptionsModel
@@ -58,6 +65,275 @@ def _resolve_user_id_from_checkout_session(session: dict[str, Any], ctx: Webhook
             logger.error("Error retrieving customer: %s", e)
 
     return None
+
+
+async def _load_user_by_id(ctx: WebhookContext, user_id: str) -> Any:
+    uid = str(user_id).strip()
+    if not uid or not ObjectId.is_valid(uid):
+        return None
+    return await ctx.users.get_user({"_id": ObjectId(uid)})
+
+
+async def _link_user_stripe_customer(ctx: WebhookContext, user: Any, stripe_customer_id: str) -> None:
+    """Persist stripe_customer_id on the user when we resolve them another way."""
+    cid = str(stripe_customer_id).strip()
+    if not cid or not user:
+        return
+    user_id = str(getattr(user, "id", None) or getattr(user, "_id", None) or "")
+    if not user_id:
+        return
+    existing = getattr(user, "stripe_customer_id", None)
+    if existing and str(existing).strip() == cid:
+        return
+    try:
+        await user_set_stripe_customer_id(ctx.users, user_id, cid)
+        logger.info(
+            "%s linked stripe_customer_id=%s to user_id=%s",
+            BILLING_EMAIL_LOG_PREFIX,
+            cid,
+            user_id,
+        )
+    except Exception as e:
+        logger.warning(
+            "%s could not link stripe_customer_id=%s to user_id=%s: %s",
+            BILLING_EMAIL_LOG_PREFIX,
+            cid,
+            user_id,
+            e,
+        )
+
+
+async def _resolve_user_for_invoice_paid(
+    ctx: WebhookContext,
+    *,
+    stripe_customer_id: str,
+    inv: dict[str, Any],
+) -> Any:
+    """
+    Resolve app user for billing email. invoice.paid often fires before
+    checkout.session.completed sets stripe_customer_id on the user document.
+    """
+    cid = str(stripe_customer_id).strip()
+    if not cid:
+        return None
+
+    user = await ctx.users.get_user({"stripe_customer_id": cid})
+    if user:
+        logger.info("%s resolved user by users.stripe_customer_id", BILLING_EMAIL_LOG_PREFIX)
+        return user
+
+    db_sub = await ctx.subscriptions.find_by_stripe_customer_id(cid)
+    if db_sub and db_sub.get("user_id"):
+        user = await _load_user_by_id(ctx, str(db_sub["user_id"]))
+        if user:
+            logger.info("%s resolved user by subscriptions.user_id", BILLING_EMAIL_LOG_PREFIX)
+            await _link_user_stripe_customer(ctx, user, cid)
+            return user
+
+    inv_meta_uid = (inv.get("metadata") or {}).get("userId")
+    if inv_meta_uid:
+        user = await _load_user_by_id(ctx, str(inv_meta_uid))
+        if user:
+            logger.info("%s resolved user by invoice.metadata.userId", BILLING_EMAIL_LOG_PREFIX)
+            await _link_user_stripe_customer(ctx, user, cid)
+            return user
+
+    sub_id = inv.get("subscription")
+    if sub_id:
+        try:
+            sub = as_dict(stripe.Subscription.retrieve(str(sub_id)))
+            sub_uid = (sub.get("metadata") or {}).get("userId")
+            if sub_uid:
+                user = await _load_user_by_id(ctx, str(sub_uid))
+                if user:
+                    logger.info(
+                        "%s resolved user by subscription.metadata.userId",
+                        BILLING_EMAIL_LOG_PREFIX,
+                    )
+                    await _link_user_stripe_customer(ctx, user, cid)
+                    return user
+        except stripe.error.StripeError as e:
+            logger.warning(
+                "%s could not load subscription %s for user lookup: %s",
+                BILLING_EMAIL_LOG_PREFIX,
+                sub_id,
+                e,
+            )
+
+    invoice_email = (inv.get("customer_email") or "").strip()
+    if invoice_email:
+        user = await ctx.users.get_user({"email": invoice_email})
+        if user:
+            logger.info(
+                "%s resolved user by invoice.customer_email=%s",
+                BILLING_EMAIL_LOG_PREFIX,
+                invoice_email,
+            )
+            await _link_user_stripe_customer(ctx, user, cid)
+            return user
+
+    try:
+        cust = as_dict(stripe.Customer.retrieve(cid))
+        cust_uid = (cust.get("metadata") or {}).get("userId")
+        if cust_uid:
+            user = await _load_user_by_id(ctx, str(cust_uid))
+            if user:
+                logger.info(
+                    "%s resolved user by customer.metadata.userId",
+                    BILLING_EMAIL_LOG_PREFIX,
+                )
+                await _link_user_stripe_customer(ctx, user, cid)
+                return user
+        cust_email = (cust.get("email") or "").strip()
+        if cust_email:
+            user = await ctx.users.get_user({"email": cust_email})
+            if user:
+                logger.info(
+                    "%s resolved user by customer.email=%s",
+                    BILLING_EMAIL_LOG_PREFIX,
+                    cust_email,
+                )
+                await _link_user_stripe_customer(ctx, user, cid)
+                return user
+    except stripe.error.StripeError as e:
+        logger.error(
+            "%s Stripe Customer.retrieve failed for %s: %s",
+            BILLING_EMAIL_LOG_PREFIX,
+            cid,
+            e,
+        )
+
+    return None
+
+
+def _plan_name_from_invoice(
+    inv: dict[str, Any],
+    *,
+    db_sub: Optional[dict[str, Any]],
+    products: List[ProductConfig],
+) -> str:
+    if db_sub and db_sub.get("subscription_type"):
+        return str(db_sub["subscription_type"])
+    lines = inv.get("lines") or {}
+    data = lines.get("data") or []
+    if not data:
+        return ""
+    row = as_dict(data[0])
+    price = as_dict(row.get("price") or {})
+    product_ref = price.get("product")
+    product_id = product_ref.get("id") if isinstance(product_ref, dict) else product_ref
+    if product_id:
+        name = plan_name_from_stripe_product_id(str(product_id))
+        if name:
+            return name
+        for p in products:
+            if p.id == str(product_id):
+                return p.name
+    return ""
+
+
+async def handle_invoice_paid(invoice_obj: Any, ctx: WebhookContext) -> None:
+    """Send Billing_questions email when Stripe marks an invoice paid."""
+    inv = as_dict(invoice_obj)
+    inv_id = inv.get("id")
+    status = str(inv.get("status") or "")
+    amount_paid = inv.get("amount_paid")
+    currency = inv.get("currency")
+
+    logger.info(
+        "%s webhook invoice.paid received | invoice_id=%s status=%s customer=%s amount_paid=%s %s",
+        BILLING_EMAIL_LOG_PREFIX,
+        inv_id,
+        status,
+        inv.get("customer"),
+        amount_paid,
+        currency,
+    )
+
+    if status != "paid":
+        logger.info(
+            "%s SKIP — invoice not paid | invoice_id=%s status=%s",
+            BILLING_EMAIL_LOG_PREFIX,
+            inv_id,
+            status,
+        )
+        return
+
+    customer_id = inv.get("customer")
+    if not customer_id:
+        logger.warning(
+            "%s SKIP — missing customer | invoice_id=%s",
+            BILLING_EMAIL_LOG_PREFIX,
+            inv_id,
+        )
+        return
+
+    if inv_id and not inv.get("invoice_pdf"):
+        logger.info(
+            "%s fetching full invoice from Stripe for PDF url | invoice_id=%s",
+            BILLING_EMAIL_LOG_PREFIX,
+            inv_id,
+        )
+        try:
+            inv = as_dict(stripe.Invoice.retrieve(str(inv_id)))
+            logger.info(
+                "%s Stripe invoice retrieved | invoice_id=%s has_pdf=%s",
+                BILLING_EMAIL_LOG_PREFIX,
+                inv_id,
+                bool(inv.get("invoice_pdf")),
+            )
+        except stripe.error.StripeError as e:
+            logger.warning(
+                "%s WARN — could not retrieve invoice for PDF | invoice_id=%s error=%s",
+                BILLING_EMAIL_LOG_PREFIX,
+                inv_id,
+                e,
+            )
+
+    user = await _resolve_user_for_invoice_paid(
+        ctx, stripe_customer_id=str(customer_id), inv=inv
+    )
+    if not user:
+        logger.warning(
+            "%s SKIP — no user for Stripe customer (tried mongo, subscription, "
+            "invoice/subscription metadata, emails) | customer_id=%s invoice_id=%s",
+            BILLING_EMAIL_LOG_PREFIX,
+            customer_id,
+            inv_id,
+        )
+        return
+
+    user_id = str(getattr(user, "id", None) or getattr(user, "_id", None) or "")
+    to_email = str(user.email).strip()
+    if not to_email:
+        logger.warning(
+            "%s SKIP — user has no email | user_id=%s invoice_id=%s",
+            BILLING_EMAIL_LOG_PREFIX,
+            user_id,
+            inv_id,
+        )
+        return
+
+    db_sub = await ctx.subscriptions.find_by_stripe_customer_id(str(customer_id))
+    plan_name = _plan_name_from_invoice(inv, db_sub=db_sub, products=ctx.products)
+    user_name = (getattr(user, "fullName", None) or "").strip() or to_email
+
+    logger.info(
+        "%s preparing email | invoice_id=%s user_id=%s to=%s plan_name=%s user_name=%s",
+        BILLING_EMAIL_LOG_PREFIX,
+        inv_id,
+        user_id,
+        to_email,
+        plan_name,
+        user_name,
+    )
+
+    model = build_billing_template_model_from_stripe_invoice(
+        user_name=user_name,
+        invoice=inv,
+        plan_name=plan_name,
+    )
+    send_billing_invoice_email(to_email=to_email, template_model=model)
 
 
 def _find_product_for_line_item(
@@ -161,6 +437,37 @@ async def handle_checkout_session_completed(session_obj: Any, ctx: WebhookContex
         await user_set_stripe_customer_id(ctx.users, user_id, str(stripe_customer_id))
     except Exception as e:
         logger.error("Failed to update user %s with Stripe customer ID: %s", user_id, e)
+
+    try:
+        stripe.Customer.modify(
+            str(stripe_customer_id),
+            metadata={
+                "userId": str(user_id),
+                "productId": product.id,
+                "productName": product.name,
+            },
+        )
+    except stripe.error.StripeError as e:
+        logger.warning(
+            "Could not set Customer metadata for %s: %s", stripe_customer_id, e
+        )
+
+    if stripe_subscription_id:
+        try:
+            stripe.Subscription.modify(
+                str(stripe_subscription_id),
+                metadata={
+                    "userId": str(user_id),
+                    "productId": product.id,
+                    "productName": product.name,
+                },
+            )
+        except stripe.error.StripeError as e:
+            logger.warning(
+                "Could not set Subscription metadata for %s: %s",
+                stripe_subscription_id,
+                e,
+            )
 
     existing = await ctx.subscriptions.find_by_user_id(user_id)
 
@@ -432,6 +739,9 @@ async def handle_raw_webhook(
             await handle_async_payment_failed(data_object, ctx)
         elif etype == "customer.subscription.updated":
             await handle_subscription_updated(data_object, ctx)
+        elif etype == "invoice.paid":
+            logger.info("%s dispatching handler for invoice.paid", BILLING_EMAIL_LOG_PREFIX)
+            await handle_invoice_paid(data_object, ctx)
         elif etype == "payment_link.created":
             obj = data_object if isinstance(data_object, dict) else dict(data_object)
             logger.info("Payment link created: %s", obj.get("id"))
