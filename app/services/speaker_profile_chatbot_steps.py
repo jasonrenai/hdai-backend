@@ -184,7 +184,26 @@ def normalize_preferred_speaking_times(raw: Any, filter_enum_fn) -> List[str]:
 
 
 def detect_skip_intent(message: str) -> bool:
-    return bool(_SKIP_RE.search(message or ""))
+    """True when the user declines an optional/skippable onboarding question."""
+    text = (message or "").strip()
+    if not text:
+        return False
+    if _SKIP_RE.search(text):
+        return True
+    lowered = text.lower().rstrip(".!")
+    if lowered in ("no", "nope", "nah", "n/a", "na"):
+        return True
+    if re.match(
+        r"^(no\b|nope|nah|not really|i\s+don'?t|i\s+do\s+not|don'?t\s+have|do\s+not\s+have|haven'?t|have\s+none)\b",
+        lowered,
+    ):
+        return True
+    if re.search(
+        r"\b(don'?t\s+have\s+any|do\s+not\s+have\s+any|no\s+past\s+speaking|no\s+examples?|i\s+dont\s+have)\b",
+        lowered,
+    ):
+        return True
+    return False
 
 
 def detect_continue_intent(message: str) -> bool:

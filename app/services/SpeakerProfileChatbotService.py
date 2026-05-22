@@ -1039,11 +1039,55 @@ class SpeakerProfileChatbotService:
         return all(bool(profile.get(f)) for f in MANDATORY_FIELDS)
 
     async def _set_profile_completed(self, speaker_profile_id: str) -> Optional[dict]:
-        """Set isCompleted=True on the profile. Called only when mark_profile_complete tool is invoked."""
+        """Set isCompleted=True on the profile."""
         return await self.profile_model.update_profile(
             speaker_profile_id,
             {"isCompleted": True},
         )
+
+    async def _sync_user_onboarded(self, jwt_user: Optional[Dict[str, Any]]) -> None:
+        uid = _jwt_user_id(jwt_user)
+        if not uid:
+            return
+        try:
+            await self.user_model.update_user(
+                uid,
+                {"isOnboarded": True, "updatedOn": datetime.utcnow()},
+            )
+            if jwt_user is not None:
+                jwt_user["isOnboarded"] = True
+        except Exception as e:
+            logger.warning("Chatbot: failed to set isOnboarded for user %s: %s", uid, e)
+
+    async def _try_auto_mark_profile_complete(
+        self,
+        speaker_profile_id: str,
+        profile: dict,
+        steps_done: List[str],
+        *,
+        jwt_user: Optional[Dict[str, Any]],
+    ) -> Tuple[bool, dict, List[str]]:
+        """
+        Server-side completion when the user finished the testimonial step.
+        Does not rely on the LLM calling mark_profile_complete (it often sends the completion text only).
+        """
+        if not may_mark_profile_complete(
+            profile,
+            steps_done,
+            has_profile=True,
+            user_turn_answered_last_question=True,
+        ):
+            return False, profile, steps_done
+        if not self._all_mandatory_filled(profile):
+            return False, profile, steps_done
+        updated = await self._set_profile_completed(speaker_profile_id)
+        if updated:
+            profile = updated
+            profile["_id"] = str(profile.get("_id") or speaker_profile_id)
+        else:
+            profile["isCompleted"] = True
+        await self._sync_user_onboarded(jwt_user)
+        return True, profile, steps_done
 
     async def _execute_upsert(
         self,
@@ -1315,23 +1359,14 @@ class SpeakerProfileChatbotService:
                         user_turn_answered_last_question=user_turn_answered_last_question,
                     )
                     if spid and allow_complete and self._all_mandatory_filled(profile or {}):
-                        await self._set_profile_completed(spid)
+                        updated = await self._set_profile_completed(spid)
                         profile_marked_complete = True
-                        if profile:
+                        if updated:
+                            profile = updated
+                            profile["_id"] = str(profile.get("_id") or spid)
+                        elif profile:
                             profile["isCompleted"] = True
-                        uid = _jwt_user_id(jwt_user)
-                        if uid:
-                            try:
-                                await self.user_model.update_user(
-                                    uid,
-                                    {"isOnboarded": True, "updatedOn": datetime.utcnow()},
-                                )
-                                if jwt_user is not None:
-                                    jwt_user["isOnboarded"] = True
-                            except Exception as e:
-                                logger.warning(
-                                    "Chatbot: failed to set isOnboarded for user %s: %s", uid, e
-                                )
+                        await self._sync_user_onboarded(jwt_user)
                     chat_messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
@@ -1399,6 +1434,23 @@ class SpeakerProfileChatbotService:
                     "tool_call_id": tc.id,
                     "content": json.dumps(tr_payload),
                 })
+
+        # Testimonial / optional skips: ensure step is recorded, then complete in DB without relying on LLM tool.
+        if (
+            not profile_marked_complete
+            and user_turn_answered_last_question
+            and has_profile
+            and speaker_profile_id
+            and profile
+        ):
+            if expected_step in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
+                steps_done = merge_steps_done(steps_done, [expected_step])
+            profile_marked_complete, profile, steps_done = await self._try_auto_mark_profile_complete(
+                str(speaker_profile_id),
+                profile,
+                steps_done,
+                jwt_user=jwt_user,
+            )
 
         action = None
         if tool_results:
@@ -1496,6 +1548,24 @@ class SpeakerProfileChatbotService:
             assistant_content = _PROFILE_COMPLETION_MESSAGE
         elif profile_marked_complete:
             profile_marked_complete = False
+        elif (
+            user_turn_answered_last_question
+            and assistant_content
+            and "successfully completed" in assistant_content.lower()
+            and has_profile
+            and speaker_profile_id
+            and profile
+        ):
+            if expected_step in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
+                steps_done = merge_steps_done(steps_done, [expected_step])
+            profile_marked_complete, profile, steps_done = await self._try_auto_mark_profile_complete(
+                str(speaker_profile_id),
+                profile,
+                steps_done,
+                jwt_user=jwt_user,
+            )
+            if profile_marked_complete:
+                assistant_content = _PROFILE_COMPLETION_MESSAGE
 
         # Catalog questions: server-built list only — one DB option per line (<br>), no inline LLM bullets
         if has_profile and assistant_content and not profile_marked_complete:
