@@ -21,6 +21,7 @@ from app.helpers.SubscriptionStripeUtil import (
     entitlements_for_mongo,
     get_subscription_entitlements,
     plan_name_from_stripe_product_id,
+    sync_user_subscription_plan,
     user_set_stripe_customer_id,
 )
 from app.models.Subscriptions import SubscriptionsModel
@@ -316,6 +317,16 @@ async def handle_invoice_paid(invoice_obj: Any, ctx: WebhookContext) -> None:
 
     db_sub = await ctx.subscriptions.find_by_stripe_customer_id(str(customer_id))
     plan_name = _plan_name_from_invoice(inv, db_sub=db_sub, products=ctx.products)
+    if user_id and plan_name:
+        try:
+            await sync_user_subscription_plan(ctx.users, user_id, plan_name)
+        except Exception as e:
+            logger.warning(
+                "%s could not sync user subscription for %s: %s",
+                BILLING_EMAIL_LOG_PREFIX,
+                user_id,
+                e,
+            )
     user_name = (getattr(user, "fullName", None) or "").strip() or to_email
 
     logger.info(
@@ -439,6 +450,11 @@ async def handle_checkout_session_completed(session_obj: Any, ctx: WebhookContex
         logger.error("Failed to update user %s with Stripe customer ID: %s", user_id, e)
 
     try:
+        await sync_user_subscription_plan(ctx.users, user_id, product.name)
+    except Exception as e:
+        logger.warning("Failed to sync user subscription for %s: %s", user_id, e)
+
+    try:
         stripe.Customer.modify(
             str(stripe_customer_id),
             metadata={
@@ -446,7 +462,7 @@ async def handle_checkout_session_completed(session_obj: Any, ctx: WebhookContex
                 "productId": product.id,
                 "productName": product.name,
             },
-        )
+        ),
     except stripe.error.StripeError as e:
         logger.warning(
             "Could not set Customer metadata for %s: %s", stripe_customer_id, e

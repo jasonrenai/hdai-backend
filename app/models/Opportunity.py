@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import List
 
 from bson import ObjectId
@@ -28,7 +29,13 @@ class OpportunityModel:
         """Insert multiple opportunities as root-level documents."""
         if not opportunities:
             return []
-        result = await self.collection.insert_many(opportunities)
+        now = datetime.utcnow()
+        payload: list[dict] = []
+        for opp in opportunities:
+            doc = dict(opp)
+            doc.setdefault("createdAt", now)
+            payload.append(doc)
+        result = await self.collection.insert_many(payload)
         return [str(oid) for oid in result.inserted_ids]
 
     async def find_existing_dedupe_keys(self, opportunities: list[dict]) -> set[tuple[str, str]]:

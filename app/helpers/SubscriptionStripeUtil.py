@@ -72,6 +72,32 @@ async def user_set_stripe_customer_id(users: UserModel, user_id: str, stripe_cus
     await users.update_user(user_id, {"stripe_customer_id": stripe_customer_id})
 
 
+def subscription_payload_for_plan(plan_name: Optional[str]) -> dict[str, Any]:
+    """Build users.subscription object for Solo / Core / Pro (or free)."""
+    name = (plan_name or "").strip()
+    plan_key = name.lower() if name else "free"
+    if plan_key not in ("solo", "core", "pro"):
+        plan_key = "free"
+    taken = plan_key != "free"
+    return {
+        "isSubscriptionTaken": taken,
+        "subscriptionType": plan_key,
+        "subscribedAt": datetime.utcnow() if taken else None,
+    }
+
+
+async def sync_user_subscription_plan(
+    users: UserModel, user_id: str, plan_name: Optional[str]
+) -> None:
+    await users.update_user(
+        user_id,
+        {
+            "subscription": subscription_payload_for_plan(plan_name),
+            "updatedOn": datetime.utcnow(),
+        },
+    )
+
+
 def get_subscription_entitlements(product_name: str) -> dict[str, Any]:
     """Plan limits and feature flags keyed by catalog name (Solo / Core / Pro)."""
     by_name: dict[str, dict[str, Any]] = {

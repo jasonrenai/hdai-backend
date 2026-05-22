@@ -3,7 +3,7 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.schemas.User import UserType
+from app.schemas.User import UserSubscriptionSchema, UserType
 
 
 class SpeakerProfileSummary(BaseModel):
@@ -35,6 +35,7 @@ class UserPublic(BaseModel):
     profilePicture: Optional[str] = None
     phone: Optional[str] = None
     adminId: Optional[str] = None
+    subscription: Optional[UserSubscriptionSchema] = None
     createdOn: Optional[datetime] = None
     updatedOn: Optional[datetime] = None
 

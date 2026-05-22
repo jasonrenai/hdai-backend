@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
-from app.schemas.User import UserSchema, UserType
+from app.schemas.User import UserSchema, UserType, default_user_subscription
 from app.models.User import UserModel
 from app.models.Otp import OTPModel
 from app.helpers.Utilities import Utils
@@ -103,6 +103,7 @@ class AuthService:
             current_time = datetime.utcnow()
             user_data_dict["createdOn"] = current_time
             user_data_dict["updatedOn"] = current_time
+            user_data_dict.setdefault("subscription", default_user_subscription())
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
@@ -169,6 +170,7 @@ class AuthService:
             "password": hashed_password,
             "fullName": fn,
             "userType": UserType.USER,
+            "subscription": default_user_subscription(),
             "createdOn": now,
             "updatedOn": now,
         }
@@ -533,6 +535,7 @@ class AuthService:
             current_time = datetime.utcnow()
             user_data_dict["createdOn"] = current_time
             user_data_dict["updatedOn"] = current_time
+            user_data_dict.setdefault("subscription", default_user_subscription())
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)

@@ -56,12 +56,14 @@ async def _provision_speaker_profile_with_new_user(
     model,
     auth_service,
     profile_data: dict,
-    # jwt_actor_id: str,
+    creator_is_admin: bool = False,
+    jwt_user_id: Optional[str] = None,
 ) -> dict:
     """
     Normalize email/full_name, reject duplicate profile email. If profile_data contains user_id,
-    link to that user (after validation); otherwise create a users row + speaker profile and
-    send credentials email (best-effort). Returns inserted profile document.
+    link to that user (after validation). Only admins may create a new users row; non-admins must
+    link the profile to an existing user (typically their own JWT user id).
+    Returns inserted profile document.
     """
     email_raw = profile_data.get("email")
     full_name_raw = profile_data.get("full_name")
@@ -128,6 +130,33 @@ async def _provision_speaker_profile_with_new_user(
         doc = await model.create_speaker_profile(existing_user_id, profile_data)
         return doc
 
+    if not creator_is_admin:
+        link_uid = (jwt_user_id or "").strip()
+        if not link_uid:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "data": None,
+                    "error": "Only admins can create a new user for a speaker profile. "
+                    "Provide user_id or sign in as admin.",
+                    "success": False,
+                },
+            )
+        try:
+            ObjectId(link_uid)
+        except InvalidId:
+            raise HTTPException(
+                status_code=400,
+                detail={"data": None, "error": "Invalid user id.", "success": False},
+            )
+        link_user = await auth_service.user_model.get_user({"_id": ObjectId(link_uid)})
+        if not link_user:
+            raise HTTPException(
+                status_code=404,
+                detail={"data": None, "error": "No user found for the logged-in account.", "success": False},
+            )
+        return await model.create_speaker_profile(link_uid, profile_data)
+
     if await auth_service.user_model.get_user({"email": email}):
         raise HTTPException(
             status_code=409,
@@ -139,7 +168,6 @@ async def _provision_speaker_profile_with_new_user(
         email=email,
         full_name=full_name,
         plain_password=plain_password,
-        # admin_id=str(jwt_actor_id),
     )
     if not created.get("success"):
         raise HTTPException(
@@ -407,29 +435,29 @@ async def delete_speaker_profile(
 @router.post("/create-speaker-profile", response_model=ServerResponse, status_code=201)
 async def create_speaker_profile(
     body: SpeakerProfileCreateFormSchema,
-    # jwt_payload: dict = Depends(jwt_validator),
+    jwt_payload: dict = Depends(jwt_validator),
     model=Depends(get_speaker_profile_model),
     auth_service=Depends(get_auth_service),
 ):
     """
     Create a new speaker profile in one shot using a form-style payload (no conversational AI / stepwise onboarding).
-    Requires email and full_name. If optional user_id is provided, the profile is linked to that user (email must match
-    that account); otherwise a new user is provisioned and the profile is linked to the new id.
-    Optional fields are stored when provided.
+    Requires email and full_name. If optional user_id is provided, the profile is linked to that user.
+    Only admins may create a new platform user; other roles link the profile to their account or a given user_id.
     """
-    # user_id = jwt_payload.get("id") or jwt_payload.get("user_id")
-    # if not user_id:
-    #     raise HTTPException(
-    #         status_code=401,
-    #         detail={"data": None, "error": "User ID not found in token.", "success": False},
-    #     )
+    user_id = jwt_payload.get("id") or jwt_payload.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail={"data": None, "error": "User ID not found in token.", "success": False},
+        )
 
     profile_data = body.model_dump(exclude_unset=True, by_alias=True)
     doc = await _provision_speaker_profile_with_new_user(
         model=model,
         auth_service=auth_service,
         profile_data=profile_data,
-        # jwt_actor_id=str(user_id),
+        creator_is_admin=is_admin_role(jwt_payload.get("userType")),
+        jwt_user_id=str(user_id),
     )
     return Utils.create_response({"id": str(doc["_id"]), "profile": doc}, True)
 
@@ -848,6 +876,7 @@ async def save_speaker_profile(
         model=model,
         auth_service=auth_service,
         profile_data=profile_data,
-        jwt_actor_id=str(user_id),
+        creator_is_admin=is_admin_role(jwt_payload.get("userType")),
+        jwt_user_id=str(user_id),
     )
     return {"success": True, "id": str(doc["_id"])}

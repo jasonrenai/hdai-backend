@@ -5,7 +5,15 @@ from bson import ObjectId
 
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.models.User import UserModel
-from app.schemas.User import AdminCreateUserSchema, AdminUpdateUserSchema, UserSchema, UserType
+from app.schemas.User import (
+    AdminCreateUserSchema,
+    AdminUpdateUserSchema,
+    SubscriptionType,
+    UserSchema,
+    UserSubscriptionSchema,
+    UserType,
+    default_user_subscription,
+)
 from app.schemas.UserManagement import (
     AddSpeakerProfileForUserBody,
     LinkSpeakerProfilesToUserBody,
@@ -34,9 +42,39 @@ def _user_to_public(user: UserSchema) -> UserPublic:
         profilePicture=d.get("profilePicture"),
         phone=d.get("phone"),
         adminId=str(d["adminId"]) if d.get("adminId") is not None else None,
+        subscription=_subscription_from_user_doc(d),
         createdOn=d.get("createdOn"),
         updatedOn=d.get("updatedOn"),
     )
+
+
+def _subscription_from_user_doc(d: dict) -> UserSubscriptionSchema:
+    raw = d.get("subscription")
+    if isinstance(raw, UserSubscriptionSchema):
+        return raw
+    if isinstance(raw, dict) and raw:
+        return UserSubscriptionSchema(**raw)
+    return UserSubscriptionSchema(**default_user_subscription())
+
+
+def _merge_subscription_update(
+    user: UserSchema, patch: dict
+) -> dict:
+    current = _subscription_from_user_doc(user.model_dump(by_alias=True))
+    merged = current.model_dump()
+    for key, value in patch.items():
+        if value is None:
+            continue
+        merged[key] = value.value if hasattr(value, "value") else value
+    plan = merged.get("subscriptionType") or SubscriptionType.FREE.value
+    if isinstance(plan, SubscriptionType):
+        plan = plan.value
+    merged["subscriptionType"] = plan
+    if patch.get("isSubscriptionTaken") is None:
+        merged["isSubscriptionTaken"] = plan != SubscriptionType.FREE.value
+    if plan == SubscriptionType.FREE.value:
+        merged["isSubscriptionTaken"] = False
+    return merged
 
 
 def _profile_to_summary(doc: dict) -> SpeakerProfileSummary:
@@ -175,6 +213,15 @@ class UserManagementService:
                     if hasattr(update_data["userType"], "value")
                     else update_data["userType"]
                 )
+            if "subscription" in update_data:
+                sub_patch = update_data.pop("subscription")
+                if sub_patch is not None:
+                    patch_dict = (
+                        sub_patch.model_dump(exclude_unset=True)
+                        if hasattr(sub_patch, "model_dump")
+                        else dict(sub_patch)
+                    )
+                    update_data["subscription"] = _merge_subscription_update(user, patch_dict)
             update_data["updatedOn"] = datetime.utcnow()
             await self.user_model.update_user(user_id, update_data)
             return await self.get_user_with_profiles(user_id)

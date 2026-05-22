@@ -14,6 +14,8 @@ from openai import OpenAI
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from app.email.welcome_account import try_send_welcome_email_on_account_created
+from app.helpers.auth_roles import is_admin_role
+from app.schemas.User import default_user_subscription
 from app.helpers.SpeakerCredentialsEmail import send_speaker_credentials_email
 from app.helpers.Utilities import Utils
 from app.schemas.User import UserType
@@ -743,7 +745,7 @@ class SpeakerProfileChatbotService:
         """
         If JWT user is userType user with no stripe_customer_id, use that id (no new user).
         Else if a users row exists for this email, attach it.
-        Else create user (hash password, insert, email credentials)—silent in chat.
+        Else only admins may create a new users row; non-admins link to their JWT user id.
 
         Returns (user_id_or_none, created_new_user_row).
         """
@@ -758,14 +760,24 @@ class SpeakerProfileChatbotService:
             normalized_email = TypeAdapter(EmailStr).validate_python((email or "").strip())
         except ValidationError:
             logger.warning("Chatbot: invalid email for user row: %s", email)
-            return None, False
+            return uid, False
         try:
             existing = await self.user_model.get_user({"email": normalized_email})
         except Exception as e:
             logger.warning("Chatbot: user lookup failed for %s: %s", normalized_email, e)
-            return None, False
+            return uid, False
         if existing is not None and getattr(existing, "id", None) is not None:
             return str(existing.id), False
+
+        if not is_admin_role(jwt_user.get("userType") if jwt_user else None):
+            if uid:
+                logger.info(
+                    "Chatbot: non-admin speaker profile — linking to JWT user %s (no new user row)",
+                    uid,
+                )
+                return uid, False
+            logger.warning("Chatbot: non-admin cannot create platform user without JWT user id")
+            return None, False
 
         plain_password = secrets.token_urlsafe(12)
         hashed_password = Utils.hash_password(plain_password)
@@ -776,6 +788,7 @@ class SpeakerProfileChatbotService:
             "password": hashed_password,
             "fullName": fn,
             "userType": UserType.USER,
+            "subscription": default_user_subscription(),
             "createdOn": now,
             "updatedOn": now,
         }
