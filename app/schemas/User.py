@@ -10,6 +10,30 @@ class UserType(str, Enum):
     ADMIN = "admin"
     USER = "user"
 
+
+class SubscriptionType(str, Enum):
+    FREE = "free"
+    SOLO = "solo"
+    CORE = "core"
+    PRO = "pro"
+
+
+class UserSubscriptionSchema(BaseModel):
+    isSubscriptionTaken: bool = False
+    subscriptionType: SubscriptionType = SubscriptionType.FREE
+    subscribedAt: Optional[datetime] = None
+
+
+class UserSubscriptionUpdateSchema(BaseModel):
+    isSubscriptionTaken: Optional[bool] = None
+    subscriptionType: Optional[SubscriptionType] = None
+    subscribedAt: Optional[datetime] = None
+
+
+def default_user_subscription() -> dict:
+    """Default subscription block for new users."""
+    return UserSubscriptionSchema().model_dump()
+
 class CreateUserSchema(BaseModel):
     fullName: str = Field(..., min_length=2, max_length=50)
     email: EmailStr = Field(...)
@@ -39,12 +63,14 @@ class UpdateUserSchema(BaseModel):
     zip: Optional[str] = Field(None)
     profilePicture: Optional[str] = None
     phone: Optional[str] = Field(None, pattern=r'^\+?1?\d{9,15}$')
+    userType: Optional[UserType] = None
 
 class AdminUpdateUserSchema(BaseModel):
     email: Optional[EmailStr] = None
     fullName: Optional[str] = Field(None, min_length=2, max_length=50)
     phone: Optional[str] = Field(None, pattern=r'^\+?1?\d{9,15}$')
     userType: Optional[UserType] = None
+    subscription: Optional[UserSubscriptionUpdateSchema] = None
 
 class UserSchema(BaseModel):
     id: Optional[PyObjectId] = Field(default_factory=ObjectId, alias="_id")
@@ -60,6 +86,8 @@ class UserSchema(BaseModel):
     phone: Optional[str] = Field(None, pattern=r'^\+?1?\d{9,15}$')
     adminId: Optional[str] = None
     stripe_customer_id: Optional[str] = None
+    subscription: UserSubscriptionSchema = Field(default_factory=UserSubscriptionSchema)
+    isOnboarded: bool = Field(default=False)
     createdOn: datetime = Field(default_factory=datetime.utcnow)
     updatedOn: Optional[datetime] = None
 

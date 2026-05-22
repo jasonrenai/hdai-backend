@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
-from app.schemas.User import UserSchema, UserType
+from app.schemas.User import UserSchema, UserType, default_user_subscription
 from app.models.User import UserModel
 from app.models.Otp import OTPModel
 from app.helpers.Utilities import Utils
@@ -103,6 +103,7 @@ class AuthService:
             current_time = datetime.utcnow()
             user_data_dict["createdOn"] = current_time
             user_data_dict["updatedOn"] = current_time
+            user_data_dict.setdefault("subscription", default_user_subscription())
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
@@ -169,6 +170,7 @@ class AuthService:
             "password": hashed_password,
             "fullName": fn,
             "userType": UserType.USER,
+            "subscription": default_user_subscription(),
             "createdOn": now,
             "updatedOn": now,
         }
@@ -424,9 +426,16 @@ class AuthService:
                 }
             
             # Don't allow updating certain protected fields
-            protected_fields = ["password", "userType", "adminId", "createdOn", "_id"]
+            protected_fields = ["password", "adminId", "createdOn", "_id"]
             for field in protected_fields:
                 update_data.pop(field, None)
+
+            if "userType" in update_data and update_data["userType"] is not None:
+                update_data["userType"] = (
+                    update_data["userType"].value
+                    if hasattr(update_data["userType"], "value")
+                    else update_data["userType"]
+                )
             
             if not update_data:
                 return {"success": False, "data": None, "error": "No valid fields to update"}
@@ -533,6 +542,7 @@ class AuthService:
             current_time = datetime.utcnow()
             user_data_dict["createdOn"] = current_time
             user_data_dict["updatedOn"] = current_time
+            user_data_dict.setdefault("subscription", default_user_subscription())
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)

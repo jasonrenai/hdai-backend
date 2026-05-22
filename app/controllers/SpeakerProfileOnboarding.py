@@ -27,11 +27,11 @@ from app.services.SpeakerProfileOnboarding import (
     validate_step,
     validate_full_profile,
 )
-from app.services.SpeakerProfileConversation import (
-    generate_recovery_message,
-    generate_transition_message,
-    generate_chatbot_welcome_message,
-)
+from app.services.SpeakerProfileConversation import generate_chatbot_welcome_message
+# from app.services.SpeakerProfileConversation import (
+#     generate_recovery_message,
+#     generate_transition_message,
+# )
 from app.dependencies import (
     get_auth_service,
     get_email_service,
@@ -56,12 +56,14 @@ async def _provision_speaker_profile_with_new_user(
     model,
     auth_service,
     profile_data: dict,
-    # jwt_actor_id: str,
+    creator_is_admin: bool = False,
+    jwt_user_id: Optional[str] = None,
 ) -> dict:
     """
     Normalize email/full_name, reject duplicate profile email. If profile_data contains user_id,
-    link to that user (after validation); otherwise create a users row + speaker profile and
-    send credentials email (best-effort). Returns inserted profile document.
+    link to that user (after validation). Only admins may create a new users row; non-admins must
+    link the profile to an existing user (typically their own JWT user id).
+    Returns inserted profile document.
     """
     email_raw = profile_data.get("email")
     full_name_raw = profile_data.get("full_name")
@@ -128,6 +130,33 @@ async def _provision_speaker_profile_with_new_user(
         doc = await model.create_speaker_profile(existing_user_id, profile_data)
         return doc
 
+    if not creator_is_admin:
+        link_uid = (jwt_user_id or "").strip()
+        if not link_uid:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "data": None,
+                    "error": "Only admins can create a new user for a speaker profile. "
+                    "Provide user_id or sign in as admin.",
+                    "success": False,
+                },
+            )
+        try:
+            ObjectId(link_uid)
+        except InvalidId:
+            raise HTTPException(
+                status_code=400,
+                detail={"data": None, "error": "Invalid user id.", "success": False},
+            )
+        link_user = await auth_service.user_model.get_user({"_id": ObjectId(link_uid)})
+        if not link_user:
+            raise HTTPException(
+                status_code=404,
+                detail={"data": None, "error": "No user found for the logged-in account.", "success": False},
+            )
+        return await model.create_speaker_profile(link_uid, profile_data)
+
     if await auth_service.user_model.get_user({"email": email}):
         raise HTTPException(
             status_code=409,
@@ -139,7 +168,6 @@ async def _provision_speaker_profile_with_new_user(
         email=email,
         full_name=full_name,
         plain_password=plain_password,
-        # admin_id=str(jwt_actor_id),
     )
     if not created.get("success"):
         raise HTTPException(
@@ -407,29 +435,29 @@ async def delete_speaker_profile(
 @router.post("/create-speaker-profile", response_model=ServerResponse, status_code=201)
 async def create_speaker_profile(
     body: SpeakerProfileCreateFormSchema,
-    # jwt_payload: dict = Depends(jwt_validator),
+    jwt_payload: dict = Depends(jwt_validator),
     model=Depends(get_speaker_profile_model),
     auth_service=Depends(get_auth_service),
 ):
     """
     Create a new speaker profile in one shot using a form-style payload (no conversational AI / stepwise onboarding).
-    Requires email and full_name. If optional user_id is provided, the profile is linked to that user (email must match
-    that account); otherwise a new user is provisioned and the profile is linked to the new id.
-    Optional fields are stored when provided.
+    Requires email and full_name. If optional user_id is provided, the profile is linked to that user.
+    Only admins may create a new platform user; other roles link the profile to their account or a given user_id.
     """
-    # user_id = jwt_payload.get("id") or jwt_payload.get("user_id")
-    # if not user_id:
-    #     raise HTTPException(
-    #         status_code=401,
-    #         detail={"data": None, "error": "User ID not found in token.", "success": False},
-    #     )
+    user_id = jwt_payload.get("id") or jwt_payload.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail={"data": None, "error": "User ID not found in token.", "success": False},
+        )
 
     profile_data = body.model_dump(exclude_unset=True, by_alias=True)
     doc = await _provision_speaker_profile_with_new_user(
         model=model,
         auth_service=auth_service,
         profile_data=profile_data,
-        # jwt_actor_id=str(user_id),
+        creator_is_admin=is_admin_role(jwt_payload.get("userType")),
+        jwt_user_id=str(user_id),
     )
     return Utils.create_response({"id": str(doc["_id"]), "profile": doc}, True)
 
@@ -473,19 +501,7 @@ async def resume_onboarding(
         step_payload = await _step_payload_with_dynamic_allowed(
             step_def, speaker_topics_model, speaker_target_audience_model
         )
-        # Generate question for current step like verify-step: use AI transition from last completed step.
-        completed_steps = profile.get("completed_steps") or []
-        if completed_steps and step_payload:
-            last_step_name = completed_steps[-1]
-            last_answer = profile.get(last_step_name)
-            if last_answer is not None:
-                ai_question = generate_transition_message(
-                    step_name=last_step_name,
-                    normalized_answer=last_answer,
-                    next_step=step_payload,
-                    is_last_step=False,
-                )
-                step_payload = {**step_payload, "question": ai_question}
+        # generate_transition_message commented out — step_payload keeps config question
     else:
         step_payload = None
     is_complete = current_step_name is None
@@ -534,7 +550,7 @@ async def speaker_profile_chat(
     preferred speaking time, catalog fields, and remaining questions. See SpeakerProfileChatbotService.process_chat.
     JWT optional: when provided, user_id is linked to the profile.
     """
-    user_id = None
+    jwt_user = None
     auth = request.headers.get("Authorization")
     if auth and auth.startswith("Bearer "):
         try:
@@ -543,8 +559,7 @@ async def speaker_profile_chat(
             creds = HTTPAuthorizationCredentials(
                 scheme="Bearer", credentials=auth[7:].strip()
             )
-            payload = jwt_validator(creds)
-            user_id = payload.get("id") or payload.get("user_id")
+            jwt_user = jwt_validator(creds)
         except Exception:
             pass
 
@@ -554,7 +569,7 @@ async def speaker_profile_chat(
     result = await chatbot_service.process_chat(
         message=message,
         chat_session_id=chat_session_id,
-        user_id=str(user_id) if user_id else None,
+        jwt_user=jwt_user,
     )
     return Utils.create_response(result, True)
 
@@ -642,12 +657,8 @@ async def verify_step(
 
     if body.step != "full_name" and not body.profile_id:
         repeat_step = await _step_payload_with_dynamic_allowed(step_def, speaker_topics_model, speaker_target_audience_model)
-        assistant_message = generate_recovery_message(
-            step_name=body.step,
-            user_answer=body.answer,
-            reason_code="MISSING_PROFILE_ID",
-            retry_count=body.retry_count or 0,
-            allowed_values=_allowed_values_for_recovery(body.step, step_def, allowed_topics_for_step, allowed_target_audiences_for_step),
+        assistant_message = (
+            "I don't have your profile yet. Could you tell me your full name first?"
         )
         return {"assistant_message": assistant_message, "repeat_step": repeat_step}
 
@@ -688,13 +699,7 @@ async def verify_step(
     if result.get("status") != "VALID":
         logger.info("verify-step: branch=repeat")
         repeat_step = await _step_payload_with_dynamic_allowed(step_def, speaker_topics_model, speaker_target_audience_model)
-        assistant_message = generate_recovery_message(
-            step_name=body.step,
-            user_answer=body.answer,
-            reason_code=result.get("reason_code") or "UNKNOWN",
-            retry_count=body.retry_count or 0,
-            allowed_values=_allowed_values_for_recovery(body.step, step_def, allowed_topics_for_step, allowed_target_audiences_for_step),
-        )
+        assistant_message = step_def.question if step_def else "I didn't quite catch that—could you try again?"
         return {"assistant_message": assistant_message, "repeat_step": repeat_step}
 
     logger.info("verify-step: branch=success")
@@ -721,12 +726,12 @@ async def verify_step(
     next_step_payload = await _step_payload_with_dynamic_allowed(next_step_def, speaker_topics_model, speaker_target_audience_model) if next_step_def else None
     if is_last:
         next_step_payload = {}
-    assistant_message = generate_transition_message(
-        step_name=body.step,
-        normalized_answer=display_value,
-        next_step=next_step_payload,
-        is_last_step=is_last,
-    )
+    if is_last:
+        assistant_message = "You've completed your speaker profile—thanks for sharing!"
+    elif next_step_payload and next_step_payload.get("question"):
+        assistant_message = f"Got it. {next_step_payload['question']}"
+    else:
+        assistant_message = "Got it. What's next?"
 
     # Agent message for the step just completed: first step uses config question; later steps use the AI transition we stored last time.
     agent_message_for_step = (
@@ -849,6 +854,7 @@ async def save_speaker_profile(
         model=model,
         auth_service=auth_service,
         profile_data=profile_data,
-        jwt_actor_id=str(user_id),
+        creator_is_admin=is_admin_role(jwt_payload.get("userType")),
+        jwt_user_id=str(user_id),
     )
     return {"success": True, "id": str(doc["_id"])}

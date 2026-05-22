@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from app.middleware.JWTVerification import jwt_validator
@@ -198,7 +198,7 @@ async def update_user_profile(
         # No authorization check - both admin and user can update profiles
         # User can update their own profile, admin can update any user
         
-        update_data = body.model_dump(exclude_unset=True)
+        update_data = body.model_dump(exclude_unset=True, mode="json")
         data = await service.update_user_profile(user_id, update_data)
         if not data["success"]:
             status_code = 404 if data.get("error") == "User not found" else 400
