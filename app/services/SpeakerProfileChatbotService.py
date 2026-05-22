@@ -1045,8 +1045,13 @@ class SpeakerProfileChatbotService:
             {"isCompleted": True},
         )
 
-    async def _sync_user_onboarded(self, jwt_user: Optional[Dict[str, Any]]) -> None:
-        uid = _jwt_user_id(jwt_user)
+    async def _sync_user_onboarded(
+        self,
+        jwt_user: Optional[Dict[str, Any]] = None,
+        *,
+        user_id: Optional[str] = None,
+    ) -> None:
+        uid = user_id or _jwt_user_id(jwt_user)
         if not uid:
             return
         try:
@@ -1086,7 +1091,6 @@ class SpeakerProfileChatbotService:
             profile["_id"] = str(profile.get("_id") or speaker_profile_id)
         else:
             profile["isCompleted"] = True
-        await self._sync_user_onboarded(jwt_user)
         return True, profile, steps_done
 
     async def _execute_upsert(
@@ -1175,6 +1179,7 @@ class SpeakerProfileChatbotService:
         )
         link_user_id = resolved_user_id or _jwt_user_id(jwt_user)
         created = await self.profile_model.create_chatbot_profile(profile_doc, link_user_id)
+        await self._sync_user_onboarded(jwt_user, user_id=link_user_id)
         if created_new_account:
             try_send_welcome_email_on_account_created(
                 user_display_name=profile_doc["full_name"],
@@ -1366,7 +1371,6 @@ class SpeakerProfileChatbotService:
                             profile["_id"] = str(profile.get("_id") or spid)
                         elif profile:
                             profile["isCompleted"] = True
-                        await self._sync_user_onboarded(jwt_user)
                     chat_messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,

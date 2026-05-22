@@ -112,18 +112,23 @@ class AuthService:
                 user_display_name=user_data_dict.get("fullName", ""),
                 account_email=user_data_dict.get("email"),
             )
-            
-            # Prepare response data
-            user_data_dict["_id"] = str(user_id)
-            user_data_dict.pop("password", None)  # Remove password from response
-            
-            # Generate JWT token
-            # token = Utils.create_jwt_token(user_data_dict)
+
+            # JWT must use `id` (same as login), not `_id` — APIs read jwt_payload["id"]
+            created_user = await self.user_model.get_user({"_id": ObjectId(user_id)})
+            if not created_user:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": "User created but could not be loaded for token.",
+                }
+            user_dict = created_user.dict()
+            user_dict.pop("password", None)
+            token = Utils.create_jwt_token(user_dict)
             
             return {
                 "success": True,
                 "data": {
-                    "user_id": user_data_dict["_id"]
+                    "token": token
                 }
             }
         
