@@ -29,6 +29,13 @@ from app.models.SpeakerProfile import PROFILE_FIELDS
 logger = logging.getLogger(__name__)
 
 
+def _jwt_user_id(user: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not user:
+        return None
+    raw = user.get("id") or user.get("user_id") or user.get("_id")
+    return str(raw) if raw is not None else None
+
+
 def _full_name_for_user_account(email: str, full_name: str) -> str:
     """Ensure 2–50 chars for create_speaker_user; chatbot may only have email local-part early."""
     fn = (full_name or "").strip()
@@ -731,16 +738,22 @@ class SpeakerProfileChatbotService:
         self,
         email: str,
         full_name: str,
+        jwt_user: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[str], bool]:
         """
-        If the chat request already has a logged-in user, attach that id.
+        If JWT user is userType user with no stripe_customer_id, use that id (no new user).
         Else if a users row exists for this email, attach it.
         Else create user (hash password, insert, email credentials)—silent in chat.
 
         Returns (user_id_or_none, created_new_user_row).
         """
-        # if session_user_id:
-        #     return session_user_id
+        uid = _jwt_user_id(jwt_user)
+        if (
+            uid
+            and jwt_user.get("userType") in (UserType.USER, UserType.USER.value)
+            and not jwt_user.get("stripe_customer_id")
+        ):
+            return uid, False
         try:
             normalized_email = TypeAdapter(EmailStr).validate_python((email or "").strip())
         except ValidationError:
@@ -970,7 +983,7 @@ class SpeakerProfileChatbotService:
         self,
         args: dict,
         speaker_profile_id: Optional[str],
-        user_id: Optional[str],
+        jwt_user: Optional[Dict[str, Any]] = None,
     ) -> dict:
         """Create or update by speaker_profile_id (when provided) or by email."""
         profile_doc = await self._build_profile_doc(args)
@@ -1044,8 +1057,9 @@ class SpeakerProfileChatbotService:
         resolved_user_id, created_new_account = await self._user_id_for_new_chatbot_profile(
             email,
             profile_doc["full_name"],
+            jwt_user=jwt_user,
         )
-        link_user_id = resolved_user_id or user_id
+        link_user_id = resolved_user_id or _jwt_user_id(jwt_user)
         created = await self.profile_model.create_chatbot_profile(profile_doc, link_user_id)
         if created_new_account:
             try_send_welcome_email_on_account_created(
@@ -1060,7 +1074,7 @@ class SpeakerProfileChatbotService:
         self,
         message: str,
         chat_session_id: Optional[str] = None,
-        user_id: Optional[str] = None,
+        jwt_user: Optional[Dict[str, Any]] = None,
     ) -> dict:
         """
         Flow:
@@ -1473,6 +1487,19 @@ class SpeakerProfileChatbotService:
                         profile_marked_complete = True
                         if profile:
                             profile["isCompleted"] = True
+                        uid = _jwt_user_id(jwt_user)
+                        if uid:
+                            try:
+                                await self.user_model.update_user(
+                                    uid,
+                                    {"isOnboarded": True, "updatedOn": datetime.utcnow()},
+                                )
+                                if jwt_user is not None:
+                                    jwt_user["isOnboarded"] = True
+                            except Exception as e:
+                                logger.warning(
+                                    "Chatbot: failed to set isOnboarded for user %s: %s", uid, e
+                                )
                     chat_messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
@@ -1485,7 +1512,11 @@ class SpeakerProfileChatbotService:
                 if tc.function.name != "upsert_speaker_profile":
                     continue
                 spid = (tc_args.get("speaker_profile_id") or "").strip() or None
-                result = await self._execute_upsert(tc_args, spid or speaker_profile_id, user_id)
+                result = await self._execute_upsert(
+                    tc_args,
+                    spid or speaker_profile_id,
+                    jwt_user,
+                )
                 tool_results.append(result)
                 if result.get("profile"):
                     profile = result["profile"]

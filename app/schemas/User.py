@@ -60,6 +60,7 @@ class UserSchema(BaseModel):
     phone: Optional[str] = Field(None, pattern=r'^\+?1?\d{9,15}$')
     adminId: Optional[str] = None
     stripe_customer_id: Optional[str] = None
+    isOnboarded: bool = Field(default=False)
     createdOn: datetime = Field(default_factory=datetime.utcnow)
     updatedOn: Optional[datetime] = None
 

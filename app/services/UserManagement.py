@@ -5,7 +5,7 @@ from bson import ObjectId
 
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.models.User import UserModel
-from app.schemas.User import AdminCreateUserSchema, AdminUpdateUserSchema, UserSchema
+from app.schemas.User import AdminCreateUserSchema, AdminUpdateUserSchema, UserSchema, UserType
 from app.schemas.UserManagement import (
     AddSpeakerProfileForUserBody,
     LinkSpeakerProfilesToUserBody,
@@ -65,7 +65,7 @@ class UserManagementService:
         self, page: int = 1, limit: int = 10
     ) -> Dict[str, Any]:
         try:
-            filters: dict = {}
+            filters: dict = {"userType": {"$ne": UserType.SUPER_ADMIN.value}}
             skip = (page - 1) * limit
             total, users = await asyncio.gather(
                 self.user_model.get_documents_count(filters),

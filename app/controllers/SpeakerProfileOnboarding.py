@@ -534,7 +534,7 @@ async def speaker_profile_chat(
     preferred speaking time, catalog fields, and remaining questions. See SpeakerProfileChatbotService.process_chat.
     JWT optional: when provided, user_id is linked to the profile.
     """
-    user_id = None
+    jwt_user = None
     auth = request.headers.get("Authorization")
     if auth and auth.startswith("Bearer "):
         try:
@@ -543,8 +543,7 @@ async def speaker_profile_chat(
             creds = HTTPAuthorizationCredentials(
                 scheme="Bearer", credentials=auth[7:].strip()
             )
-            payload = jwt_validator(creds)
-            user_id = payload.get("id") or payload.get("user_id")
+            jwt_user = jwt_validator(creds)
         except Exception:
             pass
 
@@ -554,7 +553,7 @@ async def speaker_profile_chat(
     result = await chatbot_service.process_chat(
         message=message,
         chat_session_id=chat_session_id,
-        user_id=str(user_id) if user_id else None,
+        jwt_user=jwt_user,
     )
     return Utils.create_response(result, True)
 
