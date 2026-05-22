@@ -1514,11 +1514,13 @@ def validate_step(
 
 
 def get_init_response() -> dict:
-    from app.services.SpeakerProfileConversation import generate_welcome_message
     first = get_first_step()
     payload = step_to_response(first)
-    # Generate AI welcome message that includes the first step question
-    welcome_message = generate_welcome_message(first.question)
+    # generate_welcome_message commented out — static fallback (same as former AI fallback)
+    welcome_message = (
+        "Hello! Thanks for joining Human Driven AI! My job is to find the right speaking opportunities for you "
+        "including drafting the submission materials for each event.<br>Let's begin with the basics. What is your name?"
+    )
     payload["question"] = welcome_message
     payload["assistant_message"] = welcome_message
     return payload

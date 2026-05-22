@@ -27,11 +27,11 @@ from app.services.SpeakerProfileOnboarding import (
     validate_step,
     validate_full_profile,
 )
-from app.services.SpeakerProfileConversation import (
-    generate_recovery_message,
-    generate_transition_message,
-    generate_chatbot_welcome_message,
-)
+from app.services.SpeakerProfileConversation import generate_chatbot_welcome_message
+# from app.services.SpeakerProfileConversation import (
+#     generate_recovery_message,
+#     generate_transition_message,
+# )
 from app.dependencies import (
     get_auth_service,
     get_email_service,
@@ -501,19 +501,7 @@ async def resume_onboarding(
         step_payload = await _step_payload_with_dynamic_allowed(
             step_def, speaker_topics_model, speaker_target_audience_model
         )
-        # Generate question for current step like verify-step: use AI transition from last completed step.
-        completed_steps = profile.get("completed_steps") or []
-        if completed_steps and step_payload:
-            last_step_name = completed_steps[-1]
-            last_answer = profile.get(last_step_name)
-            if last_answer is not None:
-                ai_question = generate_transition_message(
-                    step_name=last_step_name,
-                    normalized_answer=last_answer,
-                    next_step=step_payload,
-                    is_last_step=False,
-                )
-                step_payload = {**step_payload, "question": ai_question}
+        # generate_transition_message commented out — step_payload keeps config question
     else:
         step_payload = None
     is_complete = current_step_name is None
@@ -669,12 +657,8 @@ async def verify_step(
 
     if body.step != "full_name" and not body.profile_id:
         repeat_step = await _step_payload_with_dynamic_allowed(step_def, speaker_topics_model, speaker_target_audience_model)
-        assistant_message = generate_recovery_message(
-            step_name=body.step,
-            user_answer=body.answer,
-            reason_code="MISSING_PROFILE_ID",
-            retry_count=body.retry_count or 0,
-            allowed_values=_allowed_values_for_recovery(body.step, step_def, allowed_topics_for_step, allowed_target_audiences_for_step),
+        assistant_message = (
+            "I don't have your profile yet. Could you tell me your full name first?"
         )
         return {"assistant_message": assistant_message, "repeat_step": repeat_step}
 
@@ -715,13 +699,7 @@ async def verify_step(
     if result.get("status") != "VALID":
         logger.info("verify-step: branch=repeat")
         repeat_step = await _step_payload_with_dynamic_allowed(step_def, speaker_topics_model, speaker_target_audience_model)
-        assistant_message = generate_recovery_message(
-            step_name=body.step,
-            user_answer=body.answer,
-            reason_code=result.get("reason_code") or "UNKNOWN",
-            retry_count=body.retry_count or 0,
-            allowed_values=_allowed_values_for_recovery(body.step, step_def, allowed_topics_for_step, allowed_target_audiences_for_step),
-        )
+        assistant_message = step_def.question if step_def else "I didn't quite catch that—could you try again?"
         return {"assistant_message": assistant_message, "repeat_step": repeat_step}
 
     logger.info("verify-step: branch=success")
@@ -748,12 +726,12 @@ async def verify_step(
     next_step_payload = await _step_payload_with_dynamic_allowed(next_step_def, speaker_topics_model, speaker_target_audience_model) if next_step_def else None
     if is_last:
         next_step_payload = {}
-    assistant_message = generate_transition_message(
-        step_name=body.step,
-        normalized_answer=display_value,
-        next_step=next_step_payload,
-        is_last_step=is_last,
-    )
+    if is_last:
+        assistant_message = "You've completed your speaker profile—thanks for sharing!"
+    elif next_step_payload and next_step_payload.get("question"):
+        assistant_message = f"Got it. {next_step_payload['question']}"
+    else:
+        assistant_message = "Got it. What's next?"
 
     # Agent message for the step just completed: first step uses config question; later steps use the AI transition we stored last time.
     agent_message_for_step = (

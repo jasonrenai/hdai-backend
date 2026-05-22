@@ -56,6 +56,29 @@ class ChatSessionModel:
         )
         return await self.get_by_id(chat_session_id)
 
+    async def update_onboarding_steps_done(
+        self,
+        chat_session_id: str,
+        steps_done: List[str],
+    ) -> Optional[dict]:
+        """Persist completed onboarding step ids for chatbot flow control."""
+        if not chat_session_id:
+            return None
+        try:
+            oid = ObjectId(chat_session_id)
+        except Exception:
+            return None
+        await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "onboarding_steps_done": list(steps_done or []),
+                    "updatedAt": datetime.utcnow(),
+                },
+            },
+        )
+        return await self.get_by_id(chat_session_id)
+
     async def update_speaker_profile_id(
         self,
         chat_session_id: str,
