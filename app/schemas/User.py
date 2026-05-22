@@ -63,6 +63,7 @@ class UpdateUserSchema(BaseModel):
     zip: Optional[str] = Field(None)
     profilePicture: Optional[str] = None
     phone: Optional[str] = Field(None, pattern=r'^\+?1?\d{9,15}$')
+    userType: Optional[UserType] = None
 
 class AdminUpdateUserSchema(BaseModel):
     email: Optional[EmailStr] = None

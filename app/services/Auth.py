@@ -426,9 +426,16 @@ class AuthService:
                 }
             
             # Don't allow updating certain protected fields
-            protected_fields = ["password", "userType", "adminId", "createdOn", "_id"]
+            protected_fields = ["password", "adminId", "createdOn", "_id"]
             for field in protected_fields:
                 update_data.pop(field, None)
+
+            if "userType" in update_data and update_data["userType"] is not None:
+                update_data["userType"] = (
+                    update_data["userType"].value
+                    if hasattr(update_data["userType"], "value")
+                    else update_data["userType"]
+                )
             
             if not update_data:
                 return {"success": False, "data": None, "error": "No valid fields to update"}
