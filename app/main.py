@@ -31,6 +31,12 @@ from app.middleware.Cors import add_cors_middleware
 from app.middleware.GlobalErrorHandling import GlobalErrorHandlingMiddleware
 from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
+from app.services.PendingScraperCronService import (
+    pending_google_queries_cron_interval_hours,
+    pending_url_collections_cron_interval_hours,
+    run_pending_google_queries_cron_sync,
+    run_pending_url_collections_cron_sync,
+)
 from app.services.SubmissionReminderCronService import run_submission_reminder_cron_sync
 from app.services.Subscriptions import init_stripe_from_env
 
@@ -49,6 +55,8 @@ for name in (
     "app.helpers.RapidAPIScraper",
     "app.helpers.SpeakingOpportunityExtractor",
     "app.services.UrlScraperRapidAPI",
+    "app.services.GoogleQueryScraper",
+    "app.services.PendingScraperCronService",
 ):
     logging.getLogger(name).setLevel(logging.INFO)
 
@@ -123,6 +131,28 @@ async def startup_event():
         id="deadline_approaching_cron",
     )
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
+
+    google_query_cron_h = pending_google_queries_cron_interval_hours()
+    _cron_scheduler.add_job(
+        run_pending_google_queries_cron_sync,
+        IntervalTrigger(hours=google_query_cron_h),
+        id="pending_google_queries_cron",
+    )
+    log.info(
+        "Pending GoogleQuery scraper cron registered (every %s h, drains all pending)",
+        google_query_cron_h,
+    )
+
+    url_collection_cron_h = pending_url_collections_cron_interval_hours()
+    _cron_scheduler.add_job(
+        run_pending_url_collections_cron_sync,
+        IntervalTrigger(hours=url_collection_cron_h),
+        id="pending_url_collections_cron",
+    )
+    log.info(
+        "Pending UrlCollection scraper cron registered (every %s h, drains all pending)",
+        url_collection_cron_h,
+    )
 
     _cron_scheduler.start()
     log.info("Background scheduler started")

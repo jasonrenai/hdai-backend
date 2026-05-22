@@ -385,21 +385,20 @@ class SpeakingOpportunityExtractor:
         chunk_idx: int,
         total_chunks: int,
         model: str,
+        url: str = "",
     ) -> List[Dict[str, Any]]:
         """Extract opportunities from a single chunk."""
         if not chunk.strip():
             return []
         logger.debug("LLM extracting from chunk %d/%d (len=%d)", chunk_idx + 1, total_chunks, len(chunk))
+        user_prompt = (
+            self.USER_PROMPT_TEMPLATE.replace("{url}", url or "").replace("{content}", chunk)
+        )
         response = client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": self.SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": self.USER_PROMPT_TEMPLATE.format(
-                        content=chunk, chunk_idx=chunk_idx + 1, total_chunks=total_chunks
-                    ),
-                },
+                {"role": "user", "content": user_prompt},
             ],
             temperature=0.2,
         )
@@ -408,10 +407,17 @@ class SpeakingOpportunityExtractor:
         logger.debug("Chunk %d/%d yielded %d opportunities", chunk_idx + 1, total_chunks, len(opps))
         return opps
 
-    def extract(self, markdown_content: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    def extract(
+        self, markdown_content: str, url: str = ""
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """
         Process content in overlapping chunks, extract opportunities from each,
         then merge and deduplicate.
+
+        Args:
+            markdown_content: Scraped page text (markdown).
+            url: Source page URL included in the LLM prompt when available.
+
         Returns (opportunities, error). error is set if OPENAI_API_KEY missing or LLM fails.
         """
         api_key = os.getenv("OPENAI_API_KEY")
@@ -436,8 +442,11 @@ class SpeakingOpportunityExtractor:
 
             logger.info("Processing %d chunks for opportunity extraction", len(chunks))
             all_opportunities: List[Dict[str, Any]] = []
+            page_url = (url or "").strip()
             for i, chunk in enumerate(chunks):
-                opps = self._extract_from_chunk(client, chunk, i, len(chunks), model)
+                opps = self._extract_from_chunk(
+                    client, chunk, i, len(chunks), model, url=page_url
+                )
                 all_opportunities.extend(opps)
 
             merged = self._deduplicate_opportunities(all_opportunities)

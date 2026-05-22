@@ -1,3 +1,5 @@
+from pymongo import ReturnDocument
+
 from app.helpers.Database import MongoDB
 from bson import ObjectId
 import os
@@ -39,6 +41,24 @@ class UrlCollectionModel:
             .limit(limit)
         )
         return [doc async for doc in cursor]
+
+    async def claim_pending_jobs(self, limit: int = 10) -> list[dict]:
+        """
+        Atomically claim up to `limit` documents with status \"pending\" (oldest by createdAt first).
+        Each claimed doc is set to status \"running\" so concurrent workers do not duplicate work.
+        """
+        claimed: list[dict] = []
+        for _ in range(limit):
+            doc = await self.collection.find_one_and_update(
+                {"status": "pending"},
+                {"$set": {"status": "running"}},
+                sort=[("createdAt", 1)],
+                return_document=ReturnDocument.AFTER,
+            )
+            if doc is None:
+                break
+            claimed.append(doc)
+        return claimed
 
     async def get_list(self, user_id: str = None, skip: int = 0, limit: int = 100, sort_by: dict = None) -> list[dict]:
         """Get UrlCollection entries with pagination. Optionally filter by user_id."""

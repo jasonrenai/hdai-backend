@@ -11,7 +11,7 @@ Run from project root:
   python scripts/process_pending_google_queries.py
   python scripts/process_pending_google_queries.py --limit 10
 
-Requires .env: MONGODB_CONNECTION_STRING, DB_NAME, plus the same keys as the app (SERP, RapidAPI, OpenAI, Pinecone, etc.).
+Requires .env: MONGODB_CONNECTION_STRING, DB_NAME, RAPIDAPI_KEY (Real-Time Web Search), plus RapidAPI scraper, OpenAI, Pinecone, etc.
 """
 import argparse
 import asyncio
