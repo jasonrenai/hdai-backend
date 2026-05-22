@@ -139,7 +139,7 @@ async def startup_event():
         id="pending_google_queries_cron",
     )
     log.info(
-        "Pending GoogleQuery scraper cron registered (every %s h, drains all pending)",
+        "Pending GoogleQuery scraper cron registered (every %s h, all pending entries)",
         google_query_cron_h,
     )
 
@@ -150,7 +150,7 @@ async def startup_event():
         id="pending_url_collections_cron",
     )
     log.info(
-        "Pending UrlCollection scraper cron registered (every %s h, drains all pending)",
+        "Pending UrlCollection scraper cron registered (every %s h, all pending entries)",
         url_collection_cron_h,
     )
 

@@ -389,13 +389,25 @@ class UrlScraperRapidAPIService:
         """
         asyncio.run(self._run_tedx_cron_async())
 
+    async def process_all_pending(self) -> dict:
+        """
+        Claim and process every pending UrlCollection (no limit). Used by the 72h scheduled cron.
+        Same pipeline as process_pending_batch: RapidAPI scrape -> LLM -> opportunities.
+        """
+        return await self._process_claimed_pending(
+            await self.url_collection_model.claim_all_pending_jobs()
+        )
+
     async def process_pending_batch(self, limit: int = 10) -> dict:
         """
-        Claim up to `limit` pending UrlCollections and run RapidAPI scrape + LLM extract + opportunities
-        (same pipeline as POST /api/v1/url-scraper/). Uses RapidAPIScraper (shared with ScraperRapidAPIService).
+        Claim up to `limit` pending UrlCollections (e.g. manual script runs) and run RapidAPI scrape + LLM extract.
         Jobs run sequentially with RAPIDAPI_DELAY_SECONDS between URLs.
         """
-        claimed = await self.url_collection_model.claim_pending_jobs(limit=limit)
+        return await self._process_claimed_pending(
+            await self.url_collection_model.claim_pending_jobs(limit=limit)
+        )
+
+    async def _process_claimed_pending(self, claimed: list) -> dict:
         summary = {
             "claimed": len(claimed),
             "completed": 0,

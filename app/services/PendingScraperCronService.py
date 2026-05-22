@@ -11,18 +11,7 @@ from app.services.UrlScraperRapidAPI import UrlScraperRapidAPIService
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BATCH_SIZE = 10
 _DEFAULT_CRON_TIMEOUT_SECONDS = 14400  # 4h — many URLs × RapidAPI + LLM can run long
-
-
-def _batch_size() -> int:
-    raw = (os.getenv("PENDING_SCRAPER_CRON_BATCH_SIZE") or "").strip()
-    if not raw:
-        return _DEFAULT_BATCH_SIZE
-    try:
-        return max(1, int(raw))
-    except ValueError:
-        return _DEFAULT_BATCH_SIZE
 
 
 def _cron_timeout_seconds() -> float:
@@ -35,53 +24,17 @@ def _cron_timeout_seconds() -> float:
         return float(_DEFAULT_CRON_TIMEOUT_SECONDS)
 
 
-def _merge_int_summary(acc: dict[str, Any], batch: dict[str, Any]) -> None:
-    for key, value in batch.items():
-        if isinstance(value, int):
-            acc[key] = acc.get(key, 0) + value
-
-
 class PendingScraperCronService:
-    """Runs the same pipelines as process_pending_* scripts until no pending jobs remain."""
+    """Runs the same pipelines as process_pending_* scripts, with no entry cap."""
 
     async def run_all_pending_google_queries(self) -> dict[str, Any]:
-        service = GoogleQueryScraperService()
-        batch_size = _batch_size()
-        summary: dict[str, Any] = {
-            "batches": 0,
-            "claimed": 0,
-            "completed": 0,
-            "failed": 0,
-            "skipped_invalid": 0,
-            "unexpected_status_after_run": 0,
-        }
-        while True:
-            batch = await service.process_pending_batch(limit=batch_size)
-            if batch.get("claimed", 0) == 0:
-                break
-            summary["batches"] += 1
-            _merge_int_summary(summary, batch)
-            logger.info("Pending GoogleQuery cron batch: %s", batch)
+        summary = await GoogleQueryScraperService().process_all_pending()
+        logger.info("Pending GoogleQuery cron finished: %s", summary)
         return summary
 
     async def run_all_pending_url_collections(self) -> dict[str, Any]:
-        service = UrlScraperRapidAPIService()
-        batch_size = _batch_size()
-        summary: dict[str, Any] = {
-            "batches": 0,
-            "claimed": 0,
-            "completed": 0,
-            "failed": 0,
-            "skipped_invalid": 0,
-            "opportunities_inserted": 0,
-        }
-        while True:
-            batch = await service.process_pending_batch(limit=batch_size)
-            if batch.get("claimed", 0) == 0:
-                break
-            summary["batches"] += 1
-            _merge_int_summary(summary, batch)
-            logger.info("Pending UrlCollection cron batch: %s", batch)
+        summary = await UrlScraperRapidAPIService().process_all_pending()
+        logger.info("Pending UrlCollection cron finished: %s", summary)
         return summary
 
 
@@ -107,9 +60,7 @@ def run_pending_google_queries_cron_sync() -> None:
     """Synchronous entrypoint for APScheduler — all pending GoogleQueries."""
 
     async def _run() -> None:
-        summary = await PendingScraperCronService().run_all_pending_google_queries()
-        if summary.get("claimed"):
-            logger.info("Pending GoogleQuery cron finished: %s", summary)
+        await PendingScraperCronService().run_all_pending_google_queries()
 
     try:
         from app.helpers.scheduler_async import run_coroutine_on_app_loop
@@ -123,9 +74,7 @@ def run_pending_url_collections_cron_sync() -> None:
     """Synchronous entrypoint for APScheduler — all pending UrlCollections."""
 
     async def _run() -> None:
-        summary = await PendingScraperCronService().run_all_pending_url_collections()
-        if summary.get("claimed"):
-            logger.info("Pending UrlCollection cron finished: %s", summary)
+        await PendingScraperCronService().run_all_pending_url_collections()
 
     try:
         from app.helpers.scheduler_async import run_coroutine_on_app_loop

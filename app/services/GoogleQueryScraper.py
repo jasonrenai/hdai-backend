@@ -134,14 +134,27 @@ class GoogleQueryScraperService:
                 {"status": "failed", "error": str(e), "updatedAt": datetime.utcnow()},
             )
 
-    async def process_pending_batch(self, limit: int = 10) -> dict:
+    async def process_all_pending(self) -> dict:
         """
-        Claim up to `limit` pending GoogleQueries (e.g. bulk-inserted) and run the same pipeline as the API
+        Claim and process every pending GoogleQuery (no limit). Used by the 72h scheduled cron.
+        Same pipeline as process_pending_batch: SERP -> top URLs -> scrape -> opportunities.
+        """
+        return await self._process_claimed_pending(
+            await self.google_query_model.claim_all_pending_jobs()
+        )
+
+    async def process_pending_batch(self, limit: int = 25) -> dict:
+        """
+        Claim up to `limit` pending GoogleQueries (e.g. manual script runs) and run the same pipeline as the API
         background task: SERP -> top URLs -> RapidAPI scrape -> opportunities (Mongo + vector) with duplicate checks.
         Jobs run sequentially within this batch to reduce SERP/RapidAPI rate pressure.
         """
-        claimed = await self.google_query_model.claim_pending_jobs(limit=limit)
-        summary = {
+        return await self._process_claimed_pending(
+            await self.google_query_model.claim_pending_jobs(limit=limit)
+        )
+
+    async def _process_claimed_pending(self, claimed: list) -> dict:
+        summary: dict = {
             "claimed": len(claimed),
             "completed": 0,
             "failed": 0,
