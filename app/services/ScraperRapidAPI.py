@@ -96,7 +96,7 @@ class ScraperRapidAPIService:
                 update_payload["scrapedDescription"] = description
 
             # 2. LLM extract speaking opportunities
-            opportunities, llm_error = self.opportunity_extractor.extract(content)
+            opportunities, llm_error = self.opportunity_extractor.extract(content, url=url)
             if opportunities:
                 qualify_opportunities_batch(
                     opportunities,

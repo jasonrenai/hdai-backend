@@ -69,20 +69,33 @@ class GoogleQueryModel:
         """
         claimed: list[dict] = []
         for _ in range(limit):
-            doc = await self.collection.find_one_and_update(
-                {"status": "pending"},
-                {
-                    "$set": {
-                        "status": "running",
-                        "updatedAt": datetime.utcnow(),
-                        "error": None,
-                    }
-                },
-                sort=[("createdAt", 1)],
-                return_document=ReturnDocument.AFTER,
-            )
+            doc = await self._claim_one_pending()
             if doc is None:
                 break
             claimed.append(doc)
         return claimed
+
+    async def claim_all_pending_jobs(self) -> list[dict]:
+        """Claim every document with status \"pending\" (no cap). Used by scheduled cron."""
+        claimed: list[dict] = []
+        while True:
+            doc = await self._claim_one_pending()
+            if doc is None:
+                break
+            claimed.append(doc)
+        return claimed
+
+    async def _claim_one_pending(self) -> dict | None:
+        return await self.collection.find_one_and_update(
+            {"status": "pending"},
+            {
+                "$set": {
+                    "status": "running",
+                    "updatedAt": datetime.utcnow(),
+                    "error": None,
+                }
+            },
+            sort=[("createdAt", 1)],
+            return_document=ReturnDocument.AFTER,
+        )
 

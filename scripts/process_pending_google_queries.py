@@ -9,9 +9,9 @@ process the same document twice. Jobs in one batch run one after another.
 
 Run from project root:
   python scripts/process_pending_google_queries.py
-  python scripts/process_pending_google_queries.py --limit 10
+  python scripts/process_pending_google_queries.py --limit 25
 
-Requires .env: MONGODB_CONNECTION_STRING, DB_NAME, plus the same keys as the app (SERP, RapidAPI, OpenAI, Pinecone, etc.).
+Requires .env: MONGODB_CONNECTION_STRING, DB_NAME, RAPIDAPI_KEY (Real-Time Web Search), plus RapidAPI scraper, OpenAI, Pinecone, etc.
 """
 import argparse
 import asyncio
@@ -37,8 +37,8 @@ async def main():
     parser.add_argument(
         "--limit",
         type=int,
-        default=10,
-        help="Maximum number of pending GoogleQueries to claim and process this run (default: 10).",
+        default=25,
+        help="Maximum number of pending GoogleQueries to claim and process this run (default: 25).",
     )
     args = parser.parse_args()
 

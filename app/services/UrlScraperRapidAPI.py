@@ -114,7 +114,7 @@ def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[
     if len(description) > DESCRIPTION_MAX_LENGTH:
         description = description[:DESCRIPTION_MAX_LENGTH] + "..."
 
-    opportunities, llm_error = extractor.extract(content)
+    opportunities, llm_error = extractor.extract(content, url=url)
     if llm_error and not opportunities:
         logger.warning("LLM extraction error: %s", llm_error)
     if opportunities:
@@ -388,3 +388,59 @@ class UrlScraperRapidAPIService:
         Runs TedX cron in a new event loop (scheduler runs in background thread).
         """
         asyncio.run(self._run_tedx_cron_async())
+
+    async def process_all_pending(self) -> dict:
+        """
+        Claim and process every pending UrlCollection (no limit). Used by the 72h scheduled cron.
+        Same pipeline as process_pending_batch: RapidAPI scrape -> LLM -> opportunities.
+        """
+        return await self._process_claimed_pending(
+            await self.url_collection_model.claim_all_pending_jobs()
+        )
+
+    async def process_pending_batch(self, limit: int = 10) -> dict:
+        """
+        Claim up to `limit` pending UrlCollections (e.g. manual script runs) and run RapidAPI scrape + LLM extract.
+        Jobs run sequentially with RAPIDAPI_DELAY_SECONDS between URLs.
+        """
+        return await self._process_claimed_pending(
+            await self.url_collection_model.claim_pending_jobs(limit=limit)
+        )
+
+    async def _process_claimed_pending(self, claimed: list) -> dict:
+        summary = {
+            "claimed": len(claimed),
+            "completed": 0,
+            "failed": 0,
+            "skipped_invalid": 0,
+            "opportunities_inserted": 0,
+        }
+        for i, doc in enumerate(claimed):
+            url_collection_id = str(doc["_id"])
+            url = (doc.get("url") or "").strip()
+            user_id = doc.get("userId")
+            if user_id is not None:
+                user_id = str(user_id)
+            if not url:
+                await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
+                summary["skipped_invalid"] += 1
+                continue
+            if is_pdf_url(url):
+                await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
+                summary["skipped_invalid"] += 1
+                continue
+            if i > 0:
+                await asyncio.sleep(RAPIDAPI_DELAY_SECONDS)
+            n = await self.run_scrape_and_extract(
+                url_collection_id,
+                url,
+                delay_seconds=RAPIDAPI_DELAY_SECONDS,
+            )
+            final = await self.url_collection_model.get_by_id(url_collection_id)
+            st = (final or {}).get("status")
+            if st == "completed":
+                summary["completed"] += 1
+                summary["opportunities_inserted"] += n
+            else:
+                summary["failed"] += 1
+        return summary
