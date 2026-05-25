@@ -21,16 +21,18 @@ async def list_opportunities(
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
     sort_by_start_date: str = Query(None, description="Sort by start_date: asc or desc"),
     sort_by_end_date: str = Query(None, description="Sort by end_date: asc or desc"),
+    sort_by_created_at: str = Query(None, description="Sort by created_at: asc or desc"),
     service=Depends(get_opportunity_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List opportunities with pagination. Optional sort by start_date and/or end_date (asc | desc)."""
+    """List opportunities with pagination. Optional sort by start_date, end_date, and/or created_at (asc | desc)."""
     try:
         result = await service.list_opportunities(
             page=page,
             limit=limit,
             sort_by_start_date=sort_by_start_date,
             sort_by_end_date=sort_by_end_date,
+            sort_by_created_at=sort_by_created_at,
         )
         return Utils.create_response(result, True)
     except HTTPException:

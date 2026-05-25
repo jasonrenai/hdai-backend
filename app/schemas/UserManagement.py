@@ -3,7 +3,7 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.schemas.User import UserSubscriptionSchema, UserType
+from app.schemas.User import SubscriptionType, UserType
 
 
 class SpeakerProfileSummary(BaseModel):
@@ -21,6 +21,14 @@ class SpeakerProfileSummary(BaseModel):
         populate_by_name = True
 
 
+class UserSubscriptionPublic(BaseModel):
+    isSubscriptionTaken: bool = False
+    subscriptionType: SubscriptionType = SubscriptionType.FREE
+    subscribedAt: Optional[datetime] = None
+    planLimits: Optional[dict[str, Any]] = None
+    planUsage: Optional[dict[str, Any]] = None
+
+
 class UserPublic(BaseModel):
     """User fields returned by admin user APIs (no password)."""
 
@@ -35,7 +43,7 @@ class UserPublic(BaseModel):
     profilePicture: Optional[str] = None
     phone: Optional[str] = None
     adminId: Optional[str] = None
-    subscription: Optional[UserSubscriptionSchema] = None
+    subscription: Optional[UserSubscriptionPublic] = None
     createdOn: Optional[datetime] = None
     updatedOn: Optional[datetime] = None
 

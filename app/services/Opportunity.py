@@ -51,10 +51,15 @@ class OpportunityService:
         limit: int = 10,
         sort_by_start_date: str | None = None,
         sort_by_end_date: str | None = None,
+        sort_by_created_at: str | None = None,
     ) -> dict:
-        """List opportunities with pagination. page is 1-based. Optional sort by start_date and/or end_date (asc/desc)."""
+        """List opportunities with pagination. page is 1-based. Optional sort by start_date, end_date, and/or created_at (asc/desc)."""
         skip = (page - 1) * limit
-        sort_by = self._build_sort(sort_by_start_date, sort_by_end_date)
+        sort_by = self._build_sort(
+            sort_by_start_date,
+            sort_by_end_date,
+            sort_by_created_at,
+        )
         opportunities = await self.model.get_list(skip=skip, limit=limit, sort_by=sort_by)
         total = await self.model.count()
         return {
@@ -69,13 +74,16 @@ class OpportunityService:
         self,
         sort_by_start_date: str | None,
         sort_by_end_date: str | None,
+        sort_by_created_at: str | None,
     ) -> dict:
-        """Build sort dict for list: start_date and/or end_date (1=asc, -1=desc). Default _id -1 if none."""
+        """Build sort dict for list: start_date, end_date, and/or createdAt (1=asc, -1=desc). Default _id -1 if none."""
         order = {}
         if sort_by_start_date and sort_by_start_date.lower() in ("asc", "desc"):
             order["start_date"] = 1 if sort_by_start_date.lower() == "asc" else -1
         if sort_by_end_date and sort_by_end_date.lower() in ("asc", "desc"):
             order["end_date"] = 1 if sort_by_end_date.lower() == "asc" else -1
+        if sort_by_created_at and sort_by_created_at.lower() in ("asc", "desc"):
+            order["createdAt"] = 1 if sort_by_created_at.lower() == "asc" else -1
         if not order:
             return {"_id": -1}
         return order

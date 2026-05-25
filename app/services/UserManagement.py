@@ -5,6 +5,10 @@ from bson import ObjectId
 
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.models.User import UserModel
+from app.helpers.SubscriptionStripeUtil import (
+    get_subscription_entitlements,
+    plan_limits_from_entitlements,
+)
 from app.schemas.User import (
     AdminCreateUserSchema,
     AdminUpdateUserSchema,
@@ -19,6 +23,7 @@ from app.schemas.UserManagement import (
     LinkSpeakerProfilesToUserBody,
     SpeakerProfileSummary,
     UserPublic,
+    UserSubscriptionPublic,
     UserWithSpeakerProfiles,
     UsersListPagination,
     UsersWithProfilesListData,
@@ -26,7 +31,7 @@ from app.schemas.UserManagement import (
 from datetime import datetime
 
 
-def _user_to_public(user: UserSchema) -> UserPublic:
+def _user_to_public(user: UserSchema, speaker_profile_count: int = 0) -> UserPublic:
     d = user.model_dump(by_alias=True)
     d.pop("password", None)
     oid = d.pop("_id", None)
@@ -42,7 +47,7 @@ def _user_to_public(user: UserSchema) -> UserPublic:
         profilePicture=d.get("profilePicture"),
         phone=d.get("phone"),
         adminId=str(d["adminId"]) if d.get("adminId") is not None else None,
-        subscription=_subscription_from_user_doc(d),
+        subscription=_subscription_to_public(d, speaker_profile_count),
         createdOn=d.get("createdOn"),
         updatedOn=d.get("updatedOn"),
     )
@@ -55,6 +60,29 @@ def _subscription_from_user_doc(d: dict) -> UserSubscriptionSchema:
     if isinstance(raw, dict) and raw:
         return UserSubscriptionSchema(**raw)
     return UserSubscriptionSchema(**default_user_subscription())
+
+
+def _subscription_to_public(
+    d: dict, speaker_profile_count: int = 0
+) -> UserSubscriptionPublic:
+    subscription = _subscription_from_user_doc(d)
+    plan_key = subscription.subscriptionType.value
+    is_active = subscription.isSubscriptionTaken and plan_key != SubscriptionType.FREE.value
+    plan_limits = None
+    if is_active:
+        plan_limits = plan_limits_from_entitlements(
+            get_subscription_entitlements(plan_key.capitalize())
+        )
+    return UserSubscriptionPublic(
+        isSubscriptionTaken=subscription.isSubscriptionTaken,
+        subscriptionType=subscription.subscriptionType,
+        subscribedAt=subscription.subscribedAt,
+        planLimits=plan_limits,
+        planUsage={
+            "speakerProfiles": speaker_profile_count,
+            "opportunities": None,
+        },
+    )
 
 
 def _merge_subscription_update(
@@ -107,7 +135,12 @@ class UserManagementService:
             skip = (page - 1) * limit
             total, users = await asyncio.gather(
                 self.user_model.get_documents_count(filters),
-                self.user_model.get_users(filters, skip, limit),
+                self.user_model.get_users(
+                    filters,
+                    skip,
+                    limit,
+                    sort_by={"createdOn": -1, "_id": -1},
+                ),
             )
             total_pages = (total + limit - 1) // limit if limit else 0
             user_ids: List[str] = []
@@ -118,12 +151,13 @@ class UserManagementService:
 
             out: List[UserWithSpeakerProfiles] = []
             for u, uid in zip(users, user_ids):
+                user_profiles = grouped.get(uid, [])
                 summaries = [
-                    _profile_to_summary(p) for p in grouped.get(uid, [])
+                    _profile_to_summary(p) for p in user_profiles
                 ]
                 out.append(
                     UserWithSpeakerProfiles(
-                        user=_user_to_public(u),
+                        user=_user_to_public(u, speaker_profile_count=len(user_profiles)),
                         speakerProfiles=summaries,
                     )
                 )
@@ -165,7 +199,7 @@ class UserManagementService:
             profiles = await self.profile_model.get_profiles_by_user_id(user_id)
             summaries = [_profile_to_summary(p) for p in profiles]
             payload = UserWithSpeakerProfiles(
-                user=_user_to_public(user),
+                user=_user_to_public(user, speaker_profile_count=len(profiles)),
                 speakerProfiles=summaries,
             )
             return {

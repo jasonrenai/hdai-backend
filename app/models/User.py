@@ -39,11 +39,20 @@ class UserModel:
         await self.collection.update_many(filters, update)
         return True
 
-    async def get_users(self, filters: dict = {}, skip: int = 0, limit: int = 10) -> List[UserSchema]:
+    async def get_users(
+        self,
+        filters: dict = {},
+        skip: int = 0,
+        limit: int = 10,
+        sort_by: dict | None = None,
+    ) -> List[UserSchema]:
         """
         Retrieve a list of users matching the given filters with pagination.
         """
-        cursor = self.collection.find(filters).skip(skip).limit(limit)
+        cursor = self.collection.find(filters)
+        if sort_by:
+            cursor = cursor.sort(list(sort_by.items()))
+        cursor = cursor.skip(skip).limit(limit)
         users = []
         async for doc in cursor:
             users.append(UserSchema(**doc))
