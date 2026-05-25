@@ -4,6 +4,7 @@ import os
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI
@@ -32,7 +33,6 @@ from app.middleware.GlobalErrorHandling import GlobalErrorHandlingMiddleware
 from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
 from app.services.PendingScraperCronService import (
-    pending_google_queries_cron_interval_hours,
     pending_url_collections_cron_interval_hours,
     run_pending_google_queries_cron_sync,
     run_pending_url_collections_cron_sync,
@@ -132,15 +132,13 @@ async def startup_event():
     )
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
 
-    google_query_cron_h = pending_google_queries_cron_interval_hours()
     _cron_scheduler.add_job(
         run_pending_google_queries_cron_sync,
-        IntervalTrigger(hours=google_query_cron_h),
+        CronTrigger(day_of_week="mon", hour=20, minute=0, timezone="Asia/Kolkata"),
         id="pending_google_queries_cron",
     )
     log.info(
-        "Pending GoogleQuery scraper cron registered (every %s h, all pending entries)",
-        google_query_cron_h,
+        "Pending GoogleQuery scraper cron registered (Monday 20:00 Asia/Kolkata, all pending entries)",
     )
 
     url_collection_cron_h = pending_url_collections_cron_interval_hours()

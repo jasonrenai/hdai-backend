@@ -11,6 +11,7 @@ from app.models.Scraper import ScraperModel
 from app.helpers.RapidAPIScraper import RapidAPIScraper
 from app.helpers.SpeakingOpportunityExtractor import SpeakingOpportunityExtractor
 from app.helpers.OpportunityQualifier import qualify_opportunities_batch
+from app.helpers.OpportunitySubmissionResolver import OpportunitySubmissionResolver
 
 
 class ScraperRapidAPIService:
@@ -23,6 +24,7 @@ class ScraperRapidAPIService:
         self.model = ScraperModel()
         self.rapidapi_scraper = RapidAPIScraper()
         self.opportunity_extractor = SpeakingOpportunityExtractor()
+        self.submission_resolver = OpportunitySubmissionResolver(rapidapi_scraper=self.rapidapi_scraper)
 
     async def create_scrape_job(self, url: str, user_id: str) -> str:
         """
@@ -98,6 +100,12 @@ class ScraperRapidAPIService:
             # 2. LLM extract speaking opportunities
             opportunities, llm_error = self.opportunity_extractor.extract(content, url=url)
             if opportunities:
+                opportunities = self.submission_resolver.resolve_opportunities(
+                    opportunities,
+                    source_url=url,
+                    source_page_content=content,
+                    source_page_links=result.get("data", {}).get("urls") or [],
+                )
                 qualify_opportunities_batch(
                     opportunities,
                     scraper=self.rapidapi_scraper,

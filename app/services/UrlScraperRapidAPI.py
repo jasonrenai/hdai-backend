@@ -26,6 +26,7 @@ from app.helpers.SpeakingOpportunityExtractor import SpeakingOpportunityExtracto
 from app.helpers.SerpHelper import SerpHelper
 from app.helpers.PineconeOpportunityStore import PineconeOpportunityStore
 from app.helpers.OpportunityQualifier import qualify_opportunities_batch
+from app.helpers.OpportunitySubmissionResolver import OpportunitySubmissionResolver
 from app.agents.EventDetailEnricherAgent import EventDetailEnricherAgent
 
 RAPIDAPI_DELAY_SECONDS = 5
@@ -49,9 +50,8 @@ def is_pdf_url(url: str) -> bool:
 
 def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Keep only opportunities that have all required fields filled (link, event_name, location,
-    topics, start_date, end_date, speaking_format, delivery_mode, target_audiences). If LLM couldn't find any,
-    the opportunity is not added to the collection.
+    Keep only opportunities that have all required fields filled. Canonical topics may be empty when
+    the content does not match the allowed topic catalog, but aipredictedTopics must then be present.
     """
     result = []
     for opp in opportunities:
@@ -59,6 +59,7 @@ def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[D
         event_name = (opp.get("event_name") or opp.get("title") or "").strip()
         location = (opp.get("location") or "").strip()
         topics = opp.get("topics")
+        ai_predicted_topics = opp.get("aipredictedTopics")
         start_date = opp.get("start_date")
         end_date = opp.get("end_date")
         speaking_format = (opp.get("speaking_format") or "").strip()
@@ -67,7 +68,9 @@ def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[D
 
         if not link or not event_name or not location:
             continue
-        if not isinstance(topics, list) or len(topics) == 0:
+        has_topics = isinstance(topics, list) and len(topics) > 0
+        has_ai_predicted_topics = isinstance(ai_predicted_topics, list) and len(ai_predicted_topics) > 0
+        if not has_topics and not has_ai_predicted_topics:
             continue
         if start_date is None or not str(start_date).strip():
             continue
@@ -96,6 +99,7 @@ def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[
     scraper = RapidAPIScraper(delay_seconds=delay_seconds)
     extractor = SpeakingOpportunityExtractor()
     enricher = EventDetailEnricherAgent(rapidapi_scraper=scraper)
+    submission_resolver = OpportunitySubmissionResolver(rapidapi_scraper=scraper)
 
     result = scraper.scrape(url)
     if not result.get("success"):
@@ -104,6 +108,7 @@ def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[
     if not content:
         return None
     data = result.get("data", {})
+    source_links = data.get("urls") or []
     source_name = data.get("name") or ""
     if not source_name:
         parsed = urlparse(url)
@@ -119,6 +124,12 @@ def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[
         logger.warning("LLM extraction error: %s", llm_error)
     if opportunities:
         opportunities = enricher.enrich_opportunities(opportunities)
+        opportunities = submission_resolver.resolve_opportunities(
+            opportunities,
+            source_url=url,
+            source_page_content=content,
+            source_page_links=source_links,
+        )
         qualify_opportunities_batch(
             opportunities,
             scraper=scraper,
@@ -230,7 +241,7 @@ class UrlScraperRapidAPIService:
             complete = filter_complete_opportunities(opportunities)
             dropped = len(opportunities) - len(complete)
             if dropped:
-                logger.info("Job %s: dropped %d opportunities missing required fields (link, event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences)", url_collection_id, dropped)
+                logger.info("Job %s: dropped %d opportunities missing required fields (link, event_name, location, topics or aipredictedTopics, start_date, end_date, speaking_format, delivery_mode, target_audiences)", url_collection_id, dropped)
 
             # Unique topics from saved opportunities, for UrlCollection
             extracted_topics = sorted(

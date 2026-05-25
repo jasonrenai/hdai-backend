@@ -18,6 +18,10 @@ from app.config.speaker_profile_chatbot import (
     DELIVERY_MODE,
     TARGET_AUDIENCES,
 )
+from app.helpers.OpportunitySubmissionResolver import (
+    normalize_submission_info,
+    sync_submission_info_to_metadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +93,44 @@ def _filter_topics_to_allowed(raw_topics: List[str]) -> List[str]:
             seen.add(canonical)
     if not result:
         result = [ALLOWED_TOPICS[0]] if ALLOWED_TOPICS else []
+    return result
+
+
+def _normalize_ai_predicted_topics(raw_topics: Any) -> List[str]:
+    """Normalize freeform AI-predicted topics while preserving non-catalog labels."""
+    if not isinstance(raw_topics, list):
+        return []
+    seen = set()
+    result = []
+    for topic in raw_topics:
+        value = str(topic or "").strip()
+        if not value:
+            continue
+        key = value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(value)
+        if len(result) >= 10:
+            break
+    return result
+
+
+def _merge_ai_predicted_topics(*topic_lists: List[str]) -> List[str]:
+    seen = set()
+    result = []
+    for topics in topic_lists:
+        for topic in topics or []:
+            value = str(topic or "").strip()
+            if not value:
+                continue
+            key = value.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(value)
+            if len(result) >= 10:
+                return result
     return result
 
 
@@ -190,6 +232,7 @@ class SpeakingOpportunityExtractor:
                     - event_name: Clear name of the event or opportunity from chunk content, otherwise make one up based on context. 
                     - location: Event location (city, country, or "Virtual") if mentioned, otherwise empty string
                     - topics: Array of relevant topics. You MUST choose ONLY from this exact list (use the exact string): """ + _TOPICS_LIST_STR + """. Pick one or more that best match the event. NEVER leave empty - pick at least one from the list.
+                    - aipredictedTopics: Array of concise freeform topic labels predicted from the chunk content when no exact topic from the allowed topics list fits the opportunity. Use [] when allowed topics fit well.
                     - start_date: Event start date in ISO format YYYY-MM-DD (e.g. "2025-03-15"). Only include FUTURE events. If only a month/year is known use the first day (e.g. "March 2025" -> "2025-03-01"). null if not mentioned.
                     - end_date: Event end date in ISO format YYYY-MM-DD. For one-day events use the SAME date as start_date. For multi-day events use the actual end date. null if not mentioned.
                     - speaking_format: You MUST choose exactly ONE from this list (use the exact string): """ + _SPEAKING_FORMATS_STR + """. Pick the one that best matches the opportunity.
@@ -197,6 +240,15 @@ class SpeakingOpportunityExtractor:
                     - target_audiences: Array of audience types. You MUST choose ONLY from this exact list (use the exact strings): """ + _TARGET_AUDIENCES_STR + """. Empty array if none match.
                     - application_submission_deadline: Speaker / call-for-speakers application deadline in ISO format YYYY-MM-DD if explicitly stated on the page, otherwise null. Do not guess.
                     - application_submission_closed: boolean, true ONLY if the page explicitly states that applications are closed, the deadline has passed, or submissions are no longer accepted; otherwise false.
+                    - submissionInfo: Object that MUST include exactly:
+                      - status: "found" if the chunk has a speaker application path, form, or submission email; "contact_found" if only a general contact email is present and no submission path is present; otherwise "not_found".
+                      - applicationLink: direct speaker application / call-for-speakers / apply page URL if present in the chunk, otherwise empty string.
+                      - formLink: direct form URL if present in the chunk, otherwise empty string.
+                      - submissionEmail: email specifically for speaker submissions/proposals/applications if present, otherwise empty string.
+                      - deadline: application/submission deadline in ISO YYYY-MM-DD if explicitly present; if a submission path is present but deadline is missing, use exactly "deadline not found".
+                      - contactEmail: general contact email only when no submission path is present, otherwise empty string.
+                      - reason: short evidence-based reason when status is "contact_found" or "not_found", otherwise empty string.
+                      - sourceUrl: URL where the submission/contact evidence appears, otherwise the Website URL.
                     - metadata: Object that MUST include:
                     - "description": 3-4 sentences describing the opportunity and why it is a speaking opportunity.
                     - You may also include optional metadata such as contact_email, organizer_name, venue, submission_link, or notes if available.
@@ -205,6 +257,7 @@ class SpeakingOpportunityExtractor:
                     - Return ONLY valid JSON (no explanations or extra text).
                     - Do NOT invent or hallucinate information.
                     - Only extract opportunities explicitly supported by the page content.
+                    - Extract submissionInfo only from the provided Website URL and chunk content. Do not infer unseen apply/contact pages here.
                     - Only include events that are in the future.
                     - If no opportunities are found in this chunk, return []."""
 
@@ -228,6 +281,8 @@ class SpeakingOpportunityExtractor:
                     - Events that clearly do not accept external speakers
 
                     Use only the information present in the provided content. Do not guess or hallucinate missing information.
+                    For topics, first use exact values from the allowed topic list. If the opportunity topic is not represented by that list, put the content-based topic labels in aipredictedTopics as a list.
+                    Also extract submissionInfo from this chunk: speaker application links, form links, submission emails, and explicit application deadlines. If an application path is present but no deadline is present, set submissionInfo.deadline to exactly "deadline not found".
 
                     Website URL:
                     {url}
@@ -301,7 +356,23 @@ class SpeakingOpportunityExtractor:
         Returns None if dates are missing or event is in the past (so it gets filtered out).
         """
         raw_topics = opp.get("topics") if isinstance(opp.get("topics"), list) else []
-        topics = _filter_topics_to_allowed([str(t).strip() for t in raw_topics if t]) if raw_topics else self._ensure_topics_non_empty(opp)
+        raw_topic_values = [str(t).strip() for t in raw_topics if str(t or "").strip()]
+        allowed_topics = _filter_list_to_allowed(
+            raw_topic_values,
+            ALLOWED_TOPICS,
+            _ALLOWED_TOPICS_SET,
+            _ALLOWED_TOPICS_LOWER,
+        )
+        ai_predicted_topics = _normalize_ai_predicted_topics(
+            opp.get("aipredictedTopics") or opp.get("aiPredictedTopics") or opp.get("predictedTopics")
+        )
+        unmatched_raw_topics = [
+            topic for topic in raw_topic_values
+            if topic not in _ALLOWED_TOPICS_SET and topic.lower() not in _ALLOWED_TOPICS_LOWER
+        ]
+        if unmatched_raw_topics:
+            ai_predicted_topics = _merge_ai_predicted_topics(ai_predicted_topics, unmatched_raw_topics)
+        topics = allowed_topics if allowed_topics else ([] if ai_predicted_topics else self._ensure_topics_non_empty(opp))
         raw_speaking = (opp.get("speaking_format") or "").strip()
         raw_delivery = (opp.get("delivery_mode") or "").strip()
         raw_audiences = opp.get("target_audiences") if isinstance(opp.get("target_audiences"), list) else []
@@ -350,18 +421,29 @@ class SpeakingOpportunityExtractor:
         if closed:
             meta["application_submission_closed"] = True
 
-        return {
+        submission_source = dict(meta)
+        if isinstance(opp.get("submissionInfo"), dict):
+            submission_source.update(opp.get("submissionInfo") or {})
+
+        normalized = {
             "link": opp.get("link") or opp.get("url") or "",
             "event_name": event_name,
             "location": opp.get("location") or "",
             "topics": topics,
+            "aipredictedTopics": ai_predicted_topics,
             "start_date": start_iso,
             "end_date": end_iso,
             "speaking_format": _filter_speaking_format(raw_speaking),
             "delivery_mode": _filter_delivery_mode(raw_delivery),
             "target_audiences": _filter_target_audiences_to_allowed([str(a).strip() for a in raw_audiences if a]),
+            "submissionInfo": normalize_submission_info(
+                submission_source,
+                base_url=opp.get("link") or opp.get("url") or "",
+            ),
             "metadata": meta,
         }
+        sync_submission_info_to_metadata(normalized)
+        return normalized
 
     def _deduplicate_opportunities(self, opportunities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Merge and deduplicate opportunities by (event_name_normalized, link). Drops past dates and invalid dates (normalize returns None)."""

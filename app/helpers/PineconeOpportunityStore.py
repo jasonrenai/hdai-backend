@@ -38,6 +38,9 @@ class OpportunityTextBuilder:
         topics = opp.get("topics") or []
         if isinstance(topics, list):
             parts.append(" ".join(str(t).strip() for t in topics if t))
+        ai_predicted_topics = opp.get("aipredictedTopics") or []
+        if isinstance(ai_predicted_topics, list):
+            parts.append(" ".join(str(t).strip() for t in ai_predicted_topics if t))
         speaking_format = (opp.get("speaking_format") or "").strip()
         if speaking_format:
             parts.append(speaking_format)

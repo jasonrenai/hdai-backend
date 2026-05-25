@@ -290,7 +290,34 @@ Return a single JSON object with keys: event_name, location, topics, start_date,
 
             merged = self._merge_enriched(opp, enriched_data)
             raw_topics = merged.get("topics") or []
-            merged["topics"] = _filter_topics_to_allowed([str(t).strip() for t in raw_topics if t]) if raw_topics else self._ensure_topics_non_empty(merged)
+            raw_topic_values = [str(t).strip() for t in raw_topics if str(t or "").strip()]
+            ai_predicted_topics = merged.get("aipredictedTopics") or []
+            if raw_topic_values:
+                allowed_topics = _filter_list_to_allowed(
+                    raw_topic_values,
+                    ALLOWED_TOPICS,
+                    _ALLOWED_TOPICS_SET,
+                    _ALLOWED_TOPICS_LOWER,
+                )
+                if allowed_topics:
+                    merged["topics"] = allowed_topics
+                    unmatched_raw_topics = [
+                        topic for topic in raw_topic_values
+                        if topic not in _ALLOWED_TOPICS_SET and topic.lower() not in _ALLOWED_TOPICS_LOWER
+                    ]
+                    if unmatched_raw_topics:
+                        existing = ai_predicted_topics if isinstance(ai_predicted_topics, list) else []
+                        merged["aipredictedTopics"] = [
+                            topic for topic in [*existing, *unmatched_raw_topics]
+                            if str(topic or "").strip()
+                        ][:10]
+                else:
+                    merged["topics"] = []
+                    merged["aipredictedTopics"] = raw_topic_values
+            elif isinstance(ai_predicted_topics, list) and ai_predicted_topics:
+                merged["topics"] = []
+            else:
+                merged["topics"] = self._ensure_topics_non_empty(merged)
             merged["speaking_format"] = _filter_speaking_format((merged.get("speaking_format") or "").strip())
             merged["delivery_mode"] = _filter_delivery_mode((merged.get("delivery_mode") or "").strip())
             raw_audiences = merged.get("target_audiences") or []

@@ -15,6 +15,11 @@ from urllib.parse import urlparse
 
 from app.helpers.RapidAPIScraper import RapidAPIScraper
 from app.helpers.SpeakingOpportunityExtractor import _parse_date_to_iso
+from app.helpers.OpportunitySubmissionResolver import (
+    DEADLINE_NOT_FOUND,
+    normalize_submission_info,
+    submission_info_has_submission_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +93,18 @@ def _meta_bool_true(meta: Dict[str, Any], key: str) -> bool:
 
 
 def _application_deadline_iso(opp: Dict[str, Any]) -> Optional[str]:
+    raw_submission_info = opp.get("submissionInfo")
+    if isinstance(raw_submission_info, dict):
+        submission_info = normalize_submission_info(
+            raw_submission_info,
+            base_url=(opp.get("link") or opp.get("url") or ""),
+        )
+        deadline = submission_info.get("deadline")
+        if deadline and deadline != DEADLINE_NOT_FOUND:
+            parsed = _parse_date_to_iso(deadline)
+            if parsed:
+                return parsed
+
     meta = _get_meta(opp)
     for key in ("application_submission_deadline", "speaker_application_deadline"):
         raw = meta.get(key)
@@ -113,6 +130,18 @@ def clause_application_submission(
     if _meta_bool_true(meta, "application_submission_closed"):
         return "Application submission is closed according to the source content."
 
+    raw_submission_info = opp.get("submissionInfo")
+    if isinstance(raw_submission_info, dict):
+        submission_info = normalize_submission_info(
+            raw_submission_info,
+            base_url=(opp.get("link") or opp.get("url") or ""),
+        )
+        status = submission_info.get("status")
+        if status == "contact_found":
+            return submission_info.get("reason") or "Submission details not found; contact email found."
+        if status == "not_found":
+            return submission_info.get("reason") or "Speaker submission details not found."
+
     deadline_iso = _application_deadline_iso(opp)
     if deadline_iso:
         try:
@@ -123,6 +152,9 @@ def clause_application_submission(
             return f"Application submission deadline ({deadline_iso}) has passed."
 
         # Known deadline still in the future (or today): qualified for this clause
+        return None
+
+    if isinstance(raw_submission_info, dict) and submission_info_has_submission_path(raw_submission_info):
         return None
 
     # No parsed deadline: try speaker/event landing page
