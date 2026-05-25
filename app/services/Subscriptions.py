@@ -175,6 +175,45 @@ def _subscription_item_and_price(sub: Any) -> tuple[Optional[str], Optional[str]
     return first.get("id"), (first.get("price") or {}).get("id")
 
 
+async def _customer_id_for_checkout(
+    *,
+    user: dict[str, Any],
+    user_id: str,
+    product: ProductConfig,
+    users: UserModel,
+) -> str:
+    metadata = {
+        "userId": str(user_id),
+        "productId": product.id,
+        "productName": product.name,
+    }
+    customer_id = str(user.get("stripe_customer_id") or "").strip()
+    email = str(user.get("email") or "").strip() or None
+    name = str(user.get("fullName") or "").strip() or None
+    customer_fields = {"metadata": metadata}
+    if email:
+        customer_fields["email"] = email
+    if name:
+        customer_fields["name"] = name
+
+    if customer_id:
+        try:
+            customer = stripe.Customer.retrieve(customer_id)
+            if as_dict(customer).get("deleted"):
+                customer_id = ""
+            else:
+                stripe.Customer.modify(customer_id, **customer_fields)
+                return customer_id
+        except stripe.error.StripeError as e:
+            logger.warning("Could not retrieve Stripe customer %s: %s", customer_id, e)
+
+    customer = stripe.Customer.create(**customer_fields)
+    customer_id = str(as_dict(customer).get("id") or "")
+    if customer_id:
+        await user_set_stripe_customer_id(users, user_id, customer_id)
+    return customer_id
+
+
 async def create_stripe_payment_link(
     *,
     user_id: str,
@@ -303,21 +342,36 @@ async def create_stripe_payment_link(
     if not success_url:
         return PaymentLinkResult(status=500, message="STRIPE_SUCCESS_URL(S) not configured")
 
-    pl = stripe.PaymentLink.create(
-        line_items=[{"price": price_id, "quantity": 1}],
-        metadata={
-            "userId": str(user_id),
-            "productId": product.id,
-            "productName": product.name,
-        },
-        after_completion={"type": "redirect", "redirect": {"url": success_url}},
+    metadata = {
+        "userId": str(user_id),
+        "productId": product.id,
+        "productName": product.name,
+    }
+    customer_id = await _customer_id_for_checkout(
+        user=user,
+        user_id=user_id,
+        product=product,
+        users=users,
     )
-    pld = as_dict(pl)
+    if not customer_id:
+        return PaymentLinkResult(status=500, message="Error creating Stripe customer")
+
+    session = stripe.checkout.Session.create(
+        mode="subscription",
+        line_items=[{"price": price_id, "quantity": 1}],
+        customer=customer_id,
+        client_reference_id=str(user_id),
+        metadata=metadata,
+        subscription_data={"metadata": metadata},
+        success_url=success_url,
+        cancel_url=cancel_url or success_url,
+    )
+    session_data = as_dict(session)
     return PaymentLinkResult(
         status=200,
-        message="Payment link created successfully",
-        payment_link_url=pld.get("url"),
-        payment_link_id=pld.get("id"),
+        message="Checkout session created successfully",
+        payment_link_url=session_data.get("url"),
+        payment_link_id=session_data.get("id"),
         subscription_updated=False,
     )
 

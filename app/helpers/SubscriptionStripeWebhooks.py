@@ -215,14 +215,70 @@ def _plan_name_from_invoice(
 ) -> str:
     if db_sub and db_sub.get("subscription_type"):
         return str(db_sub["subscription_type"])
+
+    for key in ("productName", "planName", "subscription_type", "plan_name"):
+        value = (inv.get("metadata") or {}).get(key)
+        if value:
+            return str(value)
+
     lines = inv.get("lines") or {}
     data = lines.get("data") or []
-    if not data:
-        return ""
-    row = as_dict(data[0])
-    price = as_dict(row.get("price") or {})
-    product_ref = price.get("product")
-    product_id = product_ref.get("id") if isinstance(product_ref, dict) else product_ref
+    for raw_row in data:
+        row = as_dict(raw_row)
+        for key in ("productName", "planName", "subscription_type", "plan_name"):
+            value = (row.get("metadata") or {}).get(key)
+            if value:
+                return str(value)
+
+        price = as_dict(row.get("price") or {})
+        product_ref = price.get("product")
+        product_id = product_ref.get("id") if isinstance(product_ref, dict) else product_ref
+        if product_id:
+            name = plan_name_from_stripe_product_id(str(product_id))
+            if name:
+                return name
+            for p in products:
+                if p.id == str(product_id):
+                    return p.name
+        price_id = price.get("id")
+        if price_id:
+            for p in products:
+                if p.price_id == str(price_id):
+                    return p.name
+
+    sub_id = inv.get("subscription")
+    if sub_id:
+        try:
+            sub = as_dict(stripe.Subscription.retrieve(str(sub_id)))
+        except stripe.error.StripeError as e:
+            logger.warning("Could not retrieve subscription %s for plan name: %s", sub_id, e)
+            return ""
+
+        for key in ("productName", "planName", "subscription_type", "plan_name"):
+            value = (sub.get("metadata") or {}).get(key)
+            if value:
+                return str(value)
+
+        items = sub.get("items") or {}
+        item_data = items.get("data") or []
+        first = as_dict(item_data[0]) if item_data else {}
+        price = as_dict(first.get("price") or {})
+        product_ref = price.get("product")
+        product_id = product_ref.get("id") if isinstance(product_ref, dict) else product_ref
+        if product_id:
+            name = plan_name_from_stripe_product_id(str(product_id))
+            if name:
+                return name
+            for p in products:
+                if p.id == str(product_id):
+                    return p.name
+        price_id = price.get("id")
+        if price_id:
+            for p in products:
+                if p.price_id == str(price_id):
+                    return p.name
+
+    product_id = (inv.get("metadata") or {}).get("productId")
     if product_id:
         name = plan_name_from_stripe_product_id(str(product_id))
         if name:

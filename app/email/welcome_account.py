@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from app.email.constants import WELCOME_EMAIL_CTA_URL
+from app.email.constants import build_welcome_email_cta_url
 from app.email.enums import EmailEventType
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def send_welcome_email(
         template_model={
             "preheader": preheader,
             "user_name": user_name,
-            "cta_url": WELCOME_EMAIL_CTA_URL,
+            "cta_url": build_welcome_email_cta_url(to_email),
         },
     )
 

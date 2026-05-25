@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+from urllib.parse import urlencode
 
 from app.email.enums import EmailEventType, SenderType
 
@@ -18,8 +19,14 @@ SENDER_EMAILS = {
     SenderType.SUPPORT: "support@speakerpitcher.ai",
 }
 
-# Welcome template `cta_url` — "complete your setup" / sign-in (all welcome sends).
-WELCOME_EMAIL_CTA_URL = "https://kind-cliff-0e3c6e210.6.azurestaticapps.net/signin"
+# Welcome template `cta_url` — "complete your setup" / onboarding (all welcome sends).
+WELCOME_EMAIL_CTA_BASE_URL = "https://kind-cliff-0e3c6e210.6.azurestaticapps.net/chat-speaker-onboard"
+WELCOME_EMAIL_CTA_URL = f"{WELCOME_EMAIL_CTA_BASE_URL}?source=email&email="
+
+
+def build_welcome_email_cta_url(email: str | None) -> str:
+    normalized_email = (email or "").strip().lower()
+    return f"{WELCOME_EMAIL_CTA_BASE_URL}?{urlencode({'source': 'email', 'email': normalized_email})}"
 
 # Frontend base for “review your pitch” links in pitch-ready alerts.
 PITCH_REVIEW_FRONTEND_BASE = os.getenv(
