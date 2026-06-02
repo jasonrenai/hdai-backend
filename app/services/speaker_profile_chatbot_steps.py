@@ -108,7 +108,7 @@ STEP_GUIDELINES: Dict[str, str] = {
     "location": "Parse city, state/province, country from one line; upsert all three address fields.",
     "social": "Map URLs to linkedin_url, twitter, facebook, instagram. User may skip.",
     "bio": "Save plausible professional bio text only; re-ask gibberish.",
-    "professional_memberships": "Extract title, organization, role objects; user may skip.",
+    "professional_memberships": "Extract title, organization, start_date, end_date, is_current objects; user may skip.",
     "preferred_speaking_time": "Save only canonical values: 10-minute, 20-minute, 30-minute, 40-minute, 1 hour.",
     "topics": "Show database topic bullets when asking; save exact names only; off-list → profile update later message.",
     "speaking_formats": "Show database format bullets when asking; exact names only; off-list → add later in profile.",
@@ -435,7 +435,7 @@ def build_checkpoint_for_prompt(
             "in this same assistant turn (tool_calls), not text only."
         ),
         "professional_memberships": (
-            "NEXT_SAVE: professional_memberships — upsert array of {title, organization, role} when they answer; "
+            "NEXT_SAVE: professional_memberships — upsert array of {title, organization, start_date, end_date, is_current} when they answer; "
             "if they skip, proceed without saving junk."
         ),
         "preferred_speaking_time": (

@@ -49,6 +49,38 @@ class SpeakerProfileModel:
             collection_name
         ]
 
+    @staticmethod
+    def _normalize_professional_memberships_for_response(doc: dict) -> dict:
+        if not isinstance(doc, dict):
+            return doc
+        memberships = doc.get("professional_memberships")
+        if not isinstance(memberships, list):
+            return doc
+        normalized = []
+        for item in memberships:
+            if isinstance(item, dict):
+                normalized.append(
+                    {
+                        "title": item.get("title") if item.get("title") is not None else "",
+                        "organization": item.get("organization") if item.get("organization") is not None else "",
+                        "start_date": item.get("start_date") if "start_date" in item else None,
+                        "end_date": item.get("end_date") if "end_date" in item else None,
+                        "is_current": item.get("is_current") if "is_current" in item else None,
+                    }
+                )
+            elif isinstance(item, str):
+                normalized.append(
+                    {
+                        "title": "",
+                        "organization": item.strip(),
+                        "start_date": None,
+                        "end_date": None,
+                        "is_current": None,
+                    }
+                )
+        doc["professional_memberships"] = normalized
+        return doc
+
     async def count(self) -> int:
         """Total documents in the speaker_profiles collection."""
         return await self.collection.count_documents({})
@@ -189,6 +221,7 @@ class SpeakerProfileModel:
         doc = await self.collection.find_one({"_id": oid})
         if doc and "_id" in doc:
             doc["_id"] = str(doc["_id"])
+            doc = self._normalize_professional_memberships_for_response(doc)
         return doc
 
     async def delete_profile(self, profile_id: str) -> bool:
@@ -241,6 +274,7 @@ class SpeakerProfileModel:
         doc = await self.collection.find_one({"email": {"$regex": f"^{email.strip().lower()}$", "$options": "i"}})
         if doc and "_id" in doc:
             doc["_id"] = str(doc["_id"])
+            doc = self._normalize_professional_memberships_for_response(doc)
         return doc
 
     async def get_all_profiles(self) -> List[dict]:
@@ -250,6 +284,7 @@ class SpeakerProfileModel:
         for doc in docs:
             if doc and "_id" in doc:
                 doc["_id"] = str(doc["_id"])
+                self._normalize_professional_memberships_for_response(doc)
         return docs
 
     async def assign_profiles_to_user(
@@ -292,6 +327,7 @@ class SpeakerProfileModel:
         for doc in docs:
             if doc and "_id" in doc:
                 doc["_id"] = str(doc["_id"])
+                self._normalize_professional_memberships_for_response(doc)
         return docs
 
     async def get_profiles_by_user_ids(
@@ -319,6 +355,7 @@ class SpeakerProfileModel:
                 continue
             if "_id" in doc:
                 doc["_id"] = str(doc["_id"])
+                self._normalize_professional_memberships_for_response(doc)
             uid = doc.get("user_id")
             if uid is None:
                 continue

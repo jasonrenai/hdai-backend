@@ -117,7 +117,9 @@ _PROFESSIONAL_MEMBERSHIP_ITEM_SCHEMA = {
     "properties": {
         "title": {"type": "string", "description": "Membership or credential title (e.g. Certified Member, Fellow)"},
         "organization": {"type": "string", "description": "Professional body, association, or organization name"},
-        "role": {"type": "string", "description": "Their role or standing within that membership"},
+        "start_date": {"type": "string", "description": "Membership start date (e.g. 2024-01-01)"},
+        "end_date": {"type": "string", "description": "Membership end date; keep empty when currently active"},
+        "is_current": {"type": "boolean", "description": "Whether they are currently an active member"},
     },
 }
 
@@ -230,7 +232,7 @@ _FREE_TEXT_NON_CATALOG_RULES = (
     "do NOT call upsert_speaker_profile with key_takeaways; do not save it; give one short friendly reply that it doesn't sound like "
     "real takeaways from their talks and re-ask the same key_takeaways question (or offer to skip)—no 'list' language, no continue pause. "
     "Same idea for talk_description, testimonial, and professional_memberships when the answer is clearly not on-topic for that question. "
-    "For professional_memberships: extract title, organization, and role per membership from natural language; "
+    "For professional_memberships: extract title, organization, start_date, end_date, and is_current per membership from natural language; "
     "do not ask users to fill a rigid form or label each key aloud—same spirit as past_speaking_examples."
 )
 
@@ -495,7 +497,7 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
                         "type": "array",
                         "items": _PROFESSIONAL_MEMBERSHIP_ITEM_SCHEMA,
                         "description": (
-                            "Optional. One object per membership: title, organization, role (strings). "
+                            "Optional. One object per membership: title, organization, start_date, end_date, is_current. "
                             "INTERNAL only: extract from free-text user replies; do not read JSON keys aloud."
                         ),
                     },
@@ -721,7 +723,7 @@ def _normalize_past_speaking_examples(raw: Any) -> List[dict]:
 
 
 def _normalize_professional_memberships(raw: Any) -> List[dict]:
-    """Coerce tool output to membership dicts: title, organization, role."""
+    """Coerce tool output to membership dicts: title, organization, start_date, end_date, is_current."""
     out: List[dict] = []
     if not isinstance(raw, list):
         return out
@@ -729,12 +731,38 @@ def _normalize_professional_memberships(raw: Any) -> List[dict]:
         if isinstance(x, dict):
             title = str(x.get("title") or "").strip()
             org = str(x.get("organization") or "").strip()
-            role = str(x.get("role") or "").strip()
-            row = {"title": title, "organization": org, "role": role}
-            if any(row.values()):
+            start_date = str(x.get("start_date") or "").strip() or None
+            end_date = str(x.get("end_date") or "").strip() or None
+            is_current = x.get("is_current")
+            if isinstance(is_current, str):
+                lowered = is_current.strip().lower()
+                if lowered in ("true", "yes", "y", "1"):
+                    is_current = True
+                elif lowered in ("false", "no", "n", "0"):
+                    is_current = False
+                else:
+                    is_current = None
+            elif not isinstance(is_current, bool):
+                is_current = None
+            row = {
+                "title": title,
+                "organization": org,
+                "start_date": start_date,
+                "end_date": end_date,
+                "is_current": is_current,
+            }
+            if title or org or start_date or end_date or is_current is not None:
                 out.append(row)
         elif isinstance(x, str) and x.strip():
-            out.append({"title": "", "organization": x.strip(), "role": ""})
+            out.append(
+                {
+                    "title": "",
+                    "organization": x.strip(),
+                    "start_date": None,
+                    "end_date": None,
+                    "is_current": None,
+                }
+            )
     return out
 
 

@@ -41,14 +41,16 @@ class ProfessionalMembershipItem(BaseModel):
 
     title: str = Field(default="", description="Credential or membership title (e.g. Certified Member)")
     organization: str = Field(default="", description="Professional body or organization name")
-    role: str = Field(default="", description="Role or standing within that organization")
+    start_date: Optional[str] = Field(default=None, description="Membership start date (e.g. 2024-01-01)")
+    end_date: Optional[str] = Field(default=None, description="Membership end date; null when currently active")
+    is_current: Optional[bool] = Field(default=None, description="Whether the membership is currently active")
 
     @model_validator(mode="before")
     @classmethod
     def coerce_legacy_string(cls, data: Any):
         if isinstance(data, str):
             s = data.strip()
-            return {"title": "", "organization": s, "role": ""}
+            return {"title": "", "organization": s, "start_date": None, "end_date": None, "is_current": None}
         return data
 
 
@@ -65,13 +67,25 @@ def _coerce_professional_memberships_value(v: Any) -> Any:
                     ProfessionalMembershipItem(
                         title=str(x.get("title") or "").strip(),
                         organization=str(x.get("organization") or "").strip(),
-                        role=str(x.get("role") or "").strip(),
+                        start_date=str(x.get("start_date") or "").strip() or None,
+                        end_date=str(x.get("end_date") or "").strip() or None,
+                        is_current=x.get("is_current") if x.get("is_current") is not None else None,
                     )
                 )
             elif isinstance(x, str) and x.strip():
                 out.append(ProfessionalMembershipItem(organization=x.strip()))
         # Drop rows that are entirely empty
-        kept = [m for m in out if str(m.title).strip() or str(m.organization).strip() or str(m.role).strip()]
+        kept = [
+            m
+            for m in out
+            if (
+                str(m.title).strip()
+                or str(m.organization).strip()
+                or str(m.start_date or "").strip()
+                or str(m.end_date or "").strip()
+                or m.is_current is not None
+            )
+        ]
         return kept or None
     return v
 
@@ -215,7 +229,7 @@ class SpeakerProfileCreateSchema(BaseModel):
     phone_number: Optional[str] = Field(default=None, description="Phone number (without country code)")
     professional_memberships: Optional[List[ProfessionalMembershipItem]] = Field(
         default=None,
-        description="Professional memberships: title, organization, and role per row (JSON objects in DB)",
+        description="Professional memberships: title, organization, start_date, end_date, and is_current per row (JSON objects in DB)",
     )
     preferred_speaking_time: Optional[Union[str, List[str]]] = Field(
         default=None,
