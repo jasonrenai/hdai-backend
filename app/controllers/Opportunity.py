@@ -248,6 +248,7 @@ async def patch_opportunity_activity(
             is_applied=body.isApplied,
             is_accepted=body.isAccepted,
             is_expired=body.isExpired,
+            is_archived=body.isArchived,
             outcomes=body.outcomes,
             outcomes_provided="outcomes" in body.model_fields_set,
         )

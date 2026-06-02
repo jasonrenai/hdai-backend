@@ -32,6 +32,7 @@ class OpportunityActivityService:
             "isApplied": bool(doc.get("isApplied", False)),
             "isAccepted": bool(doc.get("isAccepted", False)),
             "isExpired": bool(doc.get("isExpired", False)),
+            "isArchived": bool(doc.get("isArchived", False)),
             "outcomes": outcomes_val,
         }
 
@@ -47,6 +48,7 @@ class OpportunityActivityService:
             "isApplied": False,
             "isAccepted": False,
             "isExpired": False,
+            "isArchived": False,
             "outcomes": None,
         }
 
@@ -58,6 +60,7 @@ class OpportunityActivityService:
         is_applied: Optional[bool] = None,
         is_accepted: Optional[bool] = None,
         is_expired: Optional[bool] = None,
+        is_archived: Optional[bool] = None,
         outcomes: Optional[str] = None,
         outcomes_provided: bool = False,
     ) -> dict:
@@ -71,6 +74,8 @@ class OpportunityActivityService:
             set_fields["isAccepted"] = is_accepted
         if is_expired is not None:
             set_fields["isExpired"] = is_expired
+        if is_archived is not None:
+            set_fields["isArchived"] = is_archived
         if outcomes_provided:
             set_fields["outcomes"] = outcomes
         if not set_fields:
