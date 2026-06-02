@@ -170,6 +170,7 @@ class OpportunityEmailContentService:
             "full_name": profile.get("full_name"),
             "professional_title": profile.get("professional_title"),
             "company": profile.get("company"),
+            "email": profile.get("email"),
             "past_speaking_examples": profile.get("past_speaking_examples", []),
             "talk_description": profile.get("talk_description", {}),
             "key_takeaways": profile.get("key_takeaways", []),
@@ -194,11 +195,18 @@ class OpportunityEmailContentService:
         system_prompt = _system_prompt_for_authority_type(authority_type)
         if user_suggestion_prompt and user_suggestion_prompt.strip():
             system_prompt += f" Additional user instruction: {user_suggestion_prompt.strip()}"
+        speaker_email = str(profile.get("email") or "").strip()
+        if speaker_email:
+            system_prompt += (
+                " Include the speaker profile email in the generated mail_content naturally, "
+                "typically in the closing/signature, using this exact email when provided."
+            )
 
         user_prompt = (
             "Generate an email subject and body.\n"
             f"Speaker profile data: {json.dumps(speaker_payload, default=str)}\n"
-            f"Opportunity data: {json.dumps(opportunity_payload, default=str)}"
+            f"Opportunity data: {json.dumps(opportunity_payload, default=str)}\n"
+            f"Speaker profile email: {speaker_email}"
         )
 
         completion = client.chat.completions.create(
