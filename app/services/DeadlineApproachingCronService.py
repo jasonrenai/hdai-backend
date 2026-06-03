@@ -16,6 +16,7 @@ from app.email.enums import EmailEventType
 from app.email.helpers import speaker_profile_notification_email
 from app.models.Opportunity import OpportunityModel
 from app.models.OpportunityActivity import OpportunityActivityModel
+from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
 from app.models.SpeakerProfile import SpeakerProfileModel
 
 logger = logging.getLogger(__name__)
@@ -27,10 +28,14 @@ class DeadlineApproachingCronService:
         activity_model: OpportunityActivityModel | None = None,
         opportunity_model: OpportunityModel | None = None,
         speaker_profile_model: SpeakerProfileModel | None = None,
+        opportunity_email_status_model: OpportunityEmailStatusModel | None = None,
     ):
         self.activity_model = activity_model or OpportunityActivityModel()
         self.opportunity_model = opportunity_model or OpportunityModel()
         self.speaker_profile_model = speaker_profile_model or SpeakerProfileModel()
+        self.opportunity_email_status_model = (
+            opportunity_email_status_model or OpportunityEmailStatusModel()
+        )
 
     async def run_once(self) -> dict[str, Any]:
         cooldown = int(os.getenv("DEADLINE_APPROACHING_COOLDOWN_MINUTES", "1380"))
@@ -46,6 +51,8 @@ class DeadlineApproachingCronService:
         skip_reasons: dict[str, int] = {
             "missing_ids": 0,
             "invalid_object_id": 0,
+            "archived": 0,
+            "already_sent": 0,
             "opportunity_not_found": 0,
             "no_metadata_deadline": 0,
             "deadline_too_far_in_future": 0,
@@ -72,8 +79,19 @@ class DeadlineApproachingCronService:
                 skipped += 1
                 skip_reasons["invalid_object_id"] += 1
                 continue
+            if bool(row.get("isArchived")):
+                skipped += 1
+                skip_reasons["archived"] += 1
+                continue
 
             try:
+                if await self.opportunity_email_status_model.is_deadline_sent(
+                    speaker_id, opportunity_id
+                ):
+                    skipped += 1
+                    skip_reasons["already_sent"] += 1
+                    continue
+
                 opp = await self.opportunity_model.get_by_id(opportunity_id)
                 if not opp:
                     skipped += 1
@@ -121,6 +139,9 @@ class DeadlineApproachingCronService:
                     template_model=template_model,
                 )
                 if ok:
+                    await self.opportunity_email_status_model.mark_deadline_sent(
+                        speaker_id, opportunity_id
+                    )
                     await self.activity_model.mark_last_deadline_approaching_sent(
                         speaker_id, opportunity_id
                     )
