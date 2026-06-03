@@ -40,15 +40,24 @@ def _recurring_interval_on_price(price_obj: Any) -> Optional[str]:
     return getattr(rec, "interval", None) if not isinstance(rec, dict) else rec.get("interval")
 
 
-def _resolve_price_id_for_product(stripe_product_id: str) -> str:
+def _stripe_recurring_interval_key(interval: Optional[str]) -> str:
+    if interval in ("yearly", "year", "annual"):
+        return "year"
+    return "month"
+
+
+def _resolve_price_id_for_product(
+    stripe_product_id: str, billing_interval: Optional[str] = None
+) -> str:
     prices = stripe.Price.list(product=stripe_product_id, active=True, limit=100)
     if not prices.data:
         raise ValueError(f"No active price found for product {stripe_product_id}")
-    monthly = next(
-        (p for p in prices.data if _recurring_interval_on_price(p) == "month"),
+    desired = _stripe_recurring_interval_key(billing_interval)
+    matched = next(
+        (p for p in prices.data if _recurring_interval_on_price(p) == desired),
         None,
     )
-    chosen = monthly or prices.data[0]
+    chosen = matched or prices.data[0]
     return str(chosen.id)
 
 
@@ -239,7 +248,7 @@ async def create_stripe_payment_link(
     price_id = product.price_id
     if not price_id:
         try:
-            price_id = _resolve_price_id_for_product(product.id)
+            price_id = _resolve_price_id_for_product(product.id, product.interval)
         except ValueError as e:
             return PaymentLinkResult(status=400, message=str(e))
         except stripe.error.StripeError:

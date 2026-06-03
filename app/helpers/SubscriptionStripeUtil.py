@@ -216,8 +216,18 @@ def compute_subscription_fields(
     }
 
 
-# Current monthly products plus legacy annual ids mapped for existing Stripe subscriptions.
-STRIPE_PRODUCT_PLAN_NAME: dict[str, str] = {
+# Stripe product id → feature tier (Solo / Core / Pro). Stripe display names (Starter / Pro / Team)
+# share labels with tiers but differ; tierKey drives entitlements and subscription_type.
+# Temporary catalog ids are listed first; legacy ids remain for existing subscriptions.
+STRIPE_PRODUCT_TIER_KEY: dict[str, str] = {
+    # Temporary catalog — Starter→Solo, Pro→Core, Team→Pro
+    "prod_UdOMBnQAaLpDg0": "Solo",
+    "prod_UdONfDl80QUCYy": "Core",
+    "prod_UdOOBO0LKnlazQ": "Pro",
+    "prod_UdOMcsNT3mELYo": "Solo",
+    "prod_UdOO1uatwnegWM": "Core",
+    "prod_UdOPt0rqJPIsEB": "Pro",
+    # Legacy catalog (monthly + annual)
     "prod_UL4xCeKLlV8bem": "Solo",
     "prod_UL4yDwRO0O9bIJ": "Core",
     "prod_UL4yIM1YBucxc5": "Pro",
@@ -226,11 +236,15 @@ STRIPE_PRODUCT_PLAN_NAME: dict[str, str] = {
     "prod_UL502HhmkXfZZB": "Pro",
 }
 
+# Back-compat alias
+STRIPE_PRODUCT_PLAN_NAME = STRIPE_PRODUCT_TIER_KEY
+
 
 def plan_name_from_stripe_product_id(product_id: Optional[str]) -> Optional[str]:
+    """Return feature tier (Solo / Core / Pro) for a Stripe product id."""
     if not product_id:
         return None
-    return STRIPE_PRODUCT_PLAN_NAME.get(str(product_id))
+    return STRIPE_PRODUCT_TIER_KEY.get(str(product_id))
 
 
 def tier_from_stripe_product_id(product_id: Optional[str]) -> Optional[str]:
