@@ -302,6 +302,10 @@ class SpeakerProfileUpdateSchema(BaseModel):
     address_city: Optional[str] = None
     address_state: Optional[str] = None
     address_country: Optional[str] = None
+    geography_preferences: Optional[List[str]] = Field(
+        default=None,
+        description="Preferred speaking geographies or regions",
+    )
     phone_country_code: Optional[str] = None
     phone_number: Optional[str] = None
     professional_memberships: Optional[List[ProfessionalMembershipItem]] = None
@@ -374,6 +378,10 @@ class SpeakerProfileCreateFormSchema(BaseModel):
     address_city: Optional[str] = None
     address_state: Optional[str] = None
     address_country: Optional[str] = None
+    geography_preferences: Optional[List[str]] = Field(
+        default=None,
+        description="Preferred speaking geographies or regions",
+    )
     phone_country_code: Optional[str] = None
     phone_number: Optional[str] = None
     professional_memberships: Optional[List[ProfessionalMembershipItem]] = None
