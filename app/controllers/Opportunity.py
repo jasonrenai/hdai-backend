@@ -131,6 +131,9 @@ async def generate_opportunity_email_content(
     Generate professional outreach email title/content for a speaker and opportunity,
     then save it to EmailContent collection.
 
+    Response includes mail_title/mail_content (AI outreach copy), recipient_email,
+    event_contact (organizer email), and submission_note when the opportunity requires email submission.
+
     Body field `type` (string slug) selects the authority angle: association_membership,
     experience_expertise, or case_study_results — each uses a dedicated system prompt.
     """
@@ -163,7 +166,11 @@ async def get_opportunity_email_content(
     service=Depends(get_opportunity_email_content_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List generated outreach emails by speaker and opportunity with pagination."""
+    """List generated outreach emails by speaker and opportunity with pagination.
+
+    Each item includes mail_title/mail_content plus saved recipient_email, event_contact email,
+    and submission_note when available.
+    """
     try:
         result = await service.list_email_content(
             speaker_profile_id=speaker_profile_id,

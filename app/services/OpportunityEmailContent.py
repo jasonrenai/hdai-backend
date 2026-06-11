@@ -68,6 +68,35 @@ def _system_prompt_for_authority_type(authority_type: EmailAuthorityType) -> str
     return _SYSTEM_PROMPT_CASE_STUDY_RESULTS
 
 
+def _build_email_submission_response_fields(opportunity: dict) -> dict:
+    meta = opportunity.get("metadata") if isinstance(opportunity.get("metadata"), dict) else {}
+    submission_info = (
+        opportunity.get("submissionInfo") if isinstance(opportunity.get("submissionInfo"), dict) else {}
+    )
+
+    submission_email = (
+        str(submission_info.get("submissionEmail") or "").strip()
+        or str(meta.get("submission_email") or "").strip()
+    )
+    contact_email = (
+        str(submission_info.get("contactEmail") or "").strip()
+        or str(meta.get("contact_email") or "").strip()
+    )
+    recipient_email = submission_email or contact_email
+
+    requires_email_submission = bool(submission_email)
+    submission_note = ""
+    if requires_email_submission:
+        submission_note = f"This opportunity requires an email submission to {submission_email}."
+
+    return {
+        "recipient_email": recipient_email,
+        "event_contact": contact_email,
+        "requires_email_submission": requires_email_submission,
+        "submission_note": submission_note,
+    }
+
+
 class OpportunityEmailContentService:
     def __init__(
         self,
@@ -105,11 +134,13 @@ class OpportunityEmailContentService:
             user_suggestion_prompt,
             authority_type=authority_type,
         )
+        submission_fields = _build_email_submission_response_fields(opportunity)
         created = await self.email_content_model.create(
             speaker_profile_id=speaker_profile_id,
             opportunity_id=opportunity_id,
             mail_title=generated["mail_title"],
             mail_content=generated["mail_content"],
+            **submission_fields,
         )
 
         try_send_pitch_ready_email_after_content_created(
@@ -141,6 +172,14 @@ class OpportunityEmailContentService:
             skip=skip,
             limit=limit,
         )
+        opportunity = None
+        for item in items:
+            event_contact = item.get("event_contact")
+            if event_contact is None or isinstance(event_contact, dict):
+                if opportunity is None:
+                    opportunity = await self.opportunity_model.get_by_id(opportunity_id)
+                if opportunity:
+                    item.update(_build_email_submission_response_fields(opportunity))
         total = await self.email_content_model.count_by_speaker_and_opportunity(
             speaker_profile_id=speaker_profile_id,
             opportunity_id=opportunity_id,

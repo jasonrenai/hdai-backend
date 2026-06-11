@@ -19,12 +19,20 @@ class EmailContentModel:
         opportunity_id: str,
         mail_title: str,
         mail_content: str,
+        recipient_email: str = "",
+        event_contact: str = "",
+        requires_email_submission: bool = False,
+        submission_note: str = "",
     ) -> dict:
         doc = {
             "speaker_profile_id": speaker_profile_id,
             "opportunity_id": opportunity_id,
             "mail_title": mail_title,
             "mail_content": mail_content,
+            "recipient_email": recipient_email,
+            "event_contact": event_contact,
+            "requires_email_submission": requires_email_submission,
+            "submission_note": submission_note,
             "createdAt": datetime.utcnow(),
         }
         result = await self.collection.insert_one(doc)
