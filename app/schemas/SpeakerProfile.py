@@ -309,6 +309,10 @@ class SpeakerProfileUpdateSchema(BaseModel):
     testimonial: Optional[Union[str, List[str]]] = None
     profile_picture: Optional[str] = None
     headshot_picture: Optional[str] = None
+    bio_document_url: Optional[str] = Field(
+        default=None,
+        description="URL to optional bio document (PDF, DOC, DOCX) uploaded via /api/v1/common/upload-file",
+    )
 
     @field_validator("talk_description", mode="before")
     @classmethod
@@ -377,6 +381,10 @@ class SpeakerProfileCreateFormSchema(BaseModel):
     testimonial: Optional[Union[str, List[str]]] = None
     profile_picture: Optional[str] = None
     headshot_picture: Optional[str] = None
+    bio_document_url: Optional[str] = Field(
+        default=None,
+        description="URL to optional bio document (PDF, DOC, DOCX) uploaded via /api/v1/common/upload-file",
+    )
 
     @field_validator("talk_description", mode="before")
     @classmethod

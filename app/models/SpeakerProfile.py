@@ -33,7 +33,7 @@ PROFILE_FIELDS = [
     # Editable after creation (not part of verify-step)
     "name_salutation", "bio", "twitter", "facebook", "instagram", "address_city", "address_state", "address_country",
     "phone_country_code", "phone_number", "professional_memberships", "preferred_speaking_time", "testimonial",
-    "profile_picture", "headshot_picture",
+    "profile_picture", "headshot_picture", "bio_document_url",
     # Status (set when all mandatory fields are filled)
     "isCompleted",
 ]
