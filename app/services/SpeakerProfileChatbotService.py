@@ -392,7 +392,7 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
         desc = (
             "Create new speaker profile. Call once when you have ALL of: "
             "full_name, professional_title, company, valid email, and phone_number in the same turn. "
-            "Until then, collect in chat only. After name+title+company, say: Great to have you on board, [full_name]! "
+            "Until then, collect in chat only. After name+title+company, say: Thanks for joining SpeakerPitcher! Let's build your profile so we can find the right opportunities for you. "
             "then ask for email and phone. Omit speaker_profile_id for create."
         )
     upsert_desc = (

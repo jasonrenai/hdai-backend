@@ -723,7 +723,7 @@ def build_simple_system_prompt(
             + "\n\nOnboarding only—do not help with unrelated topics.\n\n"
             "Before profile exists (one question at a time):\n"
             "1) First ask for professional name, title, and company (warm, friendly welcome).\n"
-            "2) Acknowledge warmly, then say exactly: Great to have you on board, [full_name]! Then ask email and phone in the same message.\n"
+            "2) Acknowledge warmly, then say exactly: Thanks for joining SpeakerPitcher! Let's build your profile so we can find the right opportunities for you. Then ask email and phone in the same message.\n"
             "3) When you have all five fields, call upsert_speaker_profile once (no speaker_profile_id).\n"
             "Do NOT call upsert until step 3. After create, acknowledge and ask location (first post-create question) in one message.\n\n"
             + _CONVERSATIONAL_ACK_RULE
