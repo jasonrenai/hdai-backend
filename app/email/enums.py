@@ -3,6 +3,7 @@ from enum import Enum
 
 class EmailEventType(str, Enum):
     WELCOME_EMAIL = "welcome_email"
+    SIGNUP_WELCOME_EMAIL = "signup_welcome_email"
     PASSWORD_RESET = "password_reset"
     ACCOUNT_CONFIRMATION = "account_confirmation"
     SYSTEM_NOTIFICATION = "system_notification"

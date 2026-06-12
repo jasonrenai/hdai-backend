@@ -88,6 +88,7 @@ class UserSchema(BaseModel):
     stripe_customer_id: Optional[str] = None
     subscription: UserSubscriptionSchema = Field(default_factory=UserSubscriptionSchema)
     isOnboarded: bool = Field(default=False)
+    emailVerified: bool = Field(default=True)
     createdOn: datetime = Field(default_factory=datetime.utcnow)
     updatedOn: Optional[datetime] = None
 
@@ -101,6 +102,10 @@ class GetUserSchema(BaseModel):
     password: str
 
 #Reset Password Schema 
+class VerifyEmailSchema(BaseModel):
+    userId: str = Field(..., min_length=1)
+
+
 class ResetPassword(BaseModel):
     email: EmailStr
     otp: str

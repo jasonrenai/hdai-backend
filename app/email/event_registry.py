@@ -35,6 +35,11 @@ EMAIL_EVENT_REGISTRY = {
         sender=SenderType.HELLO,
         default_template_model=_default_welcome_template_model(),
     ),
+    EmailEventType.SIGNUP_WELCOME_EMAIL: EmailEventConfig(
+        event_type=EmailEventType.SIGNUP_WELCOME_EMAIL,
+        sender=SenderType.HELLO,
+        default_template_model=empty_template_model(EmailEventType.SIGNUP_WELCOME_EMAIL),
+    ),
     EmailEventType.PASSWORD_RESET: EmailEventConfig(
         event_type=EmailEventType.PASSWORD_RESET,
         sender=SenderType.HELLO,

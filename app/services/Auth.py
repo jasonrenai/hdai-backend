@@ -12,7 +12,9 @@ from fastapi import HTTPException, UploadFile
 from app.helpers.AzureStorage import AzureBlobUploader
 import random 
 from bson import ObjectId
+from bson.errors import InvalidId
 from app.email.enums import EmailEventType
+from app.email.signup_emails import try_send_signup_emails
 from app.email.welcome_account import try_send_welcome_email_on_account_created
 
 
@@ -104,13 +106,15 @@ class AuthService:
             user_data_dict["createdOn"] = current_time
             user_data_dict["updatedOn"] = current_time
             user_data_dict.setdefault("subscription", default_user_subscription())
+            user_data_dict["emailVerified"] = False
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
 
-            try_send_welcome_email_on_account_created(
-                user_display_name=user_data_dict.get("fullName", ""),
+            try_send_signup_emails(
+                full_name=user_data_dict.get("fullName", ""),
                 account_email=user_data_dict.get("email"),
+                user_id=str(user_id),
             )
 
             # JWT must use `id` (same as login), not `_id` — APIs read jwt_payload["id"]
@@ -128,7 +132,8 @@ class AuthService:
             return {
                 "success": True,
                 "data": {
-                    "token": token
+                    "token": token,
+                    "emailVerified": False,
                 }
             }
         
@@ -144,6 +149,35 @@ class AuthService:
                 "data": None,
                 "error": str(e)
             }
+
+    async def verify_email(self, user_id: str) -> dict:
+        """Mark a user's email as verified (public endpoint; userId from signup verification link)."""
+        try:
+            try:
+                oid = ObjectId((user_id or "").strip())
+            except InvalidId:
+                return {"success": False, "data": None, "error": "Invalid user id."}
+
+            user = await self.user_model.get_user({"_id": oid})
+            if not user:
+                return {"success": False, "data": None, "error": "User not found."}
+
+            if user.emailVerified:
+                return {
+                    "success": True,
+                    "data": {"message": "Email already verified.", "emailVerified": True},
+                }
+
+            await self.user_model.update_user(
+                str(oid),
+                {"emailVerified": True, "updatedOn": datetime.utcnow()},
+            )
+            return {
+                "success": True,
+                "data": {"message": "Email verified successfully.", "emailVerified": True},
+            }
+        except Exception as e:
+            return {"success": False, "data": None, "error": str(e)}
 
     async def create_speaker_user(
         self,

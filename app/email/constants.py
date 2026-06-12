@@ -1,6 +1,6 @@
 import os
 from functools import lru_cache
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from app.email.enums import EmailEventType, SenderType
 
@@ -34,10 +34,27 @@ PITCH_REVIEW_FRONTEND_BASE = os.getenv(
     "https://kind-cliff-0e3c6e210.6.azurestaticapps.net",
 ).rstrip("/")
 
+EMAIL_VERIFICATION_FRONTEND_BASE = os.getenv(
+    "EMAIL_VERIFICATION_FRONTEND_BASE",
+    PITCH_REVIEW_FRONTEND_BASE,
+).rstrip("/")
+
+
+def build_email_verification_url(user_id: str, email: str | None = None) -> str:
+    """Build verify link; email/userId encoded like JS encodeURIComponent."""
+    uid = quote((user_id or "").strip(), safe="")
+    normalized_email = (email or "").strip().lower()
+    if normalized_email:
+        encoded_email = quote(normalized_email, safe="")
+        return f"{EMAIL_VERIFICATION_FRONTEND_BASE}/verify-email?userId={uid}&email={encoded_email}"
+    return f"{EMAIL_VERIFICATION_FRONTEND_BASE}/verify-email?userId={uid}"
+
+
 # Default Postmark template id and alias per event (override with POSTMARK_TEMPLATE_ID_* / POSTMARK_TEMPLATE_ALIAS_*).
 DEFAULT_POSTMARK_TEMPLATES: dict[EmailEventType, tuple[int, str]] = {
     EmailEventType.WELCOME_EMAIL: (44976911, "welcome_mail"),
-    EmailEventType.ACCOUNT_CONFIRMATION: (44993827, "AccountSet_up_confirmation"),
+    EmailEventType.SIGNUP_WELCOME_EMAIL: (45259008, "Welcome_mail_after_signup"),
+    EmailEventType.ACCOUNT_CONFIRMATION: (44993827, "Verify_email_confirmation"),
     EmailEventType.PASSWORD_RESET: (44993926, "Password_reset"),
     EmailEventType.SYSTEM_NOTIFICATION: (44993828, "General_system_communication"),
     EmailEventType.ALERT_PITCH_READY: (44993949, "Pitch_ready"),
@@ -52,7 +69,8 @@ DEFAULT_POSTMARK_TEMPLATES: dict[EmailEventType, tuple[int, str]] = {
 # Variable names expected by each Postmark template (used for default empty models).
 TEMPLATE_VARIABLE_KEYS: dict[EmailEventType, tuple[str, ...]] = {
     EmailEventType.WELCOME_EMAIL: ("preheader", "user_name", "cta_url"),
-    EmailEventType.ACCOUNT_CONFIRMATION: ("user_name", "verification_url"),
+    EmailEventType.SIGNUP_WELCOME_EMAIL: ("userName",),
+    EmailEventType.ACCOUNT_CONFIRMATION: ("verification_url",),
     EmailEventType.PASSWORD_RESET: ("user_name", "otp"),
     EmailEventType.SYSTEM_NOTIFICATION: (
         "hero_image_url",

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from app.middleware.JWTVerification import jwt_validator
-from app.schemas.User import ResetPassword, UpdateUserSchema
+from app.schemas.User import ResetPassword, UpdateUserSchema, VerifyEmailSchema
 from app.schemas.ServerResponse import ServerResponse
 from app.schemas.User import GetUserSchema, UserSchema, CreateUserSchema, ForgotPasswordRequest, AdminUpdateUserSchema, AdminCreateUserSchema
 from app.helpers.Utilities import Utils
@@ -26,6 +26,23 @@ async def signup(user_data: CreateUserSchema, auth_service = Depends(get_auth_se
         raise HTTPException(status_code=400, detail={"data": None, "error":str(e),"success": False})
 
     
+@router.post("/verify-email", response_model=ServerResponse)
+async def verify_email(body: VerifyEmailSchema, service=Depends(get_auth_service)):
+    try:
+        data = await service.verify_email(body.userId)
+        if not data["success"]:
+            status_code = 404 if data.get("error") == "User not found." else 400
+            raise HTTPException(
+                status_code=status_code,
+                detail={"data": None, "error": data.get("error"), "success": False},
+            )
+        return Utils.create_response(data["data"], data["success"], data.get("error", ""))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"data": None, "error": str(e), "success": False})
+
+
 @router.post("/signin", response_model=ServerResponse)
 async def signin_user(body: GetUserSchema, service = Depends(get_auth_service)):
     try:
