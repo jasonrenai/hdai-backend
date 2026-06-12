@@ -36,7 +36,7 @@ PITCH_REVIEW_FRONTEND_BASE = os.getenv(
 
 EMAIL_VERIFICATION_FRONTEND_BASE = os.getenv(
     "EMAIL_VERIFICATION_FRONTEND_BASE",
-    PITCH_REVIEW_FRONTEND_BASE,
+    "https://kind-cliff-0e3c6e210.6.azurestaticapps.net",
 ).rstrip("/")
 
 
@@ -69,8 +69,8 @@ DEFAULT_POSTMARK_TEMPLATES: dict[EmailEventType, tuple[int, str]] = {
 # Variable names expected by each Postmark template (used for default empty models).
 TEMPLATE_VARIABLE_KEYS: dict[EmailEventType, tuple[str, ...]] = {
     EmailEventType.WELCOME_EMAIL: ("preheader", "user_name", "cta_url"),
-    EmailEventType.SIGNUP_WELCOME_EMAIL: ("userName",),
-    EmailEventType.ACCOUNT_CONFIRMATION: ("verification_url",),
+    EmailEventType.SIGNUP_WELCOME_EMAIL: ("user_name",),
+    EmailEventType.ACCOUNT_CONFIRMATION: ("user_name", "verification_url"),
     EmailEventType.PASSWORD_RESET: ("user_name", "otp"),
     EmailEventType.SYSTEM_NOTIFICATION: (
         "hero_image_url",

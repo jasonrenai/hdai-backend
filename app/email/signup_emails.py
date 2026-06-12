@@ -22,11 +22,11 @@ def send_signup_welcome_email(*, full_name: str, account_email: str) -> bool:
     return get_email_service().send_event_email(
         event_type=EmailEventType.SIGNUP_WELCOME_EMAIL,
         to_email=to_email,
-        template_model={"userName": user_name},
+        template_model={"user_name": user_name},
     )
 
 
-def send_verify_email_confirmation(*, account_email: str, user_id: str) -> bool:
+def send_verify_email_confirmation(*, full_name: str, account_email: str, user_id: str) -> bool:
     from app.dependencies import get_email_service
 
     to_email = (account_email or "").strip()
@@ -34,10 +34,14 @@ def send_verify_email_confirmation(*, account_email: str, user_id: str) -> bool:
     if not to_email or not uid:
         return False
 
+    user_name = (full_name or "").strip() or "there"
     return get_email_service().send_event_email(
         event_type=EmailEventType.ACCOUNT_CONFIRMATION,
         to_email=to_email,
-        template_model={"verification_url": build_email_verification_url(uid, to_email)},
+        template_model={
+            "user_name": user_name,
+            "verification_url": build_email_verification_url(uid, to_email),
+        },
     )
 
 
@@ -61,7 +65,11 @@ def try_send_signup_emails(
         logger.warning("Signup welcome email failed: %s", e)
 
     try:
-        if not send_verify_email_confirmation(account_email=to_email, user_id=uid):
+        if not send_verify_email_confirmation(
+            full_name=full_name,
+            account_email=to_email,
+            user_id=uid,
+        ):
             logger.warning("Verify email confirmation was not sent.")
     except Exception as e:
         logger.warning("Verify email confirmation failed: %s", e)
