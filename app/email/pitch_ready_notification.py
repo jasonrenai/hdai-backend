@@ -51,11 +51,11 @@ def build_pitch_review_url(
 ) -> str:
     q = urlencode(
         {
-            "speaker_profile_id": speaker_profile_id,
+            "speakerProfileId": speaker_profile_id,
             "email_content_id": email_content_id,
         }
     )
-    return f"{PITCH_REVIEW_FRONTEND_BASE}/opportunities/{opportunity_id}?{q}"
+    return f"{PITCH_REVIEW_FRONTEND_BASE}/opportunities/{opportunity_id}/curated-speaker-pitch?{q}"
 
 
 def send_pitch_ready_email(
