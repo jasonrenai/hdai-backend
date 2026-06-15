@@ -39,6 +39,9 @@ PROFILE_FIELDS = [
     "isCompleted",
 ]
 
+# System-managed on speaker profile (set by BioDocumentSummaryService only)
+BIO_DOCUMENT_SUMMARY_FIELD = "bio_document_summary"
+
 
 class SpeakerProfileModel:
     def __init__(
@@ -208,6 +211,58 @@ class SpeakerProfileModel:
         result = await self.collection.update_one(
             {"_id": oid},
             {"$set": allowed},
+        )
+        if result.matched_count == 0:
+            return None
+        return await self.get_profile(profile_id)
+
+    async def clear_bio_document_summary(self, profile_id: str) -> Optional[dict]:
+        """Clear bio_document_summary on profile when bio_document_url is removed."""
+        try:
+            oid = ObjectId(profile_id)
+        except Exception:
+            return None
+        result = await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "bio_document_summary": None,
+                    "updatedAt": datetime.utcnow(),
+                },
+                "$unset": {
+                    "bio_document_summary_status": "",
+                    "bio_document_summary_error": "",
+                    "bio_document_summarized_at": "",
+                },
+            },
+        )
+        if result.matched_count == 0:
+            return None
+        return await self.get_profile(profile_id)
+
+    async def set_bio_document_summary(
+        self,
+        profile_id: str,
+        summary: Optional[str],
+    ) -> Optional[dict]:
+        """Set bio_document_summary on profile (system-managed)."""
+        try:
+            oid = ObjectId(profile_id)
+        except Exception:
+            return None
+        result = await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "bio_document_summary": summary,
+                    "updatedAt": datetime.utcnow(),
+                },
+                "$unset": {
+                    "bio_document_summary_status": "",
+                    "bio_document_summary_error": "",
+                    "bio_document_summarized_at": "",
+                },
+            },
         )
         if result.matched_count == 0:
             return None

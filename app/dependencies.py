@@ -49,6 +49,8 @@ _opportunity_email_content_service = None
 _opportunity_activity_service = None
 _subscription_service = None
 _email_service = None
+_bio_document_summary_service = None
+_bio_document_summary_model = None
 
 
 def get_auth_service():
@@ -214,6 +216,27 @@ def get_subscription_service():
     return _subscription_service
 
 
+def get_bio_document_summary_model():
+    """Get singleton BioDocumentSummaryModel instance."""
+    global _bio_document_summary_model
+    if _bio_document_summary_model is None:
+        from app.models.BioDocumentSummary import BioDocumentSummaryModel
+        _bio_document_summary_model = BioDocumentSummaryModel()
+    return _bio_document_summary_model
+
+
+def get_bio_document_summary_service():
+    """Get singleton BioDocumentSummaryService instance."""
+    global _bio_document_summary_service
+    if _bio_document_summary_service is None:
+        from app.services.BioDocumentSummaryService import BioDocumentSummaryService
+        _bio_document_summary_service = BioDocumentSummaryService(
+            speaker_profile_model=get_speaker_profile_model(),
+            bio_document_summary_model=get_bio_document_summary_model(),
+        )
+    return _bio_document_summary_service
+
+
 def get_email_service():
     """Get singleton EmailService instance."""
     global _email_service
@@ -267,7 +290,7 @@ def cleanup_resources():
     global _background_mapping_service, _image_caption_service, _booking_service, _airbnb_service
     global _image_analysis_helper, _temporary_competitor_service, _deployment_cues_service
     global _image_analysis_helper, _temporary_competitor_service, _cue_properties_service
-    global _onboarding_status_service, _queue_status_service, _analytics_cues_preset_service, _excel_schedule_service, _speaker_profile_model, _speaker_topics_model, _speaker_target_audience_model, _delivery_modes_model, _speaking_formats_model, _chat_session_model, _speaker_profile_chatbot_service, _scraper_service, _url_scraper_rapidapi_service, _google_query_scraper_service, _opportunity_service, _matched_opportunities_email_service, _opportunity_email_content_service, _opportunity_activity_service, _user_management_service, _subscription_service, _email_service
+    global _onboarding_status_service, _queue_status_service, _analytics_cues_preset_service, _excel_schedule_service, _speaker_profile_model, _speaker_topics_model, _speaker_target_audience_model, _delivery_modes_model, _speaking_formats_model, _chat_session_model, _speaker_profile_chatbot_service, _scraper_service, _url_scraper_rapidapi_service, _google_query_scraper_service, _opportunity_service, _matched_opportunities_email_service, _opportunity_email_content_service, _opportunity_activity_service, _user_management_service, _subscription_service, _email_service, _bio_document_summary_service, _bio_document_summary_model
 
     # Reset all services
     _auth_service = None
@@ -314,3 +337,5 @@ def cleanup_resources():
     _opportunity_activity_service = None
     _subscription_service = None
     _email_service = None
+    _bio_document_summary_service = None
+    _bio_document_summary_model = None

@@ -9,7 +9,7 @@ from typing import Optional
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from app.config.speaker_profile_steps import get_first_step, get_next_step, get_step_by_name, is_last_step, step_to_response
@@ -34,6 +34,7 @@ from app.services.SpeakerProfileConversation import generate_chatbot_welcome_mes
 # )
 from app.dependencies import (
     get_auth_service,
+    get_bio_document_summary_service,
     get_email_service,
     get_user_model,
     get_speaker_profile_model,
@@ -344,8 +345,10 @@ async def get_speaker_profile_by_id(
 async def update_speaker_profile(
     profile_id: str,
     body: SpeakerProfileUpdateSchema,
+    background_tasks: BackgroundTasks,
     jwt_payload: dict = Depends(jwt_validator),
     model=Depends(get_speaker_profile_model),
+    bio_document_service=Depends(get_bio_document_summary_service),
 ):
     """
     Update a speaker profile. Admins may update any profile; other users only their own.
@@ -378,6 +381,14 @@ async def update_speaker_profile(
             status_code=500,
             detail={"data": None, "error": "Update failed.", "success": False},
         )
+    if "bio_document_url" in updates:
+        await bio_document_service.handle_bio_document_url_change(
+            profile_id,
+            profile.get("bio_document_url"),
+            updates.get("bio_document_url"),
+            background_tasks,
+        )
+        updated = await model.get_profile(profile_id)
     return Utils.create_response(updated, True)
 
 
@@ -435,9 +446,11 @@ async def delete_speaker_profile(
 @router.post("/create-speaker-profile", response_model=ServerResponse, status_code=201)
 async def create_speaker_profile(
     body: SpeakerProfileCreateFormSchema,
+    background_tasks: BackgroundTasks,
     jwt_payload: dict = Depends(jwt_validator),
     model=Depends(get_speaker_profile_model),
     auth_service=Depends(get_auth_service),
+    bio_document_service=Depends(get_bio_document_summary_service),
 ):
     """
     Create a new speaker profile in one shot using a form-style payload (no conversational AI / stepwise onboarding).
@@ -459,6 +472,18 @@ async def create_speaker_profile(
         creator_is_admin=is_admin_role(jwt_payload.get("userType")),
         jwt_user_id=str(user_id),
     )
+    bio_document_url = profile_data.get("bio_document_url")
+    if bio_document_url:
+        profile_id = str(doc["_id"])
+        await bio_document_service.handle_bio_document_url_change(
+            profile_id,
+            None,
+            bio_document_url,
+            background_tasks,
+        )
+        refreshed = await model.get_profile(profile_id)
+        if refreshed:
+            doc = refreshed
     return Utils.create_response({"id": str(doc["_id"]), "profile": doc}, True)
 
 

@@ -21,10 +21,31 @@ class AzureBlobUploader:
         self.__container_client = self.__blob_service_client.get_container_client(self.__container_name)
         self.__generate_random_hex_string = Utils.generate_hex_string
         
+    def _blob_name_from_url(self, file_url: str) -> str:
+        """Resolve blob name from a full Azure blob URL (validates account + container)."""
+        parsed_url = urllib.parse.urlparse((file_url or "").strip())
+        account_name = self.__blob_service_client.account_name
+        expected_host = f"{account_name}.blob.core.windows.net"
+        if parsed_url.netloc.lower() != expected_host.lower():
+            raise ValueError("File URL is not from the configured Azure storage account")
+        path = urllib.parse.unquote(parsed_url.path.lstrip("/"))
+        parts = path.split("/", 1)
+        if len(parts) != 2 or parts[0] != self.__container_name:
+            raise ValueError("File URL does not match the configured storage container")
+        return parts[1]
+
+    def download_blob_from_url(self, file_url: str) -> bytes:
+        """Download blob bytes from a full Azure blob URL."""
+        blob_name = self._blob_name_from_url(file_url)
+        blob_client = self.__blob_service_client.get_blob_client(
+            container=self.__container_name,
+            blob=blob_name,
+        )
+        return blob_client.download_blob().readall()
+
     def delete_file(self, file_url: str):
         """Delete file from Azure Blob Storage using full file URL."""
-        parsed_url = urllib.parse.urlparse(file_url)
-        blob_name = parsed_url.path.lstrip(f"/{self.__container_name}/")  
+        blob_name = self._blob_name_from_url(file_url)
         blob_client = self.__blob_service_client.get_blob_client(container=self.__container_name, blob=blob_name)
         blob_client.delete_blob()
 
