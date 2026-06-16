@@ -650,10 +650,9 @@ _CONVERSATIONAL_ACK_RULE = (
 )
 
 _STRICT_ONBOARDING_SCOPE_RULE = (
-    "Onboarding scope only. For any non-onboarding or off-script user message, reply exactly: "
+    "If the user asks an unrelated, off-topic question, reply exactly: "
     "\"I can only help with your SpeakerPitcher profile onboarding right now.\" "
-    "Then ask the current onboarding question verbatim. "
-    "Do not provide any additional explanation."
+    "Then ask the current onboarding question verbatim."
 )
 
 
