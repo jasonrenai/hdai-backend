@@ -16,6 +16,7 @@ from app.controllers import (
     Common,
     Dashboard,
     GoogleQueryScraper,
+    NotificationSettings,
     Opportunity,
     Profile,
     Scraper,
@@ -87,6 +88,7 @@ app.include_router(Dashboard.router, dependencies=[Depends(jwt_validator)])
 app.include_router(Users.router, dependencies=[Depends(jwt_validator)])
 app.include_router(Subscriptions.public_router)
 app.include_router(Subscriptions.auth_router, dependencies=[Depends(jwt_validator)])
+app.include_router(NotificationSettings.router, dependencies=[Depends(jwt_validator)])
 
 
 @app.on_event("startup")
