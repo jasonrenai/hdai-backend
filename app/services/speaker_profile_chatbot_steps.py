@@ -649,6 +649,13 @@ _CONVERSATIONAL_ACK_RULE = (
     "For catalog steps: ack → short intro line for that field → bullet list → then wait for their answer."
 )
 
+_STRICT_ONBOARDING_SCOPE_RULE = (
+    "Onboarding scope only. For any non-onboarding or off-script user message, reply exactly: "
+    "\"I can only help with your SpeakerPitcher profile onboarding right now.\" "
+    "Then ask the current onboarding question verbatim. "
+    "Do not provide any additional explanation."
+)
+
 
 def build_onboarding_script_prompt(
     expected_step: str,
@@ -720,7 +727,9 @@ def build_simple_system_prompt(
     if not has_profile:
         return (
             _FRIENDLY_ASSISTANT_TONE
-            + "\n\nOnboarding only—do not help with unrelated topics.\n\n"
+            + "\n\n"
+            + _STRICT_ONBOARDING_SCOPE_RULE
+            + "\n\n"
             "Before profile exists (one question at a time):\n"
             "1) First ask for professional name, title, and company (warm, friendly welcome).\n"
             "2) Acknowledge warmly, then say exactly: Thanks for joining SpeakerPitcher! Let's build your profile so we can find the right opportunities for you. Then ask email and phone in the same message.\n"
@@ -733,7 +742,9 @@ def build_simple_system_prompt(
         )
     return (
         _FRIENDLY_ASSISTANT_TONE
-        + "\n\nOnboarding only—do not help with unrelated topics.\n"
+        + "\n\n"
+        + _STRICT_ONBOARDING_SCOPE_RULE
+        + "\n"
         f"Profile in database: {profile_json}\n"
         + checkpoint_block
         + script

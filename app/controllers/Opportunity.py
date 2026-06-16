@@ -2,13 +2,18 @@
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from app.schemas.ServerResponse import ServerResponse
-from app.schemas.Opportunity import GenerateOpportunityEmailContentSchema, OpportunityActivityUpdateSchema
+from app.schemas.Opportunity import (
+    GenerateOpportunityApplicationContentSchema,
+    GenerateOpportunityEmailContentSchema,
+    OpportunityActivityUpdateSchema,
+)
 from app.helpers.Utilities import Utils
 from app.middleware.JWTVerification import jwt_validator
 from app.dependencies import (
     get_opportunity_service,
     get_matched_opportunities_email_service,
     get_opportunity_email_content_service,
+    get_opportunity_application_content_service,
     get_opportunity_activity_service,
 )
 
@@ -173,6 +178,67 @@ async def get_opportunity_email_content(
     """
     try:
         result = await service.list_email_content(
+            speaker_profile_id=speaker_profile_id,
+            opportunity_id=opportunity_id,
+            page=page,
+            limit=limit,
+        )
+        return Utils.create_response(result, True)
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=400,
+            detail={"data": None, "error": str(ve), "success": False},
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"data": None, "error": str(e), "success": False},
+        )
+
+
+@router.post("/application-content/generate", response_model=ServerResponse)
+async def generate_opportunity_application_content(
+    body: GenerateOpportunityApplicationContentSchema = Body(...),
+    service=Depends(get_opportunity_application_content_service),
+    jwt_payload: dict = Depends(jwt_validator),
+):
+    """
+    Generate speaker application form fields for an opportunity and save to ApplicationContent.
+
+    Static fields (name, title, company, email, bio) come from the speaker profile.
+    AI-generated fields (presentation_type, session_title, abstract, takeaways, speaking_history)
+    are tailored to the opportunity.
+    """
+    try:
+        created = await service.generate_and_save_application_content(
+            speaker_profile_id=body.speaker_profile_id,
+            opportunity_id=body.opportunity_id,
+        )
+        return Utils.create_response(created, True)
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=400,
+            detail={"data": None, "error": str(ve), "success": False},
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"data": None, "error": str(e), "success": False},
+        )
+
+
+@router.get("/application-content", response_model=ServerResponse)
+async def get_opportunity_application_content(
+    speaker_profile_id: str = Query(..., description="Speaker profile ID"),
+    opportunity_id: str = Query(..., description="Opportunity ID"),
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    service=Depends(get_opportunity_application_content_service),
+    jwt_payload: dict = Depends(jwt_validator),
+):
+    """List generated application content by speaker and opportunity with pagination."""
+    try:
+        result = await service.list_application_content(
             speaker_profile_id=speaker_profile_id,
             opportunity_id=opportunity_id,
             page=page,

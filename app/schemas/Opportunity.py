@@ -67,6 +67,13 @@ class GenerateOpportunityEmailContentSchema(BaseModel):
     )
 
 
+class GenerateOpportunityApplicationContentSchema(BaseModel):
+    """Body for POST /application-content/generate."""
+
+    speaker_profile_id: str
+    opportunity_id: str
+
+
 class OpportunityActivityUpdateSchema(BaseModel):
     """Partial update for opportunity activity (wishlist / applied / accepted / expired / archived / outcomes)."""
 

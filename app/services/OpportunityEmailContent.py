@@ -210,12 +210,16 @@ class OpportunityEmailContentService:
             "professional_title": profile.get("professional_title"),
             "company": profile.get("company"),
             "email": profile.get("email"),
+            "bio": profile.get("bio"),
             "past_speaking_examples": profile.get("past_speaking_examples", []),
             "talk_description": profile.get("talk_description", {}),
             "key_takeaways": profile.get("key_takeaways", []),
             "topics": profile.get("topics", []),
             "target_audiences": profile.get("target_audiences", []),
         }
+        bio_document_summary = str(profile.get("bio_document_summary") or "").strip()
+        if bio_document_summary:
+            speaker_payload["bio_document_summary"] = bio_document_summary
 
         opportunity_payload = {
             "_id": str(opportunity.get("_id")),
