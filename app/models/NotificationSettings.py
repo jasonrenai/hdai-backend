@@ -7,7 +7,7 @@ from typing import Any, Optional
 from pymongo import ReturnDocument
 
 from app.helpers.Database import MongoDB
-from app.schemas.NotificationSettings import DEFAULT_NOTIFICATION_SETTINGS
+from app.schemas.NotificationSettings import default_email_notifications
 
 
 class NotificationSettingsModel:
@@ -41,7 +41,7 @@ class NotificationSettingsModel:
         now = datetime.utcnow()
         doc = {
             "user_id": uid,
-            **DEFAULT_NOTIFICATION_SETTINGS,
+            "email_notifications": default_email_notifications(),
             "createdOn": now,
             "updatedOn": now,
         }
@@ -49,18 +49,22 @@ class NotificationSettingsModel:
         doc["_id"] = result.inserted_id
         return doc
 
-    async def update(self, user_id: str, updates: dict[str, bool]) -> dict[str, Any]:
+    async def update(
+        self,
+        user_id: str,
+        email_notifications: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         uid = self._normalize_user_id(user_id)
         if not uid:
             raise ValueError("user_id is required")
-        if not updates:
+        if not email_notifications:
             return await self.get_or_create(uid)
 
         await self.get_or_create(uid)
         now = datetime.utcnow()
         doc = await self.collection.find_one_and_update(
             {"user_id": uid},
-            {"$set": {**updates, "updatedOn": now}},
+            {"$set": {"email_notifications": email_notifications, "updatedOn": now}},
             return_document=ReturnDocument.AFTER,
         )
         if doc is None:

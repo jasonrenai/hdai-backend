@@ -11,10 +11,10 @@ def generate_chatbot_welcome_message() -> str:
     Exact copy for the product; MUST include Human Driven AI and SpeakerPitcher™.
     """
     return (
-        "Hi! Welcome to Human Driven AI's SpeakerPitcher™ Agent."
-        "To start your profiles, please provide your name as you would like it to appear professionally "
-        "(e.g., Jane Doe, MBA, PMP), followed by your title and company."
-    )
+    "Hi! Welcome to Human Driven AI's SpeakerPitcher™ Agent.\n\n"
+    "To start your profiles, please provide your name as you would like it to appear professionally "
+    "(e.g., Jane Doe, MBA, PMP), followed by your title and company."
+)
 
 
 

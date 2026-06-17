@@ -52,16 +52,21 @@ _QUESTION_SOCIAL = (
 )
 _QUESTION_BIO = "Please share your professional bio in 50 - 100 words."
 _QUESTION_MEMBERSHIPS = (
-    "Please share your Professional Memberships, (e.g. Role, Organisation and topics)."
+    "Please share your Professional Memberships, (e.g. Role, Organization and topics)."
 )
 _QUESTION_SPEAKING_TIME = (
     "What is your preferred speaking time? You can choose one or more from the list below:<br><br>"
     "• 10-minute<br>• 20-minute<br>• 30-minute<br>• 40-minute<br>• 1 hour"
 )
-_QUESTION_TOPICS = "What are some of the topics you want to cover in your speaking opportunities?"
+_QUESTION_TOPICS = (
+    "What are some of the topics you want to cover in your speaking opportunities? "
+    "You can always add more later."
+)
 _QUESTION_FORMATS = "What speaking formats do you offer?"
 _QUESTION_DELIVERY = "Do you want virtual events, in-person, hybrid, or a combination?"
-_QUESTION_AUDIENCES = "Who are your target audiences?"
+_QUESTION_AUDIENCES = (
+    "Who are your target audiences? You can always add more later."
+)
 _QUESTION_TALK = (
     "Please provide a description of your talk, including the title and overview."
 )
@@ -70,7 +75,7 @@ _QUESTION_PAST_SPEAKING = (
     "Do you have past speaking examples you'd like to share? Please include the organization "
     "or event name and the corresponding date (month/year)."
 )
-_QUESTION_VIDEO = "Please share a YouTube video link of you speaking, or say skip if you have none."
+_QUESTION_VIDEO = "Please share a video URL of you speaking, or say skip if you have none."
 _QUESTION_TESTIMONIAL = (
     "Do you have any testimonials or feedback from past speaking you'd like to share?"
 )
@@ -469,7 +474,7 @@ def build_checkpoint_for_prompt(
             "NEXT_SAVE: past_speaking_examples — upsert array of {organization_name, event_name, date_month_year} same turn."
         ),
         "video_links": (
-            "NEXT_SAVE: video_links — upsert YouTube URLs same turn, or skip and move on."
+            "NEXT_SAVE: video_links — upsert video URLs same turn, or skip and move on."
         ),
         "testimonial": (
             "NEXT_SAVE: testimonial — upsert quotes same turn if provided; after their reply call mark_profile_complete."

@@ -130,7 +130,7 @@ _PAST_SPEAKING_CHAT_QUESTION = (
 
 # After professional bio; optional—user may skip; LLM maps free text to structured rows.
 _PROFESSIONAL_MEMBERSHIPS_CHAT_QUESTION = (
-    "Please share your Professional Memberships, (e.g. Role, Organisation and topics)."
+    "Please share your Professional Memberships, (e.g. Role, Organization and topics)."
 )
 
 _SOCIAL_URL_FIELD_RULES = (
@@ -260,8 +260,10 @@ _FIXED_LIST_USER_DEFERS = (
 )
 
 _PROFILE_COMPLETION_MESSAGE = (
-    "Your speaker profile has been successfully completed. You may now close this window and review your profile at your convenience."
-    "Upon closing this window, you will receive an email containing your login credentials to access and review your profile online."
+    "Your speaker profile has been successfully completed. "
+    "You may now close this window and review your profile at your convenience.\n\n"
+    "Upon closing this window, you will receive an email containing your login credentials "
+    "to access and review your profile online.\n\n"
     "Thank you."
 )
 
