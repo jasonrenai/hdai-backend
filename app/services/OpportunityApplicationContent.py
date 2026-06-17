@@ -66,6 +66,24 @@ def _profile_static_fields(profile: dict) -> dict:
     }
 
 
+def _profile_link_fields(profile: dict) -> dict:
+    linkedin_url = _as_text(profile.get("linkedin_url")) or None
+    twitter = _as_text(profile.get("twitter")) or None
+    facebook = _as_text(profile.get("facebook")) or None
+    video_links_raw = profile.get("video_links")
+    video_links = None
+    if isinstance(video_links_raw, list):
+        items = [str(item).strip() for item in video_links_raw if str(item).strip()]
+        if items:
+            video_links = items
+    return {
+        "linkedin_url": linkedin_url,
+        "twitter": twitter,
+        "facebook": facebook,
+        "video_links": video_links,
+    }
+
+
 class OpportunityApplicationContentService:
     def __init__(
         self,
@@ -96,6 +114,7 @@ class OpportunityApplicationContentService:
             raise ValueError("Opportunity not found")
 
         static_fields = _profile_static_fields(profile)
+        link_fields = _profile_link_fields(profile)
         generated = self._generate_application_from_llm(
             profile,
             opportunity,
@@ -108,6 +127,7 @@ class OpportunityApplicationContentService:
             speaker_profile_id=speaker_profile_id,
             opportunity_id=opportunity_id,
             **static_fields,
+            **link_fields,
             **generated,
         )
         return created

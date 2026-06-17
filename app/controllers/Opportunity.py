@@ -139,8 +139,10 @@ async def generate_opportunity_email_content(
     Response includes mail_title/mail_content (AI outreach copy), recipient_email,
     event_contact (organizer email), and submission_note when the opportunity requires email submission.
 
-    Body field `type` (string slug) selects the authority angle: association_membership,
-    experience_expertise, or case_study_results — each uses a dedicated system prompt.
+    Body field `type` (string slug) selects the email framing: profile_fit (default,
+    natural speaker/opportunity match), association_membership, experience_expertise,
+    or case_study_results — each uses a dedicated system prompt. Saved emails include
+    authority_type for listing.
     """
     try:
         created = await service.generate_and_save_email_content(
@@ -173,8 +175,8 @@ async def get_opportunity_email_content(
 ):
     """List generated outreach emails by speaker and opportunity with pagination.
 
-    Each item includes mail_title/mail_content plus saved recipient_email, event_contact email,
-    and submission_note when available.
+    Each item includes mail_title/mail_content, authority_type, plus saved recipient_email,
+    event_contact email, and submission_note when available.
     """
     try:
         result = await service.list_email_content(
@@ -205,8 +207,9 @@ async def generate_opportunity_application_content(
     """
     Generate speaker application form fields for an opportunity and save to ApplicationContent.
 
-    Static fields (name, title, company, email, bio) come from the speaker profile.
-    AI-generated fields (presentation_type, session_title, abstract, takeaways, speaking_history)
+    Static fields (name, title, company, email, session_title) come from the speaker profile.
+    linkedin_url, twitter, facebook, and video_links are copied from the speaker profile (null when absent).
+    AI-generated fields (presentation_type, abstract, takeaways, speaking_history, bio)
     are tailored to the opportunity.
     """
     try:
@@ -236,7 +239,10 @@ async def get_opportunity_application_content(
     service=Depends(get_opportunity_application_content_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List generated application content by speaker and opportunity with pagination."""
+    """List generated application content by speaker and opportunity with pagination.
+
+    Each item includes linkedin_url, twitter, facebook, and video_links when saved (null when absent on profile).
+    """
     try:
         result = await service.list_application_content(
             speaker_profile_id=speaker_profile_id,

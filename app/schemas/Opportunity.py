@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # JSON body field "type" for POST /opportunities/email-content/generate (string slugs only).
 EmailAuthorityType = Literal[
+    "profile_fit",
     "association_membership",
     "experience_expertise",
     "case_study_results",
@@ -56,10 +57,11 @@ class GenerateOpportunityEmailContentSchema(BaseModel):
     opportunity_id: str
     user_suggestion_prompt: Optional[str] = None
     authority_type: EmailAuthorityType = Field(
-        "experience_expertise",
+        "profile_fit",
         alias="type",
         description=(
-            "Authority framing (string): association_membership = Association/Membership "
+            "Email framing (string): profile_fit = best natural match from speaker profile "
+            "and opportunity (default); association_membership = Association/Membership "
             "('I belong to your world'); experience_expertise = Experience/Expertise "
             "('I've done this at scale'); case_study_results = Case Study/Results "
             "('Here's proof it works')."

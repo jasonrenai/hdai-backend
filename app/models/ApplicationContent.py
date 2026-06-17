@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from bson import ObjectId
 
@@ -27,6 +27,10 @@ class ApplicationContentModel:
         takeaways: List[str],
         bio: str,
         speaking_history: str,
+        linkedin_url: Optional[str] = None,
+        twitter: Optional[str] = None,
+        facebook: Optional[str] = None,
+        video_links: Optional[List[str]] = None,
     ) -> dict:
         doc = {
             "speaker_profile_id": speaker_profile_id,
@@ -41,6 +45,10 @@ class ApplicationContentModel:
             "takeaways": takeaways,
             "bio": bio,
             "speaking_history": speaking_history,
+            "linkedin_url": linkedin_url,
+            "twitter": twitter,
+            "facebook": facebook,
+            "video_links": video_links,
             "createdAt": datetime.utcnow(),
         }
         result = await self.collection.insert_one(doc)

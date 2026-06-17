@@ -59,13 +59,27 @@ _SYSTEM_PROMPT_CASE_STUDY_RESULTS = (
     "Return ONLY strict JSON with keys: mail_title, mail_content."
 )
 
+_SYSTEM_PROMPT_PROFILE_FIT = (
+    "You are an expert executive communications assistant. "
+    "Generate a professional outreach email for a speaker applying to speak at an event opportunity. "
+    "Base the pitch entirely on the natural fit between the speaker profile and this opportunity — "
+    "shared topics, target audiences, speaking format, delivery mode, talk focus, bio, and past speaking examples. "
+    "Lead with the strongest genuine alignment; do not force a fixed authority angle such as association "
+    "membership, scale of experience, or case-study proof unless the provided data naturally supports it. "
+    "The email should be concise, relevant, and persuasive while sounding natural and human. "
+    f"{_SYSTEM_PROMPT_SKIP_PLACEHOLDER_DATA} "
+    "Return ONLY strict JSON with keys: mail_title, mail_content."
+)
+
 
 def _system_prompt_for_authority_type(authority_type: EmailAuthorityType) -> str:
     if authority_type == "association_membership":
         return _SYSTEM_PROMPT_ASSOCIATION_MEMBERSHIP
     if authority_type == "experience_expertise":
         return _SYSTEM_PROMPT_EXPERIENCE_EXPERTISE
-    return _SYSTEM_PROMPT_CASE_STUDY_RESULTS
+    if authority_type == "case_study_results":
+        return _SYSTEM_PROMPT_CASE_STUDY_RESULTS
+    return _SYSTEM_PROMPT_PROFILE_FIT
 
 
 def _build_email_submission_response_fields(opportunity: dict) -> dict:
@@ -113,7 +127,7 @@ class OpportunityEmailContentService:
         speaker_profile_id: str,
         opportunity_id: str,
         user_suggestion_prompt: Optional[str] = None,
-        authority_type: EmailAuthorityType = "experience_expertise",
+        authority_type: EmailAuthorityType = "profile_fit",
     ) -> dict:
         if not self.email_content_model.is_valid_object_id(speaker_profile_id):
             raise ValueError("Invalid speaker_profile_id")
@@ -140,6 +154,7 @@ class OpportunityEmailContentService:
             opportunity_id=opportunity_id,
             mail_title=generated["mail_title"],
             mail_content=generated["mail_content"],
+            authority_type=authority_type,
             **submission_fields,
         )
 
@@ -197,7 +212,7 @@ class OpportunityEmailContentService:
         profile: dict,
         opportunity: dict,
         user_suggestion_prompt: Optional[str],
-        authority_type: EmailAuthorityType = "experience_expertise",
+        authority_type: EmailAuthorityType = "profile_fit",
     ) -> dict:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
