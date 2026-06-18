@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime
 from typing import Any
 
+from app.email.deadline_approaching_notification import parse_metadata_deadline_date
 from app.email.enums import EmailEventType
 from app.email.helpers import speaker_profile_notification_email
+from app.email.notification_delivery import is_deadline_notification_send_day
 from app.email.submission_reminder_notification import build_submission_reminder_template_model
 from app.models.Opportunity import OpportunityModel
 from app.models.OpportunityActivity import OpportunityActivityModel
 from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
 from app.models.SpeakerProfile import SpeakerProfileModel
+from app.services.NotificationDeliveryService import NotificationDeliveryService
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +28,16 @@ class SubmissionReminderCronService:
         opportunity_model: OpportunityModel | None = None,
         speaker_profile_model: SpeakerProfileModel | None = None,
         opportunity_email_status_model: OpportunityEmailStatusModel | None = None,
+        notification_delivery_service: NotificationDeliveryService | None = None,
     ):
         self.activity_model = activity_model or OpportunityActivityModel()
         self.opportunity_model = opportunity_model or OpportunityModel()
         self.speaker_profile_model = speaker_profile_model or SpeakerProfileModel()
         self.opportunity_email_status_model = (
             opportunity_email_status_model or OpportunityEmailStatusModel()
+        )
+        self.notification_delivery_service = (
+            notification_delivery_service or NotificationDeliveryService()
         )
 
     async def run_once(self) -> dict[str, Any]:
@@ -47,6 +55,7 @@ class SubmissionReminderCronService:
         from app.dependencies import get_email_service
 
         email_service = get_email_service()
+        today = datetime.utcnow().date()
 
         for row in rows:
             speaker_id = (row.get("speaker_id") or "").strip()
@@ -76,6 +85,29 @@ class SubmissionReminderCronService:
                     continue
                 profile = await self.speaker_profile_model.get_profile(speaker_id)
                 if not profile:
+                    skipped += 1
+                    continue
+
+                if not await self.notification_delivery_service.is_notification_enabled(
+                    profile, "submission_reminder"
+                ):
+                    skipped += 1
+                    continue
+
+                deadline = parse_metadata_deadline_date(opp)
+                if deadline is None:
+                    skipped += 1
+                    continue
+
+                frequency = await self.notification_delivery_service.get_frequency_for_speaker(
+                    profile, "submission_reminder"
+                )
+                if not is_deadline_notification_send_day(
+                    deadline=deadline,
+                    frequency=frequency,
+                    slug="submission_reminder",
+                    today=today,
+                ):
                     skipped += 1
                     continue
 

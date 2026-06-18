@@ -4,7 +4,7 @@ from typing import Optional
 
 from openai import OpenAI
 
-from app.email.pitch_ready_notification import try_send_pitch_ready_email_after_content_created
+from app.email.pitch_ready_notification import try_send_or_schedule_pitch_ready_email
 from app.models.EmailContent import EmailContentModel
 from app.models.Opportunity import OpportunityModel
 from app.models.SpeakerProfile import SpeakerProfileModel
@@ -158,7 +158,7 @@ class OpportunityEmailContentService:
             **submission_fields,
         )
 
-        try_send_pitch_ready_email_after_content_created(
+        await try_send_or_schedule_pitch_ready_email(
             profile=profile,
             opportunity=opportunity,
             opportunity_id=opportunity_id,

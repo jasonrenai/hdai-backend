@@ -5,11 +5,13 @@ from typing import List, Optional
 
 from app.email.enums import EmailEventType
 from app.email.helpers import speaker_profile_notification_email
+from app.email.notification_delivery import after_delay_days
 from app.models.OpportunityActivity import OpportunityActivityModel
 from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
 from app.email.opportunity_urls import opportunity_action_url, opportunity_app_url
 from app.email.pitch_ready_notification import _deadline_from_metadata, _format_event_date
 from app.models.SpeakerProfile import SpeakerProfileModel
+from app.services.NotificationDeliveryService import NotificationDeliveryService
 from app.services.Opportunity import OpportunityService
 
 logger = logging.getLogger(__name__)
@@ -36,12 +38,16 @@ class MatchedOpportunitiesEmailService:
         speaker_profile_model: SpeakerProfileModel = None,
         opportunity_activity_model: OpportunityActivityModel = None,
         opportunity_email_status_model: OpportunityEmailStatusModel = None,
+        notification_delivery_service: NotificationDeliveryService = None,
     ):
         self.opportunity_service = opportunity_service or OpportunityService()
         self.speaker_profile_model = speaker_profile_model or SpeakerProfileModel()
         self.opportunity_activity_model = opportunity_activity_model or OpportunityActivityModel()
         self.opportunity_email_status_model = (
             opportunity_email_status_model or OpportunityEmailStatusModel()
+        )
+        self.notification_delivery_service = (
+            notification_delivery_service or NotificationDeliveryService()
         )
 
     async def _is_archived_for_speaker(self, speaker_profile_id: str, opportunity: dict) -> bool:
@@ -69,6 +75,15 @@ class MatchedOpportunitiesEmailService:
 
         profile = await self.speaker_profile_model.get_profile(speaker_profile_id)
         if not profile:
+            return False
+
+        if not await self.notification_delivery_service.is_notification_enabled(
+            profile, "new_opportunity"
+        ):
+            logger.info(
+                "Matched opportunities email skipped: new_opportunity disabled speaker_profile_id=%s",
+                speaker_profile_id,
+            )
             return False
 
         if opportunity_documents is not None:
@@ -106,19 +121,34 @@ class MatchedOpportunitiesEmailService:
         if not to_email:
             return False
 
+        frequency = await self.notification_delivery_service.get_frequency_for_speaker(
+            profile, "new_opportunity"
+        )
+        template_model = {
+            "user_name": user_name,
+            "opportunities": rows,
+        }
+        unsent_ids = [str(o.get("_id")) for o in unsent_opportunities if o.get("_id")]
+
+        if after_delay_days(frequency) > 0:
+            return await self.notification_delivery_service.enqueue_new_opportunity(
+                speaker_profile_id=speaker_profile_id,
+                to_email=to_email,
+                template_model=template_model,
+                opportunity_ids=unsent_ids,
+                frequency=frequency,
+            )
+
         try:
             sent = get_email_service().send_event_email(
                 event_type=EmailEventType.ALERT_NEW_OPPORTUNITY,
                 to_email=to_email,
-                template_model={
-                    "user_name": user_name,
-                    "opportunities": rows,
-                },
+                template_model=template_model,
             )
             if sent:
                 await self.opportunity_email_status_model.mark_matched_sent_many(
                     speaker_profile_id,
-                    [str(o.get("_id")) for o in unsent_opportunities if o.get("_id")],
+                    unsent_ids,
                 )
             return sent
         except Exception as e:

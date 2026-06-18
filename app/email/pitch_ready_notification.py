@@ -8,6 +8,8 @@ from urllib.parse import urlencode
 
 from app.email.constants import PITCH_REVIEW_FRONTEND_BASE
 from app.email.enums import EmailEventType
+from app.email.notification_delivery import after_delay_days
+from app.services.NotificationDeliveryService import NotificationDeliveryService
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,31 @@ def build_pitch_review_url(
     return f"{PITCH_REVIEW_FRONTEND_BASE}/opportunities/{opportunity_id}/curated-speaker-pitch?{q}"
 
 
+def build_pitch_ready_template_model(
+    *,
+    user_name: str,
+    opportunity: dict,
+    opportunity_id: str,
+    speaker_profile_id: str,
+    email_content_id: str,
+) -> dict[str, str]:
+    oid = str(opportunity.get("_id") or opportunity_id)
+    event_name = (opportunity.get("event_name") or opportunity.get("title") or "").strip()
+    event_location = (opportunity.get("location") or "").strip()
+    return {
+        "user_name": (user_name or "").strip() or "there",
+        "event_name": event_name,
+        "event_date": _format_event_date(opportunity),
+        "event_location": event_location,
+        "deadline_date": _deadline_from_metadata(opportunity),
+        "pitch_review_url": build_pitch_review_url(
+            opportunity_id=oid,
+            speaker_profile_id=speaker_profile_id,
+            email_content_id=email_content_id,
+        ),
+    }
+
+
 def send_pitch_ready_email(
     *,
     user_name: str,
@@ -74,39 +101,39 @@ def send_pitch_ready_email(
     if not recipient:
         return False
 
-    oid = str(opportunity.get("_id") or opportunity_id)
-    event_name = (opportunity.get("event_name") or opportunity.get("title") or "").strip()
-    event_location = (opportunity.get("location") or "").strip()
-
     return get_email_service().send_event_email(
         event_type=EmailEventType.ALERT_PITCH_READY,
         to_email=recipient,
-        template_model={
-            "user_name": (user_name or "").strip() or "there",
-            "event_name": event_name,
-            "event_date": _format_event_date(opportunity),
-            "event_location": event_location,
-            "deadline_date": _deadline_from_metadata(opportunity),
-            "pitch_review_url": build_pitch_review_url(
-                opportunity_id=oid,
-                speaker_profile_id=speaker_profile_id,
-                email_content_id=email_content_id,
-            ),
-        },
+        template_model=build_pitch_ready_template_model(
+            user_name=user_name,
+            opportunity=opportunity,
+            opportunity_id=opportunity_id,
+            speaker_profile_id=speaker_profile_id,
+            email_content_id=email_content_id,
+        ),
     )
 
 
-def try_send_pitch_ready_email_after_content_created(
+async def try_send_or_schedule_pitch_ready_email(
     *,
     profile: dict,
     opportunity: dict,
     opportunity_id: str,
     speaker_profile_id: str,
     email_content_id: str,
+    delivery_service: NotificationDeliveryService | None = None,
 ) -> None:
-    """Fire-and-forget after EmailContent insert; never raises."""
+    """Send or enqueue pitch-ready email according to notification settings; never raises."""
     try:
         from app.email.helpers import speaker_profile_notification_email
+
+        delivery = delivery_service or NotificationDeliveryService()
+        if not await delivery.is_notification_enabled(profile, "pitch_ready"):
+            logger.info(
+                "Pitch-ready email skipped: pitch_ready disabled speaker_profile_id=%s",
+                speaker_profile_id,
+            )
+            return
 
         to_email = speaker_profile_notification_email(profile)
         if not to_email:
@@ -115,7 +142,28 @@ def try_send_pitch_ready_email_after_content_created(
                 speaker_profile_id,
             )
             return
+
         user_name = (profile.get("full_name") or "").strip()
+        frequency = await delivery.get_frequency_for_speaker(profile, "pitch_ready")
+        template_model = build_pitch_ready_template_model(
+            user_name=user_name,
+            opportunity=opportunity,
+            opportunity_id=opportunity_id,
+            speaker_profile_id=speaker_profile_id,
+            email_content_id=email_content_id,
+        )
+
+        if after_delay_days(frequency) > 0:
+            await delivery.enqueue_pitch_ready(
+                speaker_profile_id=speaker_profile_id,
+                opportunity_id=opportunity_id,
+                email_content_id=email_content_id,
+                to_email=to_email,
+                template_model=template_model,
+                frequency=frequency,
+            )
+            return
+
         if not send_pitch_ready_email(
             user_name=user_name,
             opportunity=opportunity,
@@ -127,3 +175,29 @@ def try_send_pitch_ready_email_after_content_created(
             logger.warning("Pitch-ready email was not sent (send_event_email returned false).")
     except Exception as e:
         logger.warning("Pitch-ready email failed: %s", e)
+
+
+def try_send_pitch_ready_email_after_content_created(
+    *,
+    profile: dict,
+    opportunity: dict,
+    opportunity_id: str,
+    speaker_profile_id: str,
+    email_content_id: str,
+) -> None:
+    """Backward-compatible sync wrapper; schedules on the app event loop."""
+    try:
+        from app.helpers.scheduler_async import run_coroutine_on_app_loop
+
+        run_coroutine_on_app_loop(
+            try_send_or_schedule_pitch_ready_email(
+                profile=profile,
+                opportunity=opportunity,
+                opportunity_id=opportunity_id,
+                speaker_profile_id=speaker_profile_id,
+                email_content_id=email_content_id,
+            ),
+            timeout=60,
+        )
+    except Exception as e:
+        logger.warning("Pitch-ready email scheduling failed: %s", e)

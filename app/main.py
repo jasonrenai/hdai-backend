@@ -33,6 +33,7 @@ from app.middleware.Cors import add_cors_middleware
 from app.middleware.GlobalErrorHandling import GlobalErrorHandlingMiddleware
 from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
+from app.services.PendingNotificationEmailCronService import run_pending_notification_email_cron_sync
 from app.services.PendingScraperCronService import (
     pending_url_collections_cron_interval_hours,
     run_pending_google_queries_cron_sync,
@@ -109,6 +110,13 @@ async def startup_event():
         id="submission_reminder_cron",
     )
     log.info("Submission reminder cron registered (every 1 min)")
+
+    _cron_scheduler.add_job(
+        run_pending_notification_email_cron_sync,
+        IntervalTrigger(minutes=1),
+        id="pending_notification_email_cron",
+    )
+    log.info("Pending notification email cron registered (every 1 min)")
 
     # Default 24h; set DEADLINE_APPROACHING_CRON_INTERVAL_MINUTES to override (e.g. 1 for tests).
     raw_min = (os.getenv("DEADLINE_APPROACHING_CRON_INTERVAL_MINUTES") or "").strip()
