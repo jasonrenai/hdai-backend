@@ -231,7 +231,7 @@ class OpportunityApplicationContentService:
         speaking_history = _as_text(payload.get("speaking_history"))
         bio = _as_text(payload.get("bio"))
 
-        if not all([presentation_type, abstract, takeaways, speaking_history, bio]):
+        if not all([presentation_type, abstract, takeaways, bio]):
             raise ValueError("Failed to generate valid application content")
 
         return {
