@@ -82,12 +82,10 @@ EMAIL_NOTIFICATION_CATALOG: dict[str, dict[str, Any]] = {
         "default_enabled": True,
         "default_frequency": NotificationFrequency.BEFORE_2_DAYS,
         "allowed_frequencies": {
+            NotificationFrequency.IMMEDIATE,
             NotificationFrequency.BEFORE_1_DAY,
             NotificationFrequency.BEFORE_2_DAYS,
             NotificationFrequency.BEFORE_1_WEEK,
-            NotificationFrequency.AFTER_1_DAY,
-            NotificationFrequency.AFTER_2_DAYS,
-            NotificationFrequency.AFTER_1_WEEK,
         },
     },
     "deadline_approaching": {
@@ -121,8 +119,10 @@ def default_email_notifications() -> list[dict[str, Any]]:
 def _frequency_value(raw: Any, *, slug: str) -> str:
     catalog = EMAIL_NOTIFICATION_CATALOG[slug]
     default = catalog["default_frequency"]
+    allowed = catalog["allowed_frequencies"]
     parsed = canonical_frequency(raw)
-    return (parsed or default).value
+    freq = parsed if parsed in allowed else default
+    return freq.value
 
 
 def _enabled_value(raw: Any, *, slug: str) -> bool:

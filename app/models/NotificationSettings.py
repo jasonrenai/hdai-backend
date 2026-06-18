@@ -49,6 +49,27 @@ class NotificationSettingsModel:
         doc["_id"] = result.inserted_id
         return doc
 
+    async def create_for_user_if_missing(self, user_id: str) -> tuple[bool, dict[str, Any]]:
+        """Insert default notification settings if none exist. Returns (created, doc)."""
+        uid = self._normalize_user_id(user_id)
+        if not uid:
+            raise ValueError("user_id is required")
+
+        existing = await self.get_by_user_id(uid)
+        if existing:
+            return False, existing
+
+        now = datetime.utcnow()
+        doc = {
+            "user_id": uid,
+            "email_notifications": default_email_notifications(),
+            "createdOn": now,
+            "updatedOn": now,
+        }
+        result = await self.collection.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return True, doc
+
     async def update(
         self,
         user_id: str,

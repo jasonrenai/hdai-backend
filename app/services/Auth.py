@@ -111,6 +111,10 @@ class AuthService:
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
 
+            from app.models.NotificationSettings import NotificationSettingsModel
+
+            await NotificationSettingsModel().create_for_user_if_missing(str(user_id))
+
             try_send_signup_emails(
                 full_name=user_data_dict.get("fullName", ""),
                 account_email=user_data_dict.get("email"),
@@ -585,6 +589,10 @@ class AuthService:
             
             # Create user
             user_id = await self.user_model.create_user(user_data_dict)
+
+            from app.models.NotificationSettings import NotificationSettingsModel
+
+            await NotificationSettingsModel().create_for_user_if_missing(str(user_id))
 
             try_send_welcome_email_on_account_created(
                 user_display_name=user_data_dict.get("fullName", ""),
