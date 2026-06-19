@@ -10,7 +10,6 @@ from typing import Any
 from app.email.deadline_approaching_notification import parse_metadata_deadline_date
 from app.email.enums import EmailEventType
 from app.email.helpers import speaker_profile_notification_email
-from app.email.notification_delivery import is_deadline_notification_send_day
 from app.email.submission_reminder_notification import build_submission_reminder_template_model
 from app.models.Opportunity import OpportunityModel
 from app.models.OpportunityActivity import OpportunityActivityModel
@@ -55,7 +54,6 @@ class SubmissionReminderCronService:
         from app.dependencies import get_email_service
 
         email_service = get_email_service()
-        today = datetime.utcnow().date()
 
         for row in rows:
             speaker_id = (row.get("speaker_id") or "").strip()
@@ -94,19 +92,22 @@ class SubmissionReminderCronService:
                     skipped += 1
                     continue
 
-                deadline = parse_metadata_deadline_date(opp)
-                if deadline is None:
-                    skipped += 1
-                    continue
-
                 frequency = await self.notification_delivery_service.get_frequency_for_speaker(
                     profile, "submission_reminder"
                 )
-                if not is_deadline_notification_send_day(
-                    deadline=deadline,
+                deadline = parse_metadata_deadline_date(opp)
+                is_test = await self.notification_delivery_service.is_test_user(profile)
+                if not is_test and deadline is None:
+                    skipped += 1
+                    continue
+
+                if not await self.notification_delivery_service.is_before_send_due(
+                    profile=profile,
                     frequency=frequency,
                     slug="submission_reminder",
-                    today=today,
+                    deadline=deadline,
+                    activity_row=row,
+                    now=datetime.utcnow(),
                 ):
                     skipped += 1
                     continue

@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from app.email.enums import EmailEventType
 from app.email.helpers import speaker_profile_notification_email
-from app.email.notification_delivery import after_delay_days
+from app.email.notification_delivery import after_delay_timedelta
 from app.models.OpportunityActivity import OpportunityActivityModel
 from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
 from app.email.opportunity_urls import opportunity_action_url, opportunity_app_url
@@ -130,13 +130,16 @@ class MatchedOpportunitiesEmailService:
         }
         unsent_ids = [str(o.get("_id")) for o in unsent_opportunities if o.get("_id")]
 
-        if after_delay_days(frequency) > 0:
+        is_test = await self.notification_delivery_service.is_test_user(profile)
+        delay = after_delay_timedelta(frequency=frequency, is_test_user=is_test)
+        if delay.total_seconds() > 0:
             return await self.notification_delivery_service.enqueue_new_opportunity(
                 speaker_profile_id=speaker_profile_id,
                 to_email=to_email,
                 template_model=template_model,
                 opportunity_ids=unsent_ids,
                 frequency=frequency,
+                profile=profile,
             )
 
         try:

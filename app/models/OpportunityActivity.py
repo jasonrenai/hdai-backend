@@ -37,6 +37,8 @@ class OpportunityActivityModel:
         now = datetime.utcnow()
         filter_q = {"speaker_id": str(speaker_id), "opportunityId": str(opportunity_id)}
         update_doc = {**set_fields, "updatedAt": now}
+        if set_fields.get("isWishlist") is True:
+            update_doc["wishlistNotificationAnchorAt"] = now
 
         existing = await self.collection.find_one(filter_q)
         if existing:
@@ -53,6 +55,8 @@ class OpportunityActivityModel:
                 **set_fields,
                 "updatedAt": now,
             }
+            if set_fields.get("isWishlist") is True:
+                base["wishlistNotificationAnchorAt"] = now
             await self.collection.insert_one(base)
 
         doc = await self.collection.find_one(filter_q)

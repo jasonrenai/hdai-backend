@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 from app.email.constants import PITCH_REVIEW_FRONTEND_BASE
 from app.email.enums import EmailEventType
-from app.email.notification_delivery import after_delay_days
+from app.email.notification_delivery import after_delay_timedelta
 from app.services.NotificationDeliveryService import NotificationDeliveryService
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,10 @@ async def try_send_or_schedule_pitch_ready_email(
             email_content_id=email_content_id,
         )
 
-        if after_delay_days(frequency) > 0:
+        if after_delay_timedelta(
+            frequency=frequency,
+            is_test_user=await delivery.is_test_user(profile),
+        ).total_seconds() > 0:
             await delivery.enqueue_pitch_ready(
                 speaker_profile_id=speaker_profile_id,
                 opportunity_id=opportunity_id,
@@ -161,6 +164,7 @@ async def try_send_or_schedule_pitch_ready_email(
                 to_email=to_email,
                 template_model=template_model,
                 frequency=frequency,
+                profile=profile,
             )
             return
 

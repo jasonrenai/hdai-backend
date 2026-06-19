@@ -7,8 +7,12 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from app.email.notification_delivery import (
-    after_delay_days,
+    after_delay_timedelta,
     default_pref_for_slug,
+    is_before_notification_due,
+    is_notification_test_email,
+    is_notification_test_profile,
+    parse_wishlist_anchor,
     pref_from_notification_doc,
     user_id_from_profile,
 )
@@ -33,6 +37,63 @@ class NotificationDeliveryService:
         self.pending_model = pending_model or PendingNotificationEmailModel()
         self.activity_model = activity_model or OpportunityActivityModel()
         self.email_status_model = email_status_model or OpportunityEmailStatusModel()
+
+    async def is_test_user(self, profile: dict[str, Any]) -> bool:
+        if is_notification_test_profile(profile):
+            return True
+        user_id = user_id_from_profile(profile)
+        if not user_id:
+            return False
+        try:
+            from bson import ObjectId
+            from bson.errors import InvalidId
+
+            from app.models.User import UserModel
+
+            oid = ObjectId(user_id)
+        except (InvalidId, TypeError):
+            return False
+        user = await UserModel().get_user({"_id": oid})
+        if user is None:
+            return False
+        return is_notification_test_email(str(user.email))
+
+    async def after_delay_for_profile(
+        self,
+        profile: dict[str, Any],
+        frequency: str,
+    ) -> timedelta:
+        is_test = await self.is_test_user(profile)
+        return after_delay_timedelta(frequency=frequency, is_test_user=is_test)
+
+    async def is_before_send_due(
+        self,
+        *,
+        profile: dict[str, Any],
+        frequency: str,
+        slug: NotificationSlug,
+        deadline: Optional[Any],
+        activity_row: dict[str, Any],
+        now: Optional[datetime] = None,
+    ) -> bool:
+        from datetime import date
+
+        deadline_date: date | None = None
+        if deadline is not None:
+            if isinstance(deadline, date) and not isinstance(deadline, datetime):
+                deadline_date = deadline
+            elif hasattr(deadline, "date"):
+                deadline_date = deadline.date()
+
+        is_test = await self.is_test_user(profile)
+        return is_before_notification_due(
+            frequency=frequency,
+            slug=slug,  # type: ignore[arg-type]
+            is_test_user=is_test,
+            deadline=deadline_date,
+            wishlist_anchor_at=parse_wishlist_anchor(activity_row),
+            now=now,
+        )
 
     async def get_pref_for_speaker(
         self,
@@ -69,11 +130,12 @@ class NotificationDeliveryService:
         template_model: dict[str, Any],
         opportunity_ids: list[str],
         frequency: str,
+        profile: dict[str, Any],
     ) -> bool:
-        delay_days = after_delay_days(frequency)
-        if delay_days <= 0:
+        delay = await self.after_delay_for_profile(profile, frequency)
+        if delay.total_seconds() <= 0:
             return False
-        send_at = datetime.utcnow() + timedelta(days=delay_days)
+        send_at = datetime.utcnow() + delay
         await self.pending_model.enqueue(
             {
                 "slug": "new_opportunity",
@@ -95,11 +157,12 @@ class NotificationDeliveryService:
         to_email: str,
         template_model: dict[str, Any],
         frequency: str,
+        profile: dict[str, Any],
     ) -> bool:
-        delay_days = after_delay_days(frequency)
-        if delay_days <= 0:
+        delay = await self.after_delay_for_profile(profile, frequency)
+        if delay.total_seconds() <= 0:
             return False
-        send_at = datetime.utcnow() + timedelta(days=delay_days)
+        send_at = datetime.utcnow() + delay
         await self.pending_model.enqueue(
             {
                 "slug": "pitch_ready",

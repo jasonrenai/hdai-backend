@@ -13,7 +13,6 @@ from app.email.deadline_approaching_notification import (
 )
 from app.email.enums import EmailEventType
 from app.email.helpers import speaker_profile_notification_email
-from app.email.notification_delivery import is_deadline_notification_send_day
 from app.models.Opportunity import OpportunityModel
 from app.models.OpportunityActivity import OpportunityActivityModel
 from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
@@ -71,7 +70,6 @@ class DeadlineApproachingCronService:
         from app.dependencies import get_email_service
 
         email_service = get_email_service()
-        today = datetime.utcnow().date()
 
         for row in rows:
             speaker_id = (row.get("speaker_id") or "").strip()
@@ -105,16 +103,6 @@ class DeadlineApproachingCronService:
                     skip_reasons["opportunity_not_found"] += 1
                     continue
 
-                deadline = parse_metadata_deadline_date(opp)
-                if deadline is None:
-                    skipped += 1
-                    skip_reasons["no_metadata_deadline"] += 1
-                    continue
-                if today > deadline:
-                    skipped += 1
-                    skip_reasons["deadline_passed"] += 1
-                    continue
-
                 profile = await self.speaker_profile_model.get_profile(speaker_id)
                 if not profile:
                     skipped += 1
@@ -131,11 +119,26 @@ class DeadlineApproachingCronService:
                 frequency = await self.notification_delivery_service.get_frequency_for_speaker(
                     profile, "deadline_approaching"
                 )
-                if not is_deadline_notification_send_day(
-                    deadline=deadline,
+                deadline = parse_metadata_deadline_date(opp)
+                is_test = await self.notification_delivery_service.is_test_user(profile)
+                if not is_test:
+                    today = datetime.utcnow().date()
+                    if deadline is None:
+                        skipped += 1
+                        skip_reasons["no_metadata_deadline"] += 1
+                        continue
+                    if today > deadline:
+                        skipped += 1
+                        skip_reasons["deadline_passed"] += 1
+                        continue
+
+                if not await self.notification_delivery_service.is_before_send_due(
+                    profile=profile,
                     frequency=frequency,
                     slug="deadline_approaching",
-                    today=today,
+                    deadline=deadline,
+                    activity_row=row,
+                    now=datetime.utcnow(),
                 ):
                     skipped += 1
                     skip_reasons["not_send_day"] += 1
