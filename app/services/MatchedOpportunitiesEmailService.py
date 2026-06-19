@@ -130,8 +130,7 @@ class MatchedOpportunitiesEmailService:
         }
         unsent_ids = [str(o.get("_id")) for o in unsent_opportunities if o.get("_id")]
 
-        is_test = await self.notification_delivery_service.is_test_user(profile)
-        delay = after_delay_timedelta(frequency=frequency, is_test_user=is_test)
+        delay = after_delay_timedelta(frequency=frequency)
         if delay.total_seconds() > 0:
             return await self.notification_delivery_service.enqueue_new_opportunity(
                 speaker_profile_id=speaker_profile_id,

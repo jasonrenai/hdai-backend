@@ -33,11 +33,6 @@ from app.middleware.Cors import add_cors_middleware
 from app.middleware.GlobalErrorHandling import GlobalErrorHandlingMiddleware
 from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
-from app.email.notification_delivery import (
-    NOTIFICATION_TEST_CRON_ENABLED,
-    NOTIFICATION_TEST_CRON_MINUTES,
-)
-from app.services.NotificationTestCronService import run_notification_test_cron_sync
 from app.services.PendingNotificationEmailCronService import run_pending_notification_email_cron_sync
 from app.services.PendingScraperCronService import (
     pending_url_collections_cron_interval_hours,
@@ -145,18 +140,6 @@ async def startup_event():
         id="deadline_approaching_cron",
     )
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
-
-    if NOTIFICATION_TEST_CRON_ENABLED:
-        test_cron_min = max(1, NOTIFICATION_TEST_CRON_MINUTES)
-        _cron_scheduler.add_job(
-            run_notification_test_cron_sync,
-            IntervalTrigger(minutes=test_cron_min),
-            id="notification_test_cron",
-        )
-        log.info(
-            "Notification test cron registered (every %s min, test users only)",
-            test_cron_min,
-        )
 
     _cron_scheduler.add_job(
         run_pending_google_queries_cron_sync,

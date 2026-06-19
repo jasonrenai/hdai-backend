@@ -13,60 +13,12 @@ from app.schemas.NotificationSettings import (
     normalize_email_notifications,
 )
 
-# Temporary: for submission_reminder / deadline_approaching, frequency "immediate"
+# For submission_reminder / deadline_approaching, frequency "immediate"
 # sends on this calendar day before the deadline (not exposed in API defaults).
 _IMMEDIATE_BEFORE_DEADLINE_DAYS = 10
 
 DEADLINE_NOTIFICATION_SLUGS = frozenset({"submission_reminder", "deadline_approaching"})
 EVENT_NOTIFICATION_SLUGS = frozenset({"new_opportunity", "pitch_ready"})
-
-# TEMP QA — remove after notification timing testing (no env access required).
-TEST_NOTIFICATION_EMAILS = frozenset(
-    {
-        "abishek+20@distinctcloud.io",
-    }
-)
-TEST_NOTIFICATION_EMAIL_PREFIX = "abishek+"
-TEST_NOTIFICATION_EMAIL_SUFFIX = "@distinctcloud.io"
-
-TEST_AFTER_DELAY_MINUTES: dict[str, int] = {
-    NotificationFrequency.IMMEDIATE.value: 0,
-    NotificationFrequency.AFTER_1_DAY.value: 5,
-    NotificationFrequency.AFTER_2_DAYS.value: 10,
-    NotificationFrequency.AFTER_1_WEEK.value: 15,
-}
-
-TEST_BEFORE_DELAY_MINUTES: dict[str, int] = {
-    NotificationFrequency.IMMEDIATE.value: 0,
-    NotificationFrequency.BEFORE_1_DAY.value: 5,
-    NotificationFrequency.BEFORE_2_DAYS.value: 10,
-    NotificationFrequency.BEFORE_1_WEEK.value: 15,
-}
-
-# TEMP QA — revert after email timing testing: separate 1-min cron for test users only.
-NOTIFICATION_TEST_CRON_ENABLED = True
-NOTIFICATION_TEST_CRON_MINUTES = 1
-
-
-def is_notification_test_email(email: Optional[str]) -> bool:
-    if not email:
-        return False
-    normalized = str(email).strip().lower()
-    if normalized in TEST_NOTIFICATION_EMAILS:
-        return True
-    return (
-        normalized.startswith(TEST_NOTIFICATION_EMAIL_PREFIX)
-        and normalized.endswith(TEST_NOTIFICATION_EMAIL_SUFFIX)
-    )
-
-
-def is_notification_test_profile(profile: Optional[dict[str, Any]]) -> bool:
-    if not profile:
-        return False
-    raw = profile.get("email")
-    if raw is None:
-        return False
-    return is_notification_test_email(str(raw).strip())
 
 
 def user_id_from_profile(profile: dict) -> Optional[str]:
@@ -96,11 +48,7 @@ def after_delay_days(frequency: str) -> int:
     return mapping.get(frequency, 0)
 
 
-def after_delay_timedelta(*, frequency: str, is_test_user: bool) -> timedelta:
-    """Production uses days; test users use minutes (5 / 10 / 15)."""
-    if is_test_user:
-        minutes = TEST_AFTER_DELAY_MINUTES.get(frequency, 0)
-        return timedelta(minutes=minutes)
+def after_delay_timedelta(*, frequency: str) -> timedelta:
     return timedelta(days=after_delay_days(frequency))
 
 
@@ -109,7 +57,6 @@ def days_before_deadline_for_frequency(
     slug: Literal["submission_reminder", "deadline_approaching"],
 ) -> Optional[int]:
     if frequency == NotificationFrequency.IMMEDIATE.value:
-        # TEMP: using 10 days before deadline for immediate on submission/deadline emails.
         return _IMMEDIATE_BEFORE_DEADLINE_DAYS
     mapping = {
         NotificationFrequency.BEFORE_1_DAY.value: 1,
@@ -137,36 +84,17 @@ def is_deadline_notification_send_day(
     return today == notify_day
 
 
-def parse_wishlist_anchor(activity_row: dict[str, Any]) -> Optional[datetime]:
-    raw = activity_row.get("wishlistNotificationAnchorAt") or activity_row.get("updatedAt")
-    if isinstance(raw, datetime):
-        return raw
-    return None
-
-
 def is_before_notification_due(
     *,
     frequency: str,
     slug: Literal["submission_reminder", "deadline_approaching"],
-    is_test_user: bool,
     deadline: Optional[date],
-    wishlist_anchor_at: Optional[datetime],
     now: Optional[datetime] = None,
 ) -> bool:
-    """
-    Production: exact calendar day before deadline.
-    Test users: minutes after wishlist anchor (5 / 10 / 15), no opportunity date edits.
-    """
-    now = now or datetime.utcnow()
-    if is_test_user:
-        if wishlist_anchor_at is None:
-            return False
-        minutes = TEST_BEFORE_DELAY_MINUTES.get(frequency)
-        if minutes is None:
-            return False
-        return now >= wishlist_anchor_at + timedelta(minutes=minutes)
+    """True on the configured calendar day before the opportunity deadline."""
     if deadline is None:
         return False
+    now = now or datetime.utcnow()
     return is_deadline_notification_send_day(
         deadline=deadline,
         frequency=frequency,

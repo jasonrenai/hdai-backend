@@ -10,9 +10,6 @@ from app.email.notification_delivery import (
     after_delay_timedelta,
     default_pref_for_slug,
     is_before_notification_due,
-    is_notification_test_email,
-    is_notification_test_profile,
-    parse_wishlist_anchor,
     pref_from_notification_doc,
     user_id_from_profile,
 )
@@ -38,33 +35,12 @@ class NotificationDeliveryService:
         self.activity_model = activity_model or OpportunityActivityModel()
         self.email_status_model = email_status_model or OpportunityEmailStatusModel()
 
-    async def is_test_user(self, profile: dict[str, Any]) -> bool:
-        if is_notification_test_profile(profile):
-            return True
-        user_id = user_id_from_profile(profile)
-        if not user_id:
-            return False
-        try:
-            from bson import ObjectId
-            from bson.errors import InvalidId
-
-            from app.models.User import UserModel
-
-            oid = ObjectId(user_id)
-        except (InvalidId, TypeError):
-            return False
-        user = await UserModel().get_user({"_id": oid})
-        if user is None:
-            return False
-        return is_notification_test_email(str(user.email))
-
     async def after_delay_for_profile(
         self,
         profile: dict[str, Any],
         frequency: str,
     ) -> timedelta:
-        is_test = await self.is_test_user(profile)
-        return after_delay_timedelta(frequency=frequency, is_test_user=is_test)
+        return after_delay_timedelta(frequency=frequency)
 
     async def is_before_send_due(
         self,
@@ -85,13 +61,10 @@ class NotificationDeliveryService:
             elif hasattr(deadline, "date"):
                 deadline_date = deadline.date()
 
-        is_test = await self.is_test_user(profile)
         return is_before_notification_due(
             frequency=frequency,
             slug=slug,  # type: ignore[arg-type]
-            is_test_user=is_test,
             deadline=deadline_date,
-            wishlist_anchor_at=parse_wishlist_anchor(activity_row),
             now=now,
         )
 

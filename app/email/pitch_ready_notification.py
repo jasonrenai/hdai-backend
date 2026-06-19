@@ -153,10 +153,7 @@ async def try_send_or_schedule_pitch_ready_email(
             email_content_id=email_content_id,
         )
 
-        if after_delay_timedelta(
-            frequency=frequency,
-            is_test_user=await delivery.is_test_user(profile),
-        ).total_seconds() > 0:
+        if after_delay_timedelta(frequency=frequency).total_seconds() > 0:
             await delivery.enqueue_pitch_ready(
                 speaker_profile_id=speaker_profile_id,
                 opportunity_id=opportunity_id,
