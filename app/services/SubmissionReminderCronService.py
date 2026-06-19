@@ -39,8 +39,19 @@ class SubmissionReminderCronService:
             notification_delivery_service or NotificationDeliveryService()
         )
 
-    async def run_once(self) -> dict[str, Any]:
-        cooldown = int(os.getenv("SUBMISSION_REMINDER_COOLDOWN_MINUTES", "1440"))
+    async def run_once(
+        self,
+        *,
+        test_users_only: bool = False,
+        cooldown_minutes: int | None = None,
+    ) -> dict[str, Any]:
+        from app.email.notification_delivery import NOTIFICATION_TEST_CRON_ENABLED
+
+        cooldown = (
+            cooldown_minutes
+            if cooldown_minutes is not None
+            else int(os.getenv("SUBMISSION_REMINDER_COOLDOWN_MINUTES", "1440"))
+        )
         batch = int(os.getenv("SUBMISSION_REMINDER_BATCH_SIZE", "50"))
 
         rows = await self.activity_model.find_wishlist_pending_submission(
@@ -86,6 +97,14 @@ class SubmissionReminderCronService:
                     skipped += 1
                     continue
 
+                is_test = await self.notification_delivery_service.is_test_user(profile)
+                if test_users_only and not is_test:
+                    skipped += 1
+                    continue
+                if not test_users_only and NOTIFICATION_TEST_CRON_ENABLED and is_test:
+                    skipped += 1
+                    continue
+
                 if not await self.notification_delivery_service.is_notification_enabled(
                     profile, "submission_reminder"
                 ):
@@ -96,7 +115,6 @@ class SubmissionReminderCronService:
                     profile, "submission_reminder"
                 )
                 deadline = parse_metadata_deadline_date(opp)
-                is_test = await self.notification_delivery_service.is_test_user(profile)
                 if not is_test and deadline is None:
                     skipped += 1
                     continue

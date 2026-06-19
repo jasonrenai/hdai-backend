@@ -43,6 +43,10 @@ TEST_BEFORE_DELAY_MINUTES: dict[str, int] = {
     NotificationFrequency.BEFORE_1_WEEK.value: 15,
 }
 
+# TEMP QA — revert after email timing testing: separate 1-min cron for test users only.
+NOTIFICATION_TEST_CRON_ENABLED = True
+NOTIFICATION_TEST_CRON_MINUTES = 1
+
 
 def is_notification_test_email(email: Optional[str]) -> bool:
     if not email:
