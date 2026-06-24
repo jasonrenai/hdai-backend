@@ -32,9 +32,18 @@ from app.services.speaker_profile_chatbot_steps import (
     CREATE_STEP,
     SKIPPABLE_STEPS,
     build_checkpoint_for_prompt,
+    build_identity_welcome_reply,
     build_simple_system_prompt,
     derive_expected_step,
+    derive_pre_create_subphase,
+    extract_pre_create_identity,
     finalize_catalog_question_reply,
+    PRE_CREATE_POST_WELCOME,
+    PRE_CREATE_PROMPT_WELCOME,
+    PRE_CREATE_READY,
+    _SPEAKERPITCHER_WELCOME_LINE,
+    speakerpitcher_welcome_already_sent,
+    strip_duplicate_speakerpitcher_welcome,
     _catalog_step_being_asked,
     detect_skip_intent,
     may_mark_profile_complete,
@@ -50,6 +59,31 @@ def _jwt_user_id(user: Optional[Dict[str, Any]]) -> Optional[str]:
         return None
     raw = user.get("id") or user.get("user_id") or user.get("_id")
     return str(raw) if raw is not None else None
+
+
+def _first_name_from_full_name(full_name: str) -> str:
+    """First given name for conversational acks (strip credentials after comma)."""
+    raw = (full_name or "").strip()
+    if not raw:
+        return ""
+    before_credential = raw.split(",")[0].strip()
+    parts = before_credential.split()
+    return parts[0] if parts else ""
+
+
+def _merge_pending_identity_into_args(
+    args: Dict[str, Any],
+    pending: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    if not pending:
+        return args
+    merged = dict(args)
+    for field in ("full_name", "professional_title", "company"):
+        if not (merged.get(field) or "").strip():
+            val = (pending.get(field) or "").strip()
+            if val:
+                merged[field] = val
+    return merged
 
 
 def _full_name_for_user_account(email: str, full_name: str) -> str:
@@ -95,7 +129,8 @@ _CHAT_BIO_QUESTION = (
     "Please share your professional bio in 50 - 100 words."
 )
 _CHAT_SPEAKING_TIME_QUESTION = (
-    "What is your preferred speaking time? You can choose one or more from the list below:\n\n"
+    "What is your preferred speaking time?\n\n"
+    "Choose one or more from the list below:\n\n"
     "• 10-minute\n"
     "• 20-minute\n"
     "• 30-minute\n"
@@ -282,8 +317,11 @@ _FORBIDDEN_OPTIONAL_FIELDS_TRANSITION_USER_TEXT = (
 _CONVERSATIONAL_ACK_BEFORE_QUESTION = (
     "CONVERSATIONAL WRAPPER: Whenever you move to the next profile question (required or optional), begin with ONE short sentence—"
     "acknowledge their last answer, react warmly, or add one helpful line on why the next field matters (second person, professional, ≤25 words). "
-    "ALWAYS address the speaker by their professional name: use the exact full_name from the profile (or the name they gave before profile creation)—"
-    "e.g. 'Thanks, Jane Doe!' or 'Great, Alex Chen!'—not a generic 'Great!' alone. "
+    "NAME IN ACKNOWLEDGMENTS: use full_name only on the first acknowledgment after they provide their professional name "
+    "(e.g. 'Thanks, Jane Doe!'); on every later turn use first name only (first word before any comma). "
+    "Vary your opener every turn—rotate phrasing ('Thanks, Jane!', 'Sounds good, Jane!', 'Perfect, Jane!', 'Got it, Jane!', "
+    "'Thanks for sharing that, Jane!', etc.). "
+    "FORBIDDEN: starting every message with 'Great, {first name}!' or repeating the same opener on back-to-back turns. "
     "Then ask the next question in the same message. Do not alter wording where instructions require EXACT or verbatim text—paste that question exactly after your opener (blank line between is fine). "
     "For catalog steps, opener → then your short intro line for that field → then bullet list (per CATALOG CHOICE QUESTIONS). "
     "EXCEPTION—WRAPPER DOES NOT APPLY on the off-list pause turn or the partial/mixed pause turn: those messages END after you ask whether to continue—"
@@ -394,7 +432,9 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
         desc = (
             "Create new speaker profile. Call once when you have ALL of: "
             "full_name, professional_title, company, valid email, and phone_number in the same turn. "
-            "Until then, collect in chat only. After name+title+company, say: Thanks for joining SpeakerPitcher! Let's build your profile so we can find the right opportunities for you. "
+            "Until then, collect in chat only. After name+title+company, say once (never repeat on later turns): "
+            + _SPEAKERPITCHER_WELCOME_LINE
+            + " "
             "then ask for email and phone. Omit speaker_profile_id for create."
         )
     upsert_desc = (
@@ -1264,11 +1304,17 @@ class SpeakerProfileChatbotService:
 
         has_profile = bool(speaker_profile_id and profile)
         steps_done: List[str] = list((session or {}).get("onboarding_steps_done") or [])
-        expected_step = derive_expected_step(profile, steps_done, has_profile=has_profile)
-        user_turn_answered_last_question = has_profile and expected_step == "testimonial"
+        step_at_turn_start = derive_expected_step(profile, steps_done, has_profile=has_profile)
+        user_turn_answered_last_question = has_profile and step_at_turn_start == "testimonial"
+        user_skipped_optional_step = (
+            has_profile
+            and step_at_turn_start in SKIPPABLE_STEPS
+            and detect_skip_intent(message or "")
+        )
 
-        if expected_step in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
-            steps_done = merge_steps_done(steps_done, [expected_step])
+        if user_skipped_optional_step:
+            steps_done = merge_steps_done(steps_done, [step_at_turn_start])
+        expected_step = derive_expected_step(profile, steps_done, has_profile=has_profile)
 
         def _ser(o):
             if hasattr(o, "isoformat"):
@@ -1322,6 +1368,44 @@ class SpeakerProfileChatbotService:
             if profile
             else ""
         )
+        pre_create_subphase = (
+            derive_pre_create_subphase(history, message) if not has_profile else None
+        )
+
+        if (
+            not has_profile
+            and pre_create_subphase == PRE_CREATE_PROMPT_WELCOME
+            and (message or "").strip()
+        ):
+            identity = extract_pre_create_identity(client, message)
+            if identity.get("full_name"):
+                assistant_content = build_identity_welcome_reply(identity["full_name"])
+                chunk = [
+                    {"role": "user", "content": message},
+                    {"role": "assistant", "content": assistant_content},
+                ]
+                if session:
+                    await self.chat_session_model.append_messages(chat_session_id, chunk)
+                    await self.chat_session_model.update_pending_identity(chat_session_id, identity)
+                    chat_session_id_out = chat_session_id
+                else:
+                    new_sess = await self.chat_session_model.create_session(
+                        speaker_profile_id="", messages=chunk
+                    )
+                    chat_session_id_out = new_sess["_id"]
+                    await self.chat_session_model.update_pending_identity(
+                        chat_session_id_out, identity
+                    )
+                self._catalog_name_lists = None
+                return {
+                    "assistant_message": assistant_content,
+                    "action": None,
+                    "speaker_profile_id": None,
+                    "chat_session_id": chat_session_id_out,
+                    "profile_snapshot": None,
+                }
+
+        pending_identity = (session or {}).get("pending_identity") if not has_profile else None
         system = build_simple_system_prompt(
             has_profile=has_profile,
             profile_json=profile_json,
@@ -1329,11 +1413,24 @@ class SpeakerProfileChatbotService:
             expected_step=expected_step,
             catalog=catalog,
             checkpoint_line=checkpoint_line,
+            pre_create_subphase=pre_create_subphase,
         )
         system += (
             "\n\nCOMPLETION MESSAGE (verbatim, only after user replies to testimonial and mark_profile_complete succeeds):\n"
             + _PROFILE_COMPLETION_MESSAGE
         )
+        if user_skipped_optional_step:
+            system += (
+                f"\n\nSKIP THIS TURN: The user skipped optional step '{step_at_turn_start}' "
+                "(valid onboarding answer—not off-topic). Briefly acknowledge with their first name, "
+                "then ask the next step question verbatim below. Do NOT call upsert_speaker_profile unless they provided data. "
+                'FORBIDDEN: "I can only help with your SpeakerPitcher profile onboarding right now."'
+            )
+        if pending_identity:
+            system += (
+                "\n\nSTORED IDENTITY (include on upsert_speaker_profile when creating the profile): "
+                + json.dumps(pending_identity)
+            )
 
         tools = [_build_upsert_tool(speaker_profile_id), _build_get_allowed_values_tool()]
         if speaker_profile_id:
@@ -1343,7 +1440,10 @@ class SpeakerProfileChatbotService:
         profile_marked_complete = False
         # First completion must call upsert when the user just answered a profile step (stops text-only "saved" lies).
         force_upsert_first = bool(
-            has_profile and (message or "").strip() and expected_step != CREATE_STEP
+            has_profile
+            and (message or "").strip()
+            and expected_step != CREATE_STEP
+            and not user_skipped_optional_step
         )
         for loop_i in range(6):
             tool_choice: Any = "auto"
@@ -1417,6 +1517,8 @@ class SpeakerProfileChatbotService:
                     continue
                 if tc.function.name != "upsert_speaker_profile":
                     continue
+                if not speaker_profile_id:
+                    tc_args = _merge_pending_identity_into_args(tc_args, pending_identity)
                 spid = (tc_args.get("speaker_profile_id") or "").strip() or None
                 result = await self._execute_upsert(
                     tc_args,
@@ -1424,6 +1526,8 @@ class SpeakerProfileChatbotService:
                     jwt_user,
                 )
                 tool_results.append(result)
+                if result.get("action") == "created" and chat_session_id:
+                    await self.chat_session_model.update_pending_identity(chat_session_id, None)
                 if result.get("profile"):
                     profile = result["profile"]
                     profile["_id"] = str(profile["_id"])
@@ -1443,11 +1547,11 @@ class SpeakerProfileChatbotService:
                 if result.get("action") == "created":
                     steps_done = merge_steps_done(steps_done, [CREATE_STEP])
                 if (
-                    expected_step in SKIPPABLE_STEPS
+                    step_at_turn_start in SKIPPABLE_STEPS
                     and detect_skip_intent(message or "")
-                    and expected_step not in steps_done
+                    and step_at_turn_start not in steps_done
                 ):
-                    steps_done = merge_steps_done(steps_done, [expected_step])
+                    steps_done = merge_steps_done(steps_done, [step_at_turn_start])
                 if result.get("action") == "created" and profile and profile.get("_id"):
                     speaker_profile_id = str(profile["_id"])
                     has_profile = True
@@ -1477,8 +1581,8 @@ class SpeakerProfileChatbotService:
             and speaker_profile_id
             and profile
         ):
-            if expected_step in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
-                steps_done = merge_steps_done(steps_done, [expected_step])
+            if step_at_turn_start in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
+                steps_done = merge_steps_done(steps_done, [step_at_turn_start])
             profile_marked_complete, profile, steps_done = await self._try_auto_mark_profile_complete(
                 str(speaker_profile_id),
                 profile,
@@ -1516,12 +1620,13 @@ class SpeakerProfileChatbotService:
                         "before I can create your profile. What's still missing from that list?"
                     )
             elif action == "created" and profile:
-                name = (profile.get("full_name") or "").strip() or "you"
+                full_name = (profile.get("full_name") or "").strip()
+                first_name = _first_name_from_full_name(full_name) or "you"
                 email = (profile.get("email") or "").strip() or ""
                 prompt = (
-                    f"Briefly welcome {name} and confirm their speaker profile was started"
+                    f"Briefly welcome {first_name} (first name only) and confirm their speaker profile was started"
                     + (f" ({email})" if email else "")
-                    + ". Then ask for their location using EXACTLY this question text (verbatim), after one short friendly ack that uses their name: "
+                    + ". Then ask for their location using EXACTLY this question text (verbatim), after one short friendly ack that uses their first name: "
                     + repr(_CHAT_LOCATION_QUESTION)
                     + " FORBIDDEN: asking about topics, speaking formats, delivery, or audiences in this message. "
                     "STRICTLY FORBIDDEN: any mention of creating a user account, login, password, sign-in, credentials, temporary password, or that they received an email about an account—only discuss the speaker profile onboarding."
@@ -1538,7 +1643,7 @@ class SpeakerProfileChatbotService:
                     pass
                 if not assistant_content:
                     assistant_content = (
-                        f"Great—we've started your speaker profile for {name}"
+                        f"Great, {first_name}—we've started your speaker profile"
                         + (f" ({email})" if email else "")
                         + ". "
                         + _CHAT_LOCATION_QUESTION
@@ -1590,8 +1695,8 @@ class SpeakerProfileChatbotService:
             and speaker_profile_id
             and profile
         ):
-            if expected_step in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
-                steps_done = merge_steps_done(steps_done, [expected_step])
+            if step_at_turn_start in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
+                steps_done = merge_steps_done(steps_done, [step_at_turn_start])
             profile_marked_complete, profile, steps_done = await self._try_auto_mark_profile_complete(
                 str(speaker_profile_id),
                 profile,
@@ -1600,6 +1705,13 @@ class SpeakerProfileChatbotService:
             )
             if profile_marked_complete:
                 assistant_content = _PROFILE_COMPLETION_MESSAGE
+
+        if assistant_content and (
+            speakerpitcher_welcome_already_sent(history)
+            or has_profile
+            or pre_create_subphase in (PRE_CREATE_POST_WELCOME, PRE_CREATE_READY)
+        ):
+            assistant_content = strip_duplicate_speakerpitcher_welcome(assistant_content)
 
         # Catalog questions: server-built list only — one DB option per line (<br>), no inline LLM bullets
         if has_profile and assistant_content and not profile_marked_complete:

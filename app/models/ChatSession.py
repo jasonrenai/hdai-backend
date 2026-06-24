@@ -102,6 +102,29 @@ class ChatSessionModel:
         )
         return await self.get_by_id(chat_session_id)
 
+    async def update_pending_identity(
+        self,
+        chat_session_id: str,
+        identity: Optional[Dict[str, Any]],
+    ) -> Optional[dict]:
+        """Store parsed name/title/company between pre-create chat turns."""
+        if not chat_session_id:
+            return None
+        try:
+            oid = ObjectId(chat_session_id)
+        except Exception:
+            return None
+        await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "pending_identity": identity,
+                    "updatedAt": datetime.utcnow(),
+                },
+            },
+        )
+        return await self.get_by_id(chat_session_id)
+
     async def get_by_id(self, chat_session_id: str) -> Optional[dict]:
         """Get chat session by id."""
         try:

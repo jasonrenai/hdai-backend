@@ -6,6 +6,7 @@ calls upsert_speaker_profile for that step's fields, then advances.
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -41,6 +42,21 @@ SKIPPABLE_STEPS = frozenset({
 
 _PREFERRED_SPEAKING_TIMES = ["10-minute", "20-minute", "30-minute", "40-minute", "1 hour"]
 
+_SPEAKERPITCHER_WELCOME_LINE = (
+    "Thanks for joining SpeakerPitcher! Let's build your profile so we can find the right opportunities for you."
+)
+
+PRE_CREATE_ASK_IDENTITY = "ask_identity"
+PRE_CREATE_PROMPT_WELCOME = "prompt_welcome_and_contact"
+PRE_CREATE_POST_WELCOME = "post_welcome"
+PRE_CREATE_READY = "ready_to_create"
+
+_IDENTITY_EMAIL_PHONE_QUESTION = "Could you please provide your email and phone number?"
+
+_CATALOG_LIST_INTRO = "Choose one or more from the list below:"
+_CATALOG_ADD_MORE_PROFILE_FOOTER = "You can always add more to your profile later"
+_CATALOG_STEPS_WITH_ADD_MORE_FOOTER = frozenset({"topics", "target_audiences"})
+
 # Verbatim / prescribed user-facing questions (keep in sync with chatbot service copy)
 _QUESTION_LOCATION = (
     "What city, state or province, and country are you based in? "
@@ -55,18 +71,16 @@ _QUESTION_MEMBERSHIPS = (
     "Please share your Professional Memberships, (e.g. Role, Organization and topics)."
 )
 _QUESTION_SPEAKING_TIME = (
-    "What is your preferred speaking time? You can choose one or more from the list below:<br><br>"
+    "What is your preferred speaking time?<br><br>"
+    f"{_CATALOG_LIST_INTRO}<br><br>"
     "• 10-minute<br>• 20-minute<br>• 30-minute<br>• 40-minute<br>• 1 hour"
 )
 _QUESTION_TOPICS = (
-    "What are some of the topics you want to cover in your speaking opportunities? "
-    "You can always add more later."
+    "What are some of the topics you want to cover in your speaking opportunities?"
 )
 _QUESTION_FORMATS = "What speaking formats do you offer?"
 _QUESTION_DELIVERY = "Do you want virtual events, in-person, hybrid, or a combination?"
-_QUESTION_AUDIENCES = (
-    "Who are your target audiences? You can always add more later."
-)
+_QUESTION_AUDIENCES = "Who are your target audiences?"
 _QUESTION_TALK = (
     "Please provide a description of your talk, including the title and overview."
 )
@@ -536,13 +550,10 @@ def _catalog_choice_bullets(step: str, catalog: Optional[Dict[str, List[str]]]) 
         return ""
     # Single \\n collapses in many chat UIs; <br> forces one option per visible line
     bullets = "<br>".join(f"• {n}" for n in names)
-    titles = {
-        "topics": "You can choose one or more from the list below:",
-        "speaking_formats": "You can choose one or more from the list below:",
-        "delivery_mode": "You can choose one or more from the list below:",
-        "target_audiences": "You can choose one or more from the list below:",
-    }
-    return f"<br><br>{titles.get(step, 'Options')}<br><br>{bullets}"
+    block = f"<br><br>{_CATALOG_LIST_INTRO}<br><br>{bullets}"
+    if step in _CATALOG_STEPS_WITH_ADD_MORE_FOOTER:
+        block += f"<br><br>{_CATALOG_ADD_MORE_PROFILE_FOOTER}"
+    return block
 
 
 def build_step_user_message(step: str, catalog: Optional[Dict[str, List[str]]] = None) -> str:
@@ -564,7 +575,29 @@ def build_step_user_message(step: str, catalog: Optional[Dict[str, List[str]]] =
     return STEP_QUESTIONS.get(step, "")
 
 
-_LIST_INTRO_PHRASE = "you can choose one or more from the list below"
+_LIST_INTRO_PHRASE = "choose one or more from the list below"
+
+
+def _catalog_question_pattern(q: str) -> re.Pattern:
+    """Case-insensitive match for a catalog step question sentence."""
+    escaped = re.escape((q or "").strip())
+    flexible = re.sub(r"\\\ ", r"\\s+", escaped)
+    return re.compile(rf"{flexible}", re.IGNORECASE)
+
+
+def _strip_trailing_catalog_transition(text: str) -> str:
+    """Remove dangling 'Now,' / 'Now' left after stripping an embedded question."""
+    cleaned = (text or "").strip()
+    cleaned = re.sub(r"\s*now\s*,?\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"\s*,\s*$", "", cleaned).strip()
+    return cleaned
+
+
+def _strip_catalog_question_from_line(line: str, q: str) -> str:
+    if not line or not q:
+        return (line or "").strip()
+    stripped = _catalog_question_pattern(q).sub("", line).strip()
+    return _strip_trailing_catalog_transition(stripped)
 
 
 def _catalog_step_being_asked(content: str) -> Optional[str]:
@@ -575,7 +608,7 @@ def _catalog_step_being_asked(content: str) -> Optional[str]:
         if step not in CATALOG_STEPS:
             continue
         q = STEP_QUESTIONS.get(step, "")
-        if q and q in content:
+        if q and _catalog_question_pattern(q).search(content):
             return step
     return None
 
@@ -583,12 +616,19 @@ def _catalog_step_being_asked(content: str) -> Optional[str]:
 def _extract_ack_before_catalog_question(content: str, step: str) -> str:
     """Keep only the short ack lines before the catalog question (drop echoed option lists)."""
     q = STEP_QUESTIONS.get(step, "")
-    if q and q in content:
-        before = content.split(q, 1)[0].strip()
+    if not content or not q:
+        return ""
+    text = (content or "").strip()
+    q_pat = _catalog_question_pattern(q)
+
+    m = q_pat.search(text)
+    if m:
+        before = _strip_trailing_catalog_transition(text[: m.start()].strip())
         if before:
             return before.replace("\n", "<br>").strip()
+
     lines: List[str] = []
-    for line in re.split(r"<br>|\n", content):
+    for line in re.split(r"<br>|\n", text):
         s = line.strip()
         if not s:
             if lines:
@@ -598,9 +638,14 @@ def _extract_ack_before_catalog_question(content: str, step: str) -> str:
             break
         if s.startswith("•"):
             break
-        if STEP_QUESTIONS.get(step, "") and STEP_QUESTIONS.get(step, "") in s:
+        if q_pat.fullmatch(s):
             break
-        lines.append(s)
+        cleaned = _strip_catalog_question_from_line(s, q)
+        if not cleaned:
+            if q_pat.search(s):
+                break
+            continue
+        lines.append(cleaned)
     return "<br>".join(lines).strip()
 
 
@@ -629,6 +674,8 @@ _CATALOG_CHOICE_RULES = (
     "FORBIDDEN: inventing, suggesting, or adding options not in that list. "
     "Options are formatted one per line in the template (do not squeeze into one line with ' • ' between items). "
     "Do NOT duplicate the list or paste all catalog categories in one message. "
+    "When MOVING TO a catalog step in your text reply: write ONLY a short ack (first name when known)—"
+    "do NOT include the catalog question, list intro, or bullets; the server appends those after your ack. "
     "When the user answers a catalog step: FIRST call upsert_speaker_profile (tool_calls) with only exact catalog matches. "
     "Do NOT say a field was saved unless the tool result saved_fields includes that field. "
     "Do NOT ask the next step's question in the same assistant message as the upsert tool call—after the tool returns, "
@@ -647,18 +694,202 @@ _FRIENDLY_ASSISTANT_TONE = (
 
 _CONVERSATIONAL_ACK_RULE = (
     "CONVERSATIONAL WRAPPER (required on every turn except completion): In the SAME assistant message, "
-    "start with ONE short friendly acknowledgment of their last answer (≤25 words; use their professional full_name from the profile when known, "
-    "e.g. 'Thanks, Jane Doe!' or 'Great, Alex Chen!'). "
+    "start with ONE short friendly acknowledgment of their last answer (≤25 words). "
+    "NAME IN ACKNOWLEDGMENTS: use full_name ONLY on the very first acknowledgment right after the user provides their professional name "
+    "(e.g. 'Thanks, Jane Doe!' or 'Thanks, Jane Doe, MBA, PMP!'). "
+    "NEVER include professional_title or company in the greeting—only the person's name (and optional credentials like MBA, PMP). "
+    "On EVERY later turn, use only their first name—the first word before any comma or credential suffix "
+    "(never repeat the full professional name). "
+    "YOU write the short opener—keep it natural and vary phrasing every turn. "
+    "Good examples (rotate, do not repeat the same one back-to-back): "
+    "'Thanks, Jane!', 'Sounds good, Jane!', 'Perfect, Jane!', 'Got it, Jane!', "
+    "'Nice, Jane!', 'Appreciate that, Jane!', 'Thanks for sharing that, Jane!'. "
+    "Match the ack to what they just answered when it fits (e.g. after location: 'Thanks for sharing your location, Jane!'). "
+    "FORBIDDEN: starting every message with 'Great, {first name}!' or using the same opener on consecutive turns. "
     "Then ask the next question verbatim from the script (blank line between ack and question is fine). "
     "Never ask the next question without a brief ack first. "
-    "For catalog steps: ack → short intro line for that field → bullet list → then wait for their answer."
+    "For catalog steps (topics, speaking_formats, delivery_mode, target_audiences): ONLY the short ack in your reply—"
+    "do NOT paste the catalog question, list intro, or bullets; the server appends them after your ack."
 )
+
 
 _STRICT_ONBOARDING_SCOPE_RULE = (
     "If the user asks an unrelated, off-topic question, reply exactly: "
     "\"I can only help with your SpeakerPitcher profile onboarding right now.\" "
-    "Then ask the current onboarding question verbatim."
+    "Then ask the current onboarding question verbatim. "
+    "EXCEPTION—NOT off-topic: skip, none, no thanks, don't have any, do not have any, or similar refusal "
+    "on a skippable step (social, professional_memberships, past_speaking_examples, video_links, testimonial). "
+    "For those, briefly acknowledge with their first name and ask the next onboarding question—never the redirect line above."
 )
+
+
+def speakerpitcher_welcome_in_text(text: str) -> bool:
+    return _SPEAKERPITCHER_WELCOME_LINE.lower() in (text or "").lower()
+
+
+def speakerpitcher_welcome_already_sent(messages: List[Dict[str, Any]]) -> bool:
+    for m in messages or []:
+        if m.get("role") == "assistant" and speakerpitcher_welcome_in_text(m.get("content") or ""):
+            return True
+    return False
+
+
+def strip_duplicate_speakerpitcher_welcome(text: str) -> str:
+    """Remove the one-time welcome line when the model repeats it."""
+    if not text or not speakerpitcher_welcome_in_text(text):
+        return text
+    pattern = re.compile(
+        r"\s*" + re.escape(_SPEAKERPITCHER_WELCOME_LINE) + r"\.?\s*",
+        re.IGNORECASE,
+    )
+    cleaned = pattern.sub(" ", text).strip()
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def derive_pre_create_subphase(
+    history: List[Dict[str, Any]],
+    current_message: str,
+) -> str:
+    """Where we are in name/title/company → email/phone → create, before a profile exists."""
+    user_texts = [
+        (m.get("content") or "").strip()
+        for m in (history or [])
+        if m.get("role") == "user" and (m.get("content") or "").strip()
+    ]
+    if (current_message or "").strip():
+        user_texts.append((current_message or "").strip())
+    combined = " ".join(user_texts)
+    if "@" in combined:
+        return PRE_CREATE_READY
+    if speakerpitcher_welcome_already_sent(history):
+        return PRE_CREATE_POST_WELCOME
+    if user_texts:
+        return PRE_CREATE_PROMPT_WELCOME
+    return PRE_CREATE_ASK_IDENTITY
+
+
+def _pre_create_flow_block(subphase: str) -> str:
+    welcome_exact = _SPEAKERPITCHER_WELCOME_LINE
+    if subphase == PRE_CREATE_ASK_IDENTITY:
+        return (
+            "Before profile exists (one question at a time):\n"
+            "1) First ask for professional name, title, and company (warm, friendly welcome).\n"
+            "Do NOT ask for email or phone yet. Do NOT say the SpeakerPitcher welcome line yet.\n"
+        )
+    if subphase == PRE_CREATE_PROMPT_WELCOME:
+        return (
+            "Before profile exists (one question at a time):\n"
+            "The user just provided name, title, and company. YOUR TURN NOW:\n"
+            f"- Acknowledge with ONLY their full_name (never job title or company), e.g. 'Thanks, Jane Doe!', "
+            f"then say exactly: {welcome_exact} Then ask: {_IDENTITY_EMAIL_PHONE_QUESTION}\n"
+            f"- This welcome line ({welcome_exact!r}) is ONE-TIME ONLY—never repeat it on any later turn.\n"
+            "Do NOT call upsert_speaker_profile yet.\n"
+        )
+    if subphase == PRE_CREATE_POST_WELCOME:
+        return (
+            "Before profile exists:\n"
+            f"FORBIDDEN: Do NOT say '{welcome_exact}' again—it was already sent. Never repeat that welcome line.\n"
+            "Acknowledge using first name only, then ask for email and phone if still missing.\n"
+            "Do NOT call upsert until you have email and phone.\n"
+        )
+    return (
+        "Before profile exists:\n"
+        f"FORBIDDEN: Do NOT say '{welcome_exact}' again—it was already sent.\n"
+        "You have email (and hopefully phone). Call upsert_speaker_profile once with all five fields "
+        "(full_name, professional_title, company, email, phone_number; omit speaker_profile_id).\n"
+        "After create, acknowledge using first name only and ask location in one message.\n"
+    )
+
+
+def build_identity_welcome_reply(full_name: str) -> str:
+    """Deterministic first ack after name/title/company — name only, never title or company."""
+    name = (full_name or "").strip()
+    if not name:
+        return ""
+    return (
+        f"Thanks, {name}!<br>{_SPEAKERPITCHER_WELCOME_LINE}<br>"
+        f"{_IDENTITY_EMAIL_PHONE_QUESTION}"
+    )
+
+
+def _heuristic_identity_parse(user_text: str) -> Dict[str, str]:
+    """Fallback: last segment = company, second-to-last = title, remainder = name."""
+    text = (user_text or "").strip()
+    if not text:
+        return {}
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+    if len(parts) >= 3:
+        return {
+            "full_name": ", ".join(parts[:-2]),
+            "professional_title": parts[-2],
+            "company": parts[-1],
+        }
+    if len(parts) == 2:
+        return {"full_name": parts[0], "professional_title": parts[1], "company": ""}
+    if len(parts) == 1:
+        return {"full_name": parts[0], "professional_title": "", "company": ""}
+    return {}
+
+
+def _normalize_identity_fields(raw: Dict[str, Any]) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for key in ("full_name", "professional_title", "company"):
+        val = raw.get(key)
+        if isinstance(val, str) and val.strip():
+            out[key] = val.strip()
+    return out
+
+
+def extract_pre_create_identity(client: Any, user_text: str) -> Dict[str, str]:
+    """
+    Parse name, title, and company from one user message.
+    full_name must exclude job title and company (credentials like MBA, PMP may stay on the name).
+    """
+    text = (user_text or "").strip()
+    if not text:
+        return {}
+    prompt = f"""
+The user was asked for their professional name, job title, and company in one line. They replied:
+"{text}"
+
+Extract exactly three fields:
+- full_name: ONLY how they want their name displayed professionally (may include credentials like MBA, PMP after the name). NEVER include job title or company.
+- professional_title: job title or role only (fix obvious typos, e.g. founde → Founder).
+- company: company or organization name only.
+
+Return JSON ONLY: {{ "full_name": "...", "professional_title": "...", "company": "..." }}
+All three fields are required. Use standard capitalization.
+"""
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Return ONLY valid JSON with keys full_name, professional_title, company. "
+                        "full_name must never contain title or company."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0,
+            timeout=12,
+        )
+        raw_content = (completion.choices[0].message.content or "").strip()
+        if raw_content.startswith("```"):
+            raw_content = re.sub(r"^```(?:json)?\s*", "", raw_content)
+            raw_content = re.sub(r"\s*```$", "", raw_content)
+        parsed = json.loads(raw_content)
+        if isinstance(parsed, dict):
+            identity = _normalize_identity_fields(parsed)
+            if identity.get("full_name"):
+                return identity
+    except Exception:
+        pass
+    return _normalize_identity_fields(_heuristic_identity_parse(text))
 
 
 def build_onboarding_script_prompt(
@@ -684,14 +915,24 @@ def build_onboarding_script_prompt(
         "- Do NOT call mark_profile_complete until the user has replied to the testimonial question (last step).",
         f"STEP ORDER: {order}.",
         f"NOW (ask this step only): {expected_step}.",
-        "YOUR MESSAGE TO THE USER (after optional short ack, include ALL of this—especially every bullet line):",
-        user_message,
     ]
+    if expected_step in CATALOG_STEPS:
+        parts.append(
+            "YOUR MESSAGE TO THE USER: write ONLY a short friendly ack (first name when known, ≤25 words). "
+            "Do NOT include the question text, list intro, or bullets—the server appends them automatically. "
+            "Step template (for your reference only—do not paste into your reply):\n"
+            + user_message
+        )
+    else:
+        parts.append(
+            "YOUR MESSAGE TO THE USER (after optional short ack, include ALL of this—especially every bullet line):\n"
+            + user_message
+        )
     if expected_step in CATALOG_STEPS:
         parts.append(_CATALOG_CHOICE_RULES)
         parts.append(
             "Do NOT paste or invent extra options—the user message template above is the complete database list for this step. "
-            "Never repeat 'You can choose one or more from the list below' twice."
+            f"Never repeat '{_CATALOG_LIST_INTRO}' twice."
         )
     if speaker_profile_id:
         parts.append(f'Always pass speaker_profile_id="{speaker_profile_id}" on upsert and mark_profile_complete.')
@@ -717,6 +958,7 @@ def build_simple_system_prompt(
     expected_step: str,
     catalog: Optional[Dict[str, List[str]]] = None,
     checkpoint_line: Optional[str] = None,
+    pre_create_subphase: Optional[str] = None,
 ) -> str:
     """Step-based system prompt with checkpoints, friendly tone, and ack-before-question."""
     script = build_onboarding_script_prompt(
@@ -729,16 +971,20 @@ def build_simple_system_prompt(
     if checkpoint_line and checkpoint_line.strip():
         checkpoint_block = checkpoint_line.strip() + "\n\n"
     if not has_profile:
+        subphase = pre_create_subphase or PRE_CREATE_ASK_IDENTITY
+        post_welcome_forbidden = (
+            f"\nFORBIDDEN on this turn: never say '{_SPEAKERPITCHER_WELCOME_LINE}' again.\n"
+            if subphase in (PRE_CREATE_POST_WELCOME, PRE_CREATE_READY)
+            else ""
+        )
         return (
             _FRIENDLY_ASSISTANT_TONE
             + "\n\n"
             + _STRICT_ONBOARDING_SCOPE_RULE
             + "\n\n"
-            "Before profile exists (one question at a time):\n"
-            "1) First ask for professional name, title, and company (warm, friendly welcome).\n"
-            "2) Acknowledge warmly, then say exactly: Thanks for joining SpeakerPitcher! Let's build your profile so we can find the right opportunities for you. Then ask email and phone in the same message.\n"
-            "3) When you have all five fields, call upsert_speaker_profile once (no speaker_profile_id).\n"
-            "Do NOT call upsert until step 3. After create, acknowledge and ask location (first post-create question) in one message.\n\n"
+            + _pre_create_flow_block(subphase)
+            + post_welcome_forbidden
+            + "\n"
             + _CONVERSATIONAL_ACK_RULE
             + "\n\nNever mention user login, passwords, or credentials email.\n\n"
             + checkpoint_block
@@ -750,6 +996,7 @@ def build_simple_system_prompt(
         + _STRICT_ONBOARDING_SCOPE_RULE
         + "\n"
         f"Profile in database: {profile_json}\n"
+        + f"FORBIDDEN: never say '{_SPEAKERPITCHER_WELCOME_LINE}'—that one-time welcome was already sent.\n"
         + checkpoint_block
         + script
     )
