@@ -8,7 +8,10 @@ from urllib.parse import urlencode
 
 from app.email.constants import PITCH_REVIEW_FRONTEND_BASE
 from app.email.enums import EmailEventType
-from app.email.notification_delivery import after_delay_timedelta
+from app.email.notification_delivery import is_weekly_digest_frequency
+from app.models.EmailContent import EmailContentModel
+from app.models.Opportunity import OpportunityModel
+from app.models.OpportunityActivity import OpportunityActivityModel
 from app.services.NotificationDeliveryService import NotificationDeliveryService
 
 logger = logging.getLogger(__name__)
@@ -122,8 +125,9 @@ async def try_send_or_schedule_pitch_ready_email(
     speaker_profile_id: str,
     email_content_id: str,
     delivery_service: NotificationDeliveryService | None = None,
+    email_content_model: EmailContentModel | None = None,
 ) -> None:
-    """Send or enqueue pitch-ready email according to notification settings; never raises."""
+    """Send pitch-ready email immediately when frequency is immediate; weekly defers to Monday cron."""
     try:
         from app.email.helpers import speaker_profile_notification_email
 
@@ -143,29 +147,85 @@ async def try_send_or_schedule_pitch_ready_email(
             )
             return
 
-        user_name = (profile.get("full_name") or "").strip()
         frequency = await delivery.get_frequency_for_speaker(profile, "pitch_ready")
-        template_model = build_pitch_ready_template_model(
+        if is_weekly_digest_frequency(frequency):
+            logger.info(
+                "Pitch-ready email deferred to weekly cron speaker_profile_id=%s email_content_id=%s",
+                speaker_profile_id,
+                email_content_id,
+            )
+            return
+
+        user_name = (profile.get("full_name") or "").strip()
+        sent = send_pitch_ready_email(
             user_name=user_name,
             opportunity=opportunity,
             opportunity_id=opportunity_id,
             speaker_profile_id=speaker_profile_id,
             email_content_id=email_content_id,
+            to_email=to_email,
         )
-
-        if after_delay_timedelta(frequency=frequency).total_seconds() > 0:
-            await delivery.enqueue_pitch_ready(
-                speaker_profile_id=speaker_profile_id,
-                opportunity_id=opportunity_id,
-                email_content_id=email_content_id,
-                to_email=to_email,
-                template_model=template_model,
-                frequency=frequency,
-                profile=profile,
-            )
+        if not sent:
+            logger.warning("Pitch-ready email was not sent (send_event_email returned false).")
             return
 
-        if not send_pitch_ready_email(
+        content_model = email_content_model or EmailContentModel()
+        await content_model.mark_pitch_ready_notification_sent(email_content_id)
+    except Exception as e:
+        logger.warning("Pitch-ready email failed: %s", e)
+
+
+async def send_unsent_pitch_ready_emails_for_profile(
+    profile: dict,
+    *,
+    delivery_service: NotificationDeliveryService | None = None,
+    email_content_model: EmailContentModel | None = None,
+    opportunity_model: OpportunityModel | None = None,
+    activity_model: OpportunityActivityModel | None = None,
+) -> int:
+    """Send all unsent pitch-ready emails for one speaker profile (weekly cron). Returns send count."""
+    from app.email.helpers import speaker_profile_notification_email
+
+    speaker_profile_id = str(profile.get("_id") or "").strip()
+    if not speaker_profile_id:
+        return 0
+
+    delivery = delivery_service or NotificationDeliveryService()
+    if not await delivery.is_notification_enabled(profile, "pitch_ready"):
+        return 0
+
+    frequency = await delivery.get_frequency_for_speaker(profile, "pitch_ready")
+    if not is_weekly_digest_frequency(frequency):
+        return 0
+
+    to_email = speaker_profile_notification_email(profile)
+    if not to_email:
+        return 0
+
+    content_model = email_content_model or EmailContentModel()
+    opp_model = opportunity_model or OpportunityModel()
+    act_model = activity_model or OpportunityActivityModel()
+    user_name = (profile.get("full_name") or "").strip()
+
+    unsent_rows = await content_model.list_unsent_pitch_ready_by_speaker_id(speaker_profile_id)
+    sent_count = 0
+    for row in unsent_rows:
+        email_content_id = str(row.get("_id") or "").strip()
+        opportunity_id = str(row.get("opportunity_id") or "").strip()
+        if not email_content_id or not opportunity_id:
+            continue
+
+        activity = await act_model.get_one(speaker_profile_id, opportunity_id)
+        if activity and activity.get("isArchived"):
+            continue
+
+        opportunity = await opp_model.get_by_id(opportunity_id)
+        if not opportunity:
+            continue
+        if opportunity.get("_id") is not None:
+            opportunity = {**opportunity, "_id": str(opportunity["_id"])}
+
+        if send_pitch_ready_email(
             user_name=user_name,
             opportunity=opportunity,
             opportunity_id=opportunity_id,
@@ -173,9 +233,10 @@ async def try_send_or_schedule_pitch_ready_email(
             email_content_id=email_content_id,
             to_email=to_email,
         ):
-            logger.warning("Pitch-ready email was not sent (send_event_email returned false).")
-    except Exception as e:
-        logger.warning("Pitch-ready email failed: %s", e)
+            await content_model.mark_pitch_ready_notification_sent(email_content_id)
+            sent_count += 1
+
+    return sent_count
 
 
 def try_send_pitch_ready_email_after_content_created(

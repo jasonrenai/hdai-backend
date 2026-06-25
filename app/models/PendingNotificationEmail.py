@@ -91,3 +91,20 @@ class PendingNotificationEmailModel:
             {"_id": 1},
         )
         return doc is not None
+
+    async def cancel_pending_by_slug(self, slug: str) -> int:
+        """Cancel all pending rows for a slug (e.g. legacy delayed new_opportunity queue)."""
+        if not str(slug or "").strip():
+            return 0
+        now = datetime.utcnow()
+        result = await self.collection.update_many(
+            {"slug": str(slug).strip(), "status": "pending"},
+            {
+                "$set": {
+                    "status": "cancelled",
+                    "cancel_reason": "superseded_by_weekly_cron",
+                    "updatedAt": now,
+                }
+            },
+        )
+        return int(result.modified_count)

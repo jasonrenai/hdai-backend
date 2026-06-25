@@ -40,6 +40,7 @@ from app.services.PendingScraperCronService import (
     run_pending_url_collections_cron_sync,
 )
 from app.services.SubmissionReminderCronService import run_submission_reminder_cron_sync
+from app.services.WeeklyNewOpportunityCronService import run_weekly_new_opportunity_cron_sync
 from app.services.Subscriptions import init_stripe_from_env
 
 load_dotenv()
@@ -159,6 +160,15 @@ async def startup_event():
     log.info(
         "Pending UrlCollection scraper cron registered (every %s h, all pending entries)",
         url_collection_cron_h,
+    )
+
+    _cron_scheduler.add_job(
+        run_weekly_new_opportunity_cron_sync,
+        CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="UTC"),
+        id="weekly_new_opportunity_cron",
+    )
+    log.info(
+        "Weekly notification cron registered (new_opportunity + pitch_ready, mon 09:00 UTC)",
     )
 
     _cron_scheduler.start()

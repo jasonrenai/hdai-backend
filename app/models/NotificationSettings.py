@@ -7,7 +7,11 @@ from typing import Any, Optional
 from pymongo import ReturnDocument
 
 from app.helpers.Database import MongoDB
-from app.schemas.NotificationSettings import default_email_notifications
+from app.email.notification_delivery import pref_from_notification_doc
+from app.schemas.NotificationSettings import (
+    NotificationFrequency,
+    default_email_notifications,
+)
 
 
 class NotificationSettingsModel:
@@ -69,6 +73,28 @@ class NotificationSettingsModel:
         result = await self.collection.insert_one(doc)
         doc["_id"] = result.inserted_id
         return True, doc
+
+    async def _list_user_ids_with_weekly_slug(self, slug: str) -> list[str]:
+        cursor = self.collection.find({}, {"user_id": 1, "email_notifications": 1})
+        user_ids: list[str] = []
+        async for doc in cursor:
+            pref = pref_from_notification_doc(doc, slug)  # type: ignore[arg-type]
+            if not pref.get("enabled", True):
+                continue
+            if pref.get("frequency") != NotificationFrequency.AFTER_1_WEEK.value:
+                continue
+            uid = self._normalize_user_id(str(doc.get("user_id") or ""))
+            if uid:
+                user_ids.append(uid)
+        return user_ids
+
+    async def list_user_ids_with_weekly_new_opportunity(self) -> list[str]:
+        """User ids with new_opportunity enabled and weekly (after1week) frequency."""
+        return await self._list_user_ids_with_weekly_slug("new_opportunity")
+
+    async def list_user_ids_with_weekly_pitch_ready(self) -> list[str]:
+        """User ids with pitch_ready enabled and weekly (after1week) frequency."""
+        return await self._list_user_ids_with_weekly_slug("pitch_ready")
 
     async def update(
         self,

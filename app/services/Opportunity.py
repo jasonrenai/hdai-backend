@@ -164,11 +164,15 @@ class OpportunityService:
         speaker_profile_id: str,
         match_agent: OpportunitySpeakerMatchAgent = None,
         matched_entry_id: str | None = None,
+        send_matched_email: bool | None = None,
     ) -> None:
         """
         Run vector matching, then filter each opportunity with an AI agent (does it match the speaker?),
         and save only the agent-approved opportunity ids to matchedOpportunities.
         When matched_entry_id is provided (from match-by-speaker flow), updates that entry to status 'completed'.
+
+        send_matched_email: None = send only for immediate new_opportunity frequency (weekly defers to cron);
+        True = always try to send after match; False = never send.
         """
         def _finish(opportunity_ids: list):
             if matched_entry_id:
@@ -195,7 +199,10 @@ class OpportunityService:
                 filtered.append(opp)
         opportunity_ids = [str(o.get("_id")) for o in filtered if o.get("_id") is not None]
         await _finish(opportunity_ids)
-        if filtered:
+        if filtered and await self._should_send_matched_email_after_match(
+            profile,
+            send_matched_email=send_matched_email,
+        ):
             try:
                 from app.services.MatchedOpportunitiesEmailService import MatchedOpportunitiesEmailService
 
@@ -209,6 +216,24 @@ class OpportunityService:
                 )
             except Exception as e:
                 logger.warning("Matched opportunities notification email failed: %s", e)
+
+    async def _should_send_matched_email_after_match(
+        self,
+        profile: dict,
+        *,
+        send_matched_email: bool | None,
+    ) -> bool:
+        if send_matched_email is False:
+            return False
+        if send_matched_email is True:
+            return True
+
+        from app.email.notification_delivery import is_weekly_new_opportunity_frequency
+        from app.services.NotificationDeliveryService import NotificationDeliveryService
+
+        delivery = NotificationDeliveryService()
+        frequency = await delivery.get_frequency_for_speaker(profile, "new_opportunity")
+        return not is_weekly_new_opportunity_frequency(frequency)
 
     async def get_matched_opportunities_by_speaker_id(
         self, speaker_profile_id: str

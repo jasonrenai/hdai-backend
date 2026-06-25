@@ -35,6 +35,7 @@ class EmailContentModel:
             "event_contact": event_contact,
             "requires_email_submission": requires_email_submission,
             "submission_note": submission_note,
+            "pitch_ready_notification_sent": False,
             "createdAt": datetime.utcnow(),
         }
         result = await self.collection.insert_one(doc)
@@ -75,6 +76,43 @@ class EmailContentModel:
                 "speaker_profile_id": speaker_profile_id,
                 "opportunity_id": opportunity_id,
             }
+        )
+
+    async def list_unsent_pitch_ready_by_speaker_id(
+        self,
+        speaker_profile_id: str,
+        *,
+        limit: int = 200,
+    ) -> List[dict]:
+        """EmailContent rows not yet included in a pitch-ready notification email."""
+        sid = str(speaker_profile_id or "").strip()
+        if not sid:
+            return []
+        cursor = (
+            self.collection.find(
+                {
+                    "speaker_profile_id": sid,
+                    "$or": [
+                        {"pitch_ready_notification_sent": False},
+                        {"pitch_ready_notification_sent": {"$exists": False}},
+                    ],
+                }
+            )
+            .sort("createdAt", 1)
+            .limit(limit)
+        )
+        docs = await cursor.to_list(length=limit)
+        for doc in docs:
+            if doc.get("_id"):
+                doc["_id"] = str(doc["_id"])
+        return docs
+
+    async def mark_pitch_ready_notification_sent(self, email_content_id: str) -> None:
+        if not self.is_valid_object_id(email_content_id):
+            return
+        await self.collection.update_one(
+            {"_id": ObjectId(email_content_id)},
+            {"$set": {"pitch_ready_notification_sent": True}},
         )
 
     @staticmethod

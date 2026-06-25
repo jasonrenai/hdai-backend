@@ -37,8 +37,17 @@ def default_pref_for_slug(slug: NotificationSlug) -> dict[str, object]:
     }
 
 
+def is_weekly_digest_frequency(frequency: str) -> bool:
+    """Weekly digest (after1week) — cron-driven for new_opportunity and pitch_ready."""
+    return frequency == NotificationFrequency.AFTER_1_WEEK.value
+
+
+def is_weekly_new_opportunity_frequency(frequency: str) -> bool:
+    return is_weekly_digest_frequency(frequency)
+
+
 def after_delay_days(frequency: str) -> int:
-    """Calendar days to wait after the trigger event (0 = immediate)."""
+    """Calendar days to wait after the trigger event (0 = immediate). Legacy delay queue only."""
     mapping = {
         NotificationFrequency.IMMEDIATE.value: 0,
         NotificationFrequency.AFTER_1_DAY.value: 1,
