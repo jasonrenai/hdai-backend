@@ -37,14 +37,13 @@ from app.services.speaker_profile_chatbot_steps import (
     derive_expected_step,
     derive_pre_create_subphase,
     extract_pre_create_identity,
-    finalize_catalog_question_reply,
+    ensure_catalog_list_in_reply,
     PRE_CREATE_POST_WELCOME,
     PRE_CREATE_PROMPT_WELCOME,
     PRE_CREATE_READY,
     _SPEAKERPITCHER_WELCOME_LINE,
     speakerpitcher_welcome_already_sent,
     strip_duplicate_speakerpitcher_welcome,
-    _catalog_step_being_asked,
     detect_skip_intent,
     may_mark_profile_complete,
     merge_steps_done,
@@ -377,7 +376,10 @@ def _build_get_allowed_values_tool() -> dict:
         "type": "function",
         "function": {
             "name": "get_allowed_values",
-            "description": "Fetch allowed values from the database system catalog only (type=system)—no extra or invented options. Call before asking or validating these fields.",
+            "description": (
+                "Fetch allowed values from the database system catalog only (type=system)—no invented options. "
+                "Call before validating user free text against these fields."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -430,8 +432,9 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
         )
     else:
         desc = (
-            "Create new speaker profile. Call once when you have ALL of: "
-            "full_name, professional_title, company, valid email, and phone_number in the same turn. "
+            "Create new speaker profile. Call once when you have full_name and a valid email "
+            "(omit speaker_profile_id). Also pass professional_title, company, and phone_number "
+            "when the user already provided them. "
             "Until then, collect in chat only. After name+title+company, say once (never repeat on later turns): "
             + _SPEAKERPITCHER_WELCOME_LINE
             + " "
@@ -442,9 +445,10 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
         + " "
         + _SOCIAL_URL_FIELD_RULES
         + " Map past_speaking_examples and professional_memberships from natural language. "
-        + "For topics, speaking_formats, delivery_mode, target_audiences: only save exact names from the database catalog "
-        + "(get_allowed_values returns system catalog rows only); do not add extra values. "
-        + "If the user's choice is not on the list, tell them they can add or change it anytime from their speaker profile and omit that field in upsert."
+        + "For topics, speaking_formats, delivery_mode, target_audiences: only save exact names from the database system catalog "
+        + "(via get_allowed_values / step template); do not add extra values. "
+        + "If the user's choice matches ZERO catalog names, omit that field in upsert and warmly ask them to pick from the list "
+        + "(do not say they can add it later from their profile; do not advance—the server re-shows the same list)."
     )
     return {
         "type": "function",
@@ -466,24 +470,24 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Exact catalog names from ALLOWED VALUES / get_allowed_values(topics) only. "
-                            "Same turn as user's answer. Zero matches → omit topics; tell user they can add it anytime from their speaker profile."
+                            "Exact catalog names from get_allowed_values(topics) / step template only. "
+                            "Same turn as user's answer. Zero matches → omit topics; warmly re-ask to pick from the list (server re-shows bullets)."
                         ),
                     },
                     "speaking_formats": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Exact catalog names from ALLOWED VALUES only. Same turn as user's answer. "
-                            "Zero matches → omit field; tell user they can add or change it anytime from their speaker profile."
+                            "Exact catalog names only. Same turn as user's answer. "
+                            "Zero matches → omit field; warmly re-ask to pick from the list (do not advance)."
                         ),
                     },
                     "delivery_mode": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Exact catalog names from ALLOWED VALUES only. Same turn as user's answer. "
-                            "Zero matches → omit field; tell user they can add or change it anytime from their speaker profile."
+                            "Exact catalog names only. Same turn as user's answer. "
+                            "Zero matches → omit field; warmly re-ask to pick from the list (do not advance)."
                         ),
                     },
                     "talk_description": {
@@ -504,8 +508,8 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Exact catalog names from ALLOWED VALUES only. Same turn as user's answer. "
-                            "Zero matches → omit field; tell user they can add or change it anytime from their speaker profile. "
+                            "Exact catalog names only. Same turn as user's answer. "
+                            "Zero matches → omit field; warmly re-ask to pick from the list (do not advance). "
                             "Never claim you saved a name you did not pass here."
                         ),
                     },
@@ -1212,7 +1216,7 @@ class SpeakerProfileChatbotService:
                     "FORBIDDEN: telling the user something was saved when saved_fields is empty."
                 ]
             return out
-        # Create - require email, phone, professional identity (name, title, company)
+        # Create - require full_name + valid email; title, company, phone optional
         email = (args.get("email") or "").strip().lower()
         if not email or not _EMAIL_REGEX.match(email):
             return {"action": "email_required", "profile": None, "saved_fields": [], "warnings": warnings}
@@ -1220,28 +1224,22 @@ class SpeakerProfileChatbotService:
         professional_title = (args.get("professional_title") or "").strip()
         company = (args.get("company") or "").strip()
         phone_number = (args.get("phone_number") or "").strip()
-        missing_fields = []
         if not full_name:
-            missing_fields.append("full_name")
-        if not professional_title:
-            missing_fields.append("professional_title")
-        if not company:
-            missing_fields.append("company")
-        if not phone_number:
-            missing_fields.append("phone_number")
-        if missing_fields:
             return {
                 "action": "create_blocked",
                 "profile": None,
-                "missing_fields": missing_fields,
+                "missing_fields": ["full_name"],
                 "saved_fields": [],
                 "warnings": warnings,
             }
         profile_doc["email"] = email
         profile_doc["full_name"] = full_name
-        profile_doc["professional_title"] = professional_title
-        profile_doc["company"] = company
-        profile_doc["phone_number"] = phone_number
+        if professional_title:
+            profile_doc["professional_title"] = professional_title
+        if company:
+            profile_doc["company"] = company
+        if phone_number:
+            profile_doc["phone_number"] = phone_number
         resolved_user_id, created_new_account = await self._user_id_for_new_chatbot_profile(
             email,
             profile_doc["full_name"],
@@ -1267,7 +1265,7 @@ class SpeakerProfileChatbotService:
     ) -> dict:
         """
         Flow:
-        - Pre-profile: collect full_name, professional_title, company (no DB write), then email + phone, then one upsert creates the profile.
+        - Pre-profile: collect full_name, title, company in chat; then email and phone; upsert creates with full_name + email (title/company/phone saved when present).
         - After create: location → social → bio → optional memberships → preferred speaking time → catalog fields → remaining optionals; session stores speaker_profile_id.
         """
         api_key = os.getenv("OPENAI_API_KEY")
@@ -1537,13 +1535,13 @@ class SpeakerProfileChatbotService:
                         steps_done,
                         steps_from_saved_fields(saved),
                     )
-                elif (
+                # Off-list catalog answers: do NOT advance—re-ask the same step with options.
+                catalog_off_list = (
                     result.get("action") == "updated"
                     and expected_step in CATALOG_STEPS
                     and expected_step in (tc_args or {})
-                ):
-                    # Off-list: model called upsert but omitted field — advance step, do not treat as saved
-                    steps_done = merge_steps_done(steps_done, [expected_step])
+                    and expected_step not in steps_from_saved_fields(saved)
+                )
                 if result.get("action") == "created":
                     steps_done = merge_steps_done(steps_done, [CREATE_STEP])
                 if (
@@ -1565,6 +1563,16 @@ class SpeakerProfileChatbotService:
                         "otherwise call upsert_speaker_profile again in this same multi-step turn with the correct fields."
                     ),
                 }
+                if catalog_off_list:
+                    tr_payload["catalog_off_list"] = True
+                    tr_payload["reminder"] = (
+                        f"No exact catalog match for '{expected_step}'. "
+                        "In your text reply write ONLY a short warm line (first name when known) asking them "
+                        "to choose from the list below. "
+                        "FORBIDDEN: saying they can add it from their profile later; advancing to the next step; "
+                        "pasting option bullets (the server appends the same step's question and list). "
+                        "Do NOT claim you saved their free-text wording."
+                    )
                 if result.get("missing_fields"):
                     tr_payload["missing_fields"] = result["missing_fields"]
                 chat_messages.append({
@@ -1616,8 +1624,8 @@ class SpeakerProfileChatbotService:
                     )
                 else:
                     assistant_content = (
-                        "We're almost there—I need your professional name, title, company, email, and phone number "
-                        "before I can create your profile. What's still missing from that list?"
+                        "We're almost there—I need your professional name and a valid email "
+                        "before I can create your profile. What's still missing?"
                     )
             elif action == "created" and profile:
                 full_name = (profile.get("full_name") or "").strip()
@@ -1713,15 +1721,16 @@ class SpeakerProfileChatbotService:
         ):
             assistant_content = strip_duplicate_speakerpitcher_welcome(assistant_content)
 
-        # Catalog questions: server-built list only — one DB option per line (<br>), no inline LLM bullets
-        if has_profile and assistant_content and not profile_marked_complete:
-            asked_step = _catalog_step_being_asked(assistant_content)
-            if not asked_step:
-                asked_step = derive_expected_step(profile, steps_done, has_profile=True)
-            if asked_step in CATALOG_STEPS:
-                assistant_content = finalize_catalog_question_reply(
-                    asked_step, assistant_content, catalog
-                )
+        # Catalog questions: server always owns question + bullets + footer
+        if has_profile and not profile_marked_complete:
+            assistant_content = ensure_catalog_list_in_reply(
+                has_profile=has_profile,
+                profile_marked_complete=profile_marked_complete,
+                profile=profile,
+                steps_done=steps_done,
+                assistant_content=assistant_content or "",
+                catalog=catalog,
+            )
 
         # ChatSession: create if new, else append
         chunk = [{"role": "user", "content": message or ""}, {"role": "assistant", "content": assistant_content}]

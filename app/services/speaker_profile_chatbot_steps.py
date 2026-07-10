@@ -54,8 +54,12 @@ PRE_CREATE_READY = "ready_to_create"
 _IDENTITY_EMAIL_PHONE_QUESTION = "Could you please provide your email and phone number?"
 
 _CATALOG_LIST_INTRO = "Choose one or more from the list below:"
-_CATALOG_ADD_MORE_PROFILE_FOOTER = "You can always add more to your profile later"
-_CATALOG_STEPS_WITH_ADD_MORE_FOOTER = frozenset({"topics", "target_audiences"})
+# Shown under every catalog option list (topics, formats, delivery, audiences).
+_CATALOG_ADD_MORE_PROFILE_FOOTER = (
+    "You can add or change it anytime from your speaker profile."
+)
+# Use real newlines so plain-text chat UIs show the list (HTML <br>-only often gets stripped).
+_CATALOG_BLOCK_SEP = "\n\n"
 
 # Verbatim / prescribed user-facing questions (keep in sync with chatbot service copy)
 _QUESTION_LOCATION = (
@@ -121,18 +125,18 @@ STEP_UPSERT_FIELDS: Dict[str, Set[str]] = {
 # Per-step hints for the model (acknowledgment + extraction); not shown verbatim to the user.
 STEP_GUIDELINES: Dict[str, str] = {
     CREATE_STEP: (
-        "Before profile exists: collect full_name, professional_title, company in chat; then ask for email and phone. "
-        "Call upsert_speaker_profile once with all five fields when email and phone are ready."
+        "Before profile exists: collect full_name, professional_title, and company in chat; then ask for email and phone. "
+        "Call upsert_speaker_profile when you have full_name and email—include title, company, and phone when the user gave them."
     ),
     "location": "Parse city, state/province, country from one line; upsert all three address fields.",
     "social": "Map URLs to linkedin_url, twitter, facebook, instagram. User may skip.",
     "bio": "Save plausible professional bio text only; re-ask gibberish.",
     "professional_memberships": "Extract title, organization, start_date, end_date, is_current objects; user may skip.",
     "preferred_speaking_time": "Save only canonical values: 10-minute, 20-minute, 30-minute, 40-minute, 1 hour.",
-    "topics": "Show database topic bullets when asking; save exact names only; off-list → profile update later message.",
-    "speaking_formats": "Show database format bullets when asking; exact names only; off-list → add later in profile.",
-    "delivery_mode": "Show database delivery bullets when asking; exact names only; off-list → add later in profile.",
-    "target_audiences": "Show database audience bullets when asking; exact names only; off-list → add later in profile.",
+    "topics": "Show database topic bullets when asking; save exact names only; off-list → warm re-ask with the same list.",
+    "speaking_formats": "Show database format bullets when asking; exact names only; off-list → warm re-ask with the same list.",
+    "delivery_mode": "Show database delivery bullets when asking; exact names only; off-list → warm re-ask with the same list.",
+    "target_audiences": "Show database audience bullets when asking; exact names only; off-list → warm re-ask with the same list.",
     "talk_description": "Save as object with title and overview from user text.",
     "key_takeaways": "Array of strings; user may skip.",
     "past_speaking_examples": "Array of {organization_name, event_name, date_month_year}; user may skip.",
@@ -463,20 +467,20 @@ def build_checkpoint_for_prompt(
             + " in this same turn."
         ),
         "topics": (
-            "NEXT_SAVE: topics — show TOPICS bullets from ALLOWED VALUES when asking; upsert exact catalog names only same turn. "
-            "Off-list → tell user they can add or change it anytime from their speaker profile; do not save off-list text."
+            "NEXT_SAVE: topics — show TOPICS bullets when asking; upsert exact catalog names only same turn. "
+            "Off-list → warm re-ask to choose from the list (server appends bullets); do not save off-list text; do not advance."
         ),
         "speaking_formats": (
             "NEXT_SAVE: speaking_formats — show SPEAKING FORMATS bullets when asking; upsert catalog matches only same turn. "
-            "Off-list → they can add or change it anytime from their speaker profile."
+            "Off-list → warm re-ask with the same list; do not advance."
         ),
         "delivery_mode": (
             "NEXT_SAVE: delivery_mode — show DELIVERY MODE bullets when asking; upsert catalog matches only same turn. "
-            "Off-list → they can add or change it anytime from their speaker profile."
+            "Off-list → warm re-ask with the same list; do not advance."
         ),
         "target_audiences": (
             "NEXT_SAVE: target_audiences — show TARGET AUDIENCES bullets when asking; upsert catalog matches only same turn. "
-            "Off-list → they can add or change it anytime from their speaker profile."
+            "Off-list → warm re-ask with the same list; do not advance."
         ),
         "talk_description": (
             "NEXT_SAVE: talk_description — upsert as object {title, overview} in the same turn as their answer."
@@ -510,7 +514,10 @@ def build_all_questions_block(catalog: Optional[Dict[str, List[str]]] = None) ->
     for i, step in enumerate(POST_CREATE_STEP_ORDER, 1):
         q = STEP_QUESTIONS.get(step, "")
         if step in CATALOG_STEPS:
-            lines.append(f"{i}. [{step}] {q} (options list is supplied separately for the active step only).")
+            lines.append(
+                f"{i}. [{step}] {q} "
+                "(server appends the option bullets for this step—never invent or paraphrase that list)."
+            )
         else:
             lines.append(f"{i}. [{step}] {q}")
     lines.append(
@@ -521,7 +528,7 @@ def build_all_questions_block(catalog: Optional[Dict[str, List[str]]] = None) ->
 
 
 def build_catalog_allowed_values_block(catalog: Optional[Dict[str, List[str]]]) -> str:
-    """Full system-catalog snapshot for topics, formats, delivery, audiences (shown when asking)."""
+    """Full catalog snapshot for topics, formats, delivery, audiences (shown when asking)."""
     if not catalog:
         return ""
     sections: List[str] = []
@@ -536,24 +543,21 @@ def build_catalog_allowed_values_block(catalog: Optional[Dict[str, List[str]]]) 
         body = "\n".join(f"• {n}" for n in names) if names else "• (no options loaded)"
         sections.append(f"{titles[key]}\n{body}")
     return (
-        "ALLOWED VALUES FROM DATABASE (system catalog only—use EXACT names below when asking and in upsert):\n\n"
+        "ALLOWED VALUES FROM DATABASE (use EXACT names below when asking and in upsert):\n\n"
         + "\n\n".join(sections)
     )
 
 
 def _catalog_choice_bullets(step: str, catalog: Optional[Dict[str, List[str]]]) -> str:
-    """Bullet list for one catalog step — DB names only, one option per line (<br> for chat UI)."""
+    """Bullet list for one catalog step — DB names only, one option per line."""
     if step not in CATALOG_STEPS or not catalog:
         return ""
     names = [str(n).strip() for n in (catalog.get(step) or []) if str(n).strip()]
     if not names:
         return ""
-    # Single \\n collapses in many chat UIs; <br> forces one option per visible line
-    bullets = "<br>".join(f"• {n}" for n in names)
-    block = f"<br><br>{_CATALOG_LIST_INTRO}<br><br>{bullets}"
-    if step in _CATALOG_STEPS_WITH_ADD_MORE_FOOTER:
-        block += f"<br><br>{_CATALOG_ADD_MORE_PROFILE_FOOTER}"
-    return block
+    sep = _CATALOG_BLOCK_SEP
+    bullets = "\n".join(f"• {n}" for n in names)
+    return f"{sep}{_CATALOG_LIST_INTRO}{sep}{bullets}{sep}{_CATALOG_ADD_MORE_PROFILE_FOOTER}"
 
 
 def build_step_user_message(step: str, catalog: Optional[Dict[str, List[str]]] = None) -> str:
@@ -568,9 +572,12 @@ def build_step_user_message(step: str, catalog: Optional[Dict[str, List[str]]] =
         extra = _catalog_choice_bullets(step, catalog)
         if extra:
             return f"{base}{extra}"
+        # Still always return a structured block (never a bare question).
         return (
-            f"{base}\n\n"
-            "(Topic options are not available right now—call get_allowed_values for this step.)"
+            f"{base}{_CATALOG_BLOCK_SEP}"
+            f"{_CATALOG_LIST_INTRO}{_CATALOG_BLOCK_SEP}"
+            "(Options are temporarily unavailable—please try again in a moment.)"
+            f"{_CATALOG_BLOCK_SEP}{_CATALOG_ADD_MORE_PROFILE_FOOTER}"
         )
     return STEP_QUESTIONS.get(step, "")
 
@@ -616,19 +623,22 @@ def _catalog_step_being_asked(content: str) -> Optional[str]:
 def _extract_ack_before_catalog_question(content: str, step: str) -> str:
     """Keep only the short ack lines before the catalog question (drop echoed option lists)."""
     q = STEP_QUESTIONS.get(step, "")
-    if not content or not q:
+    if not content:
         return ""
-    text = (content or "").strip()
-    q_pat = _catalog_question_pattern(q)
+    text = _strip_leaked_options_meta(content or "").strip()
+    if not text:
+        return ""
+    q_pat = _catalog_question_pattern(q) if q else None
 
-    m = q_pat.search(text)
-    if m:
-        before = _strip_trailing_catalog_transition(text[: m.start()].strip())
-        if before:
-            return before.replace("\n", "<br>").strip()
+    if q_pat:
+        m = q_pat.search(text)
+        if m:
+            before = _strip_trailing_catalog_transition(text[: m.start()].strip())
+            if before:
+                return _sanitize_catalog_ack(before)
 
     lines: List[str] = []
-    for line in re.split(r"<br>|\n", text):
+    for line in re.split(r"<br\s*/?>|\n", text, flags=re.IGNORECASE):
         s = line.strip()
         if not s:
             if lines:
@@ -636,17 +646,85 @@ def _extract_ack_before_catalog_question(content: str, step: str) -> str:
             continue
         if _LIST_INTRO_PHRASE in s.lower():
             break
-        if s.startswith("•"):
+        if s.startswith("•") or s.startswith("- "):
             break
-        if q_pat.fullmatch(s):
+        if "you can add or change it anytime" in s.lower():
             break
-        cleaned = _strip_catalog_question_from_line(s, q)
+        if "you can always add more" in s.lower():
+            break
+        # Stop if the model jumped to any catalog question (same or other step)
+        if any(
+            _catalog_question_pattern(STEP_QUESTIONS[s_id]).search(s)
+            for s_id in CATALOG_STEPS
+            if STEP_QUESTIONS.get(s_id)
+        ):
+            break
+        if q_pat and q_pat.fullmatch(s):
+            break
+        cleaned = _strip_catalog_question_from_line(s, q) if q else s
         if not cleaned:
-            if q_pat.search(s):
+            if q_pat and q_pat.search(s):
                 break
             continue
         lines.append(cleaned)
-    return "<br>".join(lines).strip()
+    return _sanitize_catalog_ack("\n".join(lines).strip())
+
+
+def _sanitize_catalog_ack(ack: str) -> str:
+    """Drop leaked meta / list-intro noise from the LLM ack before server appends the list."""
+    if not ack:
+        return ""
+    cleaned = _strip_leaked_options_meta(ack)
+    parts = [p.strip() for p in re.split(r"<br\s*/?>|\n", cleaned, flags=re.IGNORECASE) if p.strip()]
+    kept: List[str] = []
+    for p in parts:
+        low = p.lower()
+        if _LIST_INTRO_PHRASE in low:
+            continue
+        if "options list is supplied" in low or "server appends" in low:
+            continue
+        if p.startswith("•") or p.startswith("- "):
+            continue
+        if "you can add or change it anytime" in low:
+            continue
+        kept.append(p)
+    # Keep ack short — first 2 sentences/lines max
+    return "\n".join(kept[:2]).strip()
+
+
+_LEAKED_OPTIONS_META_RE = re.compile(
+    r"\s*\(options list is supplied separately[^)]*\)\.?",
+    re.IGNORECASE,
+)
+
+
+def _strip_leaked_options_meta(text: str) -> str:
+    """Remove internal prompt wording the model sometimes pastes into user-facing replies."""
+    cleaned = _LEAKED_OPTIONS_META_RE.sub("", text or "")
+    cleaned = re.sub(
+        r"\s*\(server appends the option bullets[^)]*\)\.?",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip()
+
+
+def resolve_catalog_step_for_reply(
+    *,
+    active_step: Optional[str],
+    assistant_content: Optional[str],
+) -> Optional[str]:
+    """
+    Which catalog step's question+list the server must attach.
+    Prefer the derived active step; fall back to detecting a catalog question in the LLM text.
+    """
+    if active_step in CATALOG_STEPS:
+        return active_step
+    asked = _catalog_step_being_asked(assistant_content or "")
+    if asked in CATALOG_STEPS:
+        return asked
+    return None
 
 
 def finalize_catalog_question_reply(
@@ -655,34 +733,59 @@ def finalize_catalog_question_reply(
     catalog: Optional[Dict[str, List[str]]],
 ) -> str:
     """
-    Server-built catalog question only: ack from LLM + DB bullet list (one per line).
-    Ignores any inline '• A • B • C' text the model invented.
+    Server-owned catalog reply: short ack (from LLM) + question + bullets + footer.
+    Always attaches the list when names exist; never returns a bare catalog question.
     """
-    if step not in CATALOG_STEPS or not catalog:
-        return content
-    names = catalog.get(step) or []
-    if not names:
-        return content
+    if step not in CATALOG_STEPS:
+        return _strip_leaked_options_meta(content or "")
     body = build_step_user_message(step, catalog)
-    ack = _extract_ack_before_catalog_question(content, step)
-    return f"{ack}<br><br>{body}" if ack else body
+    ack = _extract_ack_before_catalog_question(content or "", step)
+    if ack:
+        return f"{ack}{_CATALOG_BLOCK_SEP}{body}"
+    return body
+
+
+def ensure_catalog_list_in_reply(
+    *,
+    has_profile: bool,
+    profile_marked_complete: bool,
+    profile: Optional[dict],
+    steps_done: List[str],
+    assistant_content: str,
+    catalog: Optional[Dict[str, List[str]]],
+) -> str:
+    """
+    Mandatory post-process: if the user is on (or the model asked) a catalog step,
+    replace the reply with ack + server-built question/list/footer.
+    """
+    if not has_profile or profile_marked_complete:
+        return assistant_content or ""
+    active_step = derive_expected_step(profile, steps_done, has_profile=True)
+    catalog_step = resolve_catalog_step_for_reply(
+        active_step=active_step,
+        assistant_content=assistant_content,
+    )
+    if not catalog_step:
+        return assistant_content or ""
+    return finalize_catalog_question_reply(catalog_step, assistant_content or "", catalog)
 
 
 _CATALOG_CHOICE_RULES = (
     "CATALOG STEPS (topics, speaking_formats, delivery_mode, target_audiences): "
-    "Allowed values come from the database system catalog ONLY—use ONLY names in the user message template. "
+    "Allowed values come from the database catalog—use ONLY exact names from the step template / get_allowed_values. "
     "FORBIDDEN: inventing, suggesting, or adding options not in that list. "
-    "Options are formatted one per line in the template (do not squeeze into one line with ' • ' between items). "
-    "Do NOT duplicate the list or paste all catalog categories in one message. "
+    "FORBIDDEN in user-facing text: saying 'options list is supplied separately', 'server appends', or any internal prompt wording. "
     "When MOVING TO a catalog step in your text reply: write ONLY a short ack (first name when known)—"
     "do NOT include the catalog question, list intro, or bullets; the server appends those after your ack. "
     "When the user answers a catalog step: FIRST call upsert_speaker_profile (tool_calls) with only exact catalog matches. "
     "Do NOT say a field was saved unless the tool result saved_fields includes that field. "
-    "Do NOT ask the next step's question in the same assistant message as the upsert tool call—after the tool returns, "
-    "your following assistant message may ack and ask the next question. "
-    "If the user names something NOT on the list: omit that field in upsert; in your text reply tell them they can add or "
-    "change it anytime from their speaker profile (use first name when known). Do NOT claim you saved off-list wording. "
-    "Then ask the next step with that step's bullet list."
+    "OFF-LIST (user free text matches ZERO allowed names for this step): omit that field in upsert; "
+    "in your text reply write ONLY a short warm line (first name when known) asking them to choose from the list below—"
+    "e.g. 'Thanks, Jane! That one isn't on our list—please pick from the options below.' "
+    "FORBIDDEN when off-list: saying they can add it later from their speaker profile; advancing to the next step; "
+    "claiming you saved their wording. Stay on the SAME step—the server re-appends the same question and bullets. "
+    "PARTIAL MATCH (some names match): save only matches, briefly confirm what was saved, then the server will show the next step. "
+    "FULL MATCH: brief ack only; server appends the next step's question and bullets when applicable."
 )
 
 
@@ -792,13 +895,13 @@ def _pre_create_flow_block(subphase: str) -> str:
             "Before profile exists:\n"
             f"FORBIDDEN: Do NOT say '{welcome_exact}' again—it was already sent. Never repeat that welcome line.\n"
             "Acknowledge using first name only, then ask for email and phone if still missing.\n"
-            "Do NOT call upsert until you have email and phone.\n"
+            "Do NOT call upsert until you have email.\n"
         )
     return (
         "Before profile exists:\n"
         f"FORBIDDEN: Do NOT say '{welcome_exact}' again—it was already sent.\n"
-        "You have email (and hopefully phone). Call upsert_speaker_profile once with all five fields "
-        "(full_name, professional_title, company, email, phone_number; omit speaker_profile_id).\n"
+        "Call upsert_speaker_profile once with full_name and email (omit speaker_profile_id). "
+        "Also pass professional_title, company, and phone_number when the user already provided them.\n"
         "After create, acknowledge using first name only and ask location in one message.\n"
     )
 
@@ -938,7 +1041,9 @@ def build_onboarding_script_prompt(
         parts.append(f'Always pass speaker_profile_id="{speaker_profile_id}" on upsert and mark_profile_complete.')
     if not has_profile and expected_step == CREATE_STEP:
         parts.append(
-            "No profile yet: collect name, title, company, then email+phone, then one upsert with all five fields (omit speaker_profile_id)."
+            "No profile yet: collect name, title, and company; then email and phone; "
+            "then one upsert with full_name and email (omit speaker_profile_id); "
+            "pass title, company, and phone when the user already provided them."
         )
     if expected_step in SKIPPABLE_STEPS:
         parts.append("User may skip; call upsert only if they provided data, then ask the next step.")
