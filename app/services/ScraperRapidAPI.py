@@ -100,7 +100,7 @@ class ScraperRapidAPIService:
             if description:
                 update_payload["scrapedDescription"] = description
 
-            # 2. LLM extract speaking opportunities; keep only those verified on official event pages
+            # 2. LLM extract; keep only opportunities confirmed on their own URL
             opportunities, llm_error = self.opportunity_extractor.extract(content, url=url)
             if opportunities:
                 opportunities = filter_opportunities_verified_on_official_site(

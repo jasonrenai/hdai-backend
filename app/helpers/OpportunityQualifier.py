@@ -1,8 +1,9 @@
 """
 Clause-based qualification for extracted opportunities (e.g. application submission open vs closed).
 
-Also provides hard official-site verification: opportunities discovered on blogs/aggregators are
-kept only when their official event page confirms a speaking opportunity.
+Also provides hard opportunity-URL verification: before save, scrape the opportunity's own link.
+If the page is missing, drop. Otherwise ask an LLM whether the page hosts a speaking/CFS
+opportunity for this event; if yes, overwrite core fields from that page; if no, drop.
 
 Extend DEFAULT_QUALIFICATION_CLAUSES with more callables as new rules are needed.
 Each clause returns None if the opportunity passes that check, or a human-readable failure reason if not.
@@ -11,11 +12,12 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
+from app.agents.EventDetailEnricherAgent import EventDetailEnricherAgent
 from app.helpers.RapidAPIScraper import RapidAPIScraper
 from app.helpers.SpeakingOpportunityExtractor import _parse_date_to_iso
 from app.helpers.OpportunitySubmissionResolver import (
@@ -34,30 +36,19 @@ _EMAIL_RE = re.compile(
     re.IGNORECASE,
 )
 
-_STOPWORDS = frozenset(
-    {
-        "a",
-        "an",
-        "the",
-        "and",
-        "or",
-        "of",
-        "for",
-        "to",
-        "in",
-        "on",
-        "at",
-        "by",
-        "with",
-        "from",
-        "global",
-        "summit",
-        "conference",
-        "event",
-        "annual",
-        "virtual",
-        "online",
-    }
+_SOFT_404_PHRASES = (
+    "page not found",
+    "404 not found",
+    "404 error",
+    "this page does not exist",
+    "this page doesn't exist",
+    "the page you requested",
+    "content not found",
+    "event not found",
+    "no longer available",
+    "has been removed",
+    "doesn't exist",
+    "does not exist",
 )
 
 _APPLICATION_SIGNAL_PHRASES = (
@@ -116,8 +107,8 @@ def landing_content_signals_application_path(text: str) -> bool:
 
 def official_page_signals_speaking_opportunity(text: str) -> bool:
     """
-    True when official page content shows a speaking opportunity / CFS path.
-    Stricter than application-path heuristic: requires explicit speaking phrases (not any email).
+    Legacy phrase heuristic (kept for callers/tests). Official-site keep/drop now uses LLM
+    verification in verify_opportunity_on_official_site instead of this function.
     """
     if not text or not str(text).strip():
         return False
@@ -125,68 +116,58 @@ def official_page_signals_speaking_opportunity(text: str) -> bool:
     return any(phrase in low for phrase in _APPLICATION_SIGNAL_PHRASES)
 
 
-def _event_name_appears_on_page(event_name: str, content: str) -> bool:
-    """
-    Require the event to be recognizable on the official page.
-    Uses significant tokens from the event name (ignores common stopwords).
-    """
-    name = (event_name or "").strip()
-    if not name:
+def _page_looks_like_missing(content: str) -> bool:
+    low = (content or "").lower()
+    if not low.strip():
         return True
-    low_content = (content or "").lower()
-    if name.lower() in low_content:
+    if len(low) < 400 and any(p in low for p in _SOFT_404_PHRASES):
         return True
-
-    tokens = [
-        t
-        for t in re.findall(r"[a-z0-9]+", name.lower())
-        if len(t) >= 3 and t not in _STOPWORDS
-    ]
-    if not tokens:
-        # Name was only stopwords / short tokens — fall back to full substring already failed
-        return False
-    # Require most distinctive tokens (all if few; otherwise at least 2/3)
-    need = len(tokens) if len(tokens) <= 2 else max(2, (len(tokens) * 2 + 2) // 3)
-    found = sum(1 for t in tokens if t in low_content)
-    return found >= need
+    hits = sum(1 for p in _SOFT_404_PHRASES if p in low)
+    return hits >= 2
 
 
 def _load_official_page_content(
     opp: Dict[str, Any],
     ctx: "OpportunityQualificationContext",
-) -> Tuple[Optional[str], Optional[str]]:
+) -> Tuple[Optional[str], Dict[str, str], Optional[str]]:
     """
-    Load content from the opportunity's official event link.
-    Reuses source page content when the source URL is the same page.
-    Returns (content, error_reason). content is None when loading failed.
+    Load content from the opportunity's own link (the URL we intend to save).
+    Reuses source page content only when that link is the same page.
+    Returns (content, page_meta, error_reason). content is None when loading failed.
+    page_meta may include name/description from the scraper.
     """
     link = (opp.get("link") or opp.get("url") or "").strip()
     if not link:
-        return None, "No official event link available to verify this opportunity."
+        return None, {}, "No opportunity URL available to verify this opportunity."
 
     if _is_pdf_url(link):
-        return None, "Official event link points to a PDF; cannot verify speaking opportunity."
+        return None, {}, "Opportunity URL points to a PDF; cannot verify speaking opportunity."
 
     if ctx.source_page_url and ctx.source_page_content and _urls_same_page(link, ctx.source_page_url):
         content = str(ctx.source_page_content).strip() or None
         if not content:
-            return None, "Official event page content is empty."
-        return content, None
+            return None, {}, "Opportunity URL page content is empty."
+        return content, {"name": "", "description": ""}, None
 
     try:
         result = ctx.scraper.scrape(link)
     except Exception as e:
-        logger.warning("Official-site verification scrape failed for %s: %s", link[:120], e)
-        return None, "Could not load the official event page to verify this opportunity."
+        logger.warning("Opportunity URL verification scrape failed for %s: %s", link[:120], e)
+        return None, {}, "Could not load the opportunity URL to verify this opportunity."
 
     if not result.get("success"):
-        return None, "Could not load the official event page to verify this opportunity."
+        return None, {}, "Could not load the opportunity URL to verify this opportunity."
 
-    content = (result.get("data") or {}).get("content") or ""
+    data = result.get("data") or {}
+    content = (data.get("content") or "")
     content = str(content).strip() or None
     if not content:
-        return None, "Official event page content is empty."
-    return content, None
+        return None, {}, "Opportunity URL page content is empty."
+    page_meta = {
+        "name": str(data.get("name") or "").strip(),
+        "description": str(data.get("description") or "").strip(),
+    }
+    return content, page_meta, None
 
 
 def verify_opportunity_on_official_site(
@@ -194,7 +175,9 @@ def verify_opportunity_on_official_site(
     ctx: "OpportunityQualificationContext",
 ) -> Tuple[bool, str]:
     """
-    Hard check: official event page must confirm a speaking opportunity for this event.
+    Hard check before save: scrape the opportunity URL, then ask an LLM whether that page
+    hosts a speaking/CFS opportunity for this event.
+    Drop if missing page or LLM says no. If yes, overwrite core fields from the same LLM response.
     Returns (ok, reason). reason is empty when ok.
     """
     event_name = (opp.get("event_name") or opp.get("title") or "").strip()
@@ -206,7 +189,7 @@ def verify_opportunity_on_official_site(
         (ctx.source_page_url or "")[:120],
     )
 
-    content, load_error = _load_official_page_content(opp, ctx)
+    content, page_meta, load_error = _load_official_page_content(opp, ctx)
     if load_error:
         logger.info(
             "[opp-pipeline] official_verify FAIL event=%s link=%s reason=%s",
@@ -216,8 +199,8 @@ def verify_opportunity_on_official_site(
         )
         return False, load_error
 
-    if not _event_name_appears_on_page(event_name, content or ""):
-        reason = "Event name was not found on the official event page."
+    if _page_looks_like_missing(content or ""):
+        reason = "Opportunity URL page looks missing or unavailable."
         logger.info(
             "[opp-pipeline] official_verify FAIL event=%s link=%s reason=%s",
             event_name[:80],
@@ -226,10 +209,14 @@ def verify_opportunity_on_official_site(
         )
         return False, reason
 
-    if not official_page_signals_speaking_opportunity(content or ""):
-        reason = (
-            "Official event page does not mention a speaking opportunity or call for speakers."
-        )
+    enricher = ctx.enricher or EventDetailEnricherAgent(rapidapi_scraper=ctx.scraper)
+    ok, reason, updated = enricher.verify_and_refresh_from_page_content(
+        opp,
+        content or "",
+        name=page_meta.get("name") or "",
+        description=page_meta.get("description") or "",
+    )
+    if not ok:
         logger.info(
             "[opp-pipeline] official_verify FAIL event=%s link=%s reason=%s",
             event_name[:80],
@@ -237,11 +224,19 @@ def verify_opportunity_on_official_site(
             reason,
         )
         return False, reason
+
+    # Mutate original dict in place so callers keep the same object reference
+    opp.clear()
+    opp.update(updated)
 
     logger.info(
-        "[opp-pipeline] official_verify PASS event=%s link=%s",
+        "[opp-pipeline] official_verify PASS event=%s link=%s updated_name=%s location=%s dates=%s..%s",
         event_name[:80],
         link[:120],
+        (opp.get("event_name") or "")[:80],
+        (opp.get("location") or "")[:80],
+        str(opp.get("start_date") or "")[:10],
+        str(opp.get("end_date") or "")[:10],
     )
     return True, ""
 
@@ -253,8 +248,9 @@ def filter_opportunities_verified_on_official_site(
     source_page_content: str,
 ) -> List[Dict[str, Any]]:
     """
-    Keep only opportunities whose official event page confirms a speaking opportunity.
-    Drops blog/aggregator-only mentions that are not backed by the official site.
+    For each opportunity, scrape its URL and LLM-verify speaking/CFS presence.
+    Drop when the page is dead or LLM says it is not a speaking opportunity for this event.
+    For kept opportunities, overwrite event_name/location/dates/speaking fields from that URL.
     """
     if not opportunities:
         logger.info(
@@ -263,10 +259,12 @@ def filter_opportunities_verified_on_official_site(
         )
         return []
 
+    enricher = EventDetailEnricherAgent(rapidapi_scraper=scraper)
     ctx = OpportunityQualificationContext(
         scraper=scraper,
         source_page_url=(source_page_url or "").strip(),
         source_page_content=(source_page_content or "").strip(),
+        enricher=enricher,
     )
     verified: List[Dict[str, Any]] = []
     for i, opp in enumerate(opportunities, 1):
@@ -424,6 +422,7 @@ class OpportunityQualificationContext:
     scraper: RapidAPIScraper
     source_page_url: str = ""
     source_page_content: str = ""
+    enricher: Optional[EventDetailEnricherAgent] = field(default=None)
 
 
 def run_qualification(

@@ -1,12 +1,14 @@
 """
 Service for scraping URLs via RapidAPI and storing opportunities.
 Flow: Save url+createdAt to UrlCollection -> background task scrapes -> updates sourceName/description
--> extracts via LLM -> verifies each opportunity on its official event page -> inserts verified
-opportunities into Opportunities collection.
+-> extracts via LLM -> verifies each opportunity by scraping its own URL (drop if missing) then
+LLM-checking whether that page hosts a speaking/CFS opportunity for the event (drop if no);
+-> overwrites event_name/location/dates/speaking fields from that same LLM response -> inserts
+verified opportunities into Opportunities collection.
 No connection with existing Scraper/Scrapers collection.
 Blocking I/O (RapidAPI requests, OpenAI) runs in a thread pool to avoid blocking the event loop.
 PDF URLs are not scraped. Only opportunities with all required fields (link, event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences) are saved.
-Blog/aggregator mentions are kept only when the official event page confirms a speaking opportunity.
+Dead/wrong opportunity links and pages the LLM rejects as non-speaking for this event are dropped before save.
 Qualified opportunities (isQualified) are upserted to Pinecone; unqualified are Mongo-only with reasonForUnqualify.
 """
 import asyncio
@@ -141,8 +143,8 @@ def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[
             len(opportunities),
             url[:120],
         )
-        # Hard filter: keep only opportunities confirmed on the official event page
-        # (drops blog-only mentions with no real CFS on the event site).
+        # Hard filter: scrape each opportunity URL, LLM-verify speaking/CFS for this event.
+        # Drop if missing/LLM says no; otherwise overwrite core fields from the same LLM response.
         before_verify = len(opportunities)
         opportunities = filter_opportunities_verified_on_official_site(
             opportunities,
