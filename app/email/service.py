@@ -8,6 +8,7 @@ from app.email.event_registry import EMAIL_EVENT_REGISTRY
 from app.email.enums import EmailEventType, SenderType
 from app.email.helpers import (
     get_postmark_server_token,
+    is_email_sending_enabled,
     normalize_template_model,
     resolve_sender_email,
 )
@@ -45,6 +46,13 @@ class EmailService:
         template_id: Optional[int] = None,
         template_alias: Optional[str] = None,
     ) -> bool:
+        if not is_email_sending_enabled():
+            logger.info(
+                "Email sending disabled (EMAIL_SENDING_ENABLED=false); skipped template email to %s",
+                (to_email or "").strip(),
+            )
+            return False
+
         to = (to_email or "").strip()
         if not to:
             raise ValueError("Recipient email is required.")
@@ -78,6 +86,14 @@ class EmailService:
         recipient = (to_email or "").strip()
         if not recipient:
             logger.warning("Skipped %s email: empty recipient", event_type.value)
+            return False
+
+        if not is_email_sending_enabled():
+            logger.info(
+                "Email sending disabled (EMAIL_SENDING_ENABLED=false); skipped %s to %s",
+                event_type.value,
+                recipient,
+            )
             return False
 
         config = self.event_registry.get(event_type)

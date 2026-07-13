@@ -110,6 +110,15 @@ class GoogleQueryScraperService:
                         google_search_query=query,
                     )
                     total_opportunities_inserted += n
+                    logger.info(
+                        "[opp-pipeline] google_query_id=%s url_index=%d/%d inserted=%d url=%s url_collection_id=%s",
+                        google_query_id,
+                        i + 1,
+                        len(top_urls),
+                        n,
+                        url[:120],
+                        url_collection_id,
+                    )
                 except Exception as e:
                     logger.exception("GoogleQuery job url failed google_query_id=%s url=%s err=%s", google_query_id, url[:120], e)
 
@@ -126,7 +135,12 @@ class GoogleQueryScraperService:
                     RECENT_ACTIVITY_TYPE_OPPORTUNITIES,
                     message_opportunities_added(total_opportunities_inserted),
                 )
-            logger.info("GoogleQuery job completed google_query_id=%s urls=%d", google_query_id, len(top_urls))
+            logger.info(
+                "[opp-pipeline] GoogleQuery job completed google_query_id=%s urls=%d total_opportunities_inserted=%d",
+                google_query_id,
+                len(top_urls),
+                total_opportunities_inserted,
+            )
         except Exception as e:
             logger.exception("GoogleQuery job failed google_query_id=%s err=%s", google_query_id, e)
             await self.google_query_model.update_by_id(

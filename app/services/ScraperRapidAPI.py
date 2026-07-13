@@ -10,7 +10,10 @@ from urllib.parse import urlparse
 from app.models.Scraper import ScraperModel
 from app.helpers.RapidAPIScraper import RapidAPIScraper
 from app.helpers.SpeakingOpportunityExtractor import SpeakingOpportunityExtractor
-from app.helpers.OpportunityQualifier import qualify_opportunities_batch
+from app.helpers.OpportunityQualifier import (
+    filter_opportunities_verified_on_official_site,
+    qualify_opportunities_batch,
+)
 from app.helpers.OpportunitySubmissionResolver import OpportunitySubmissionResolver
 
 
@@ -97,21 +100,28 @@ class ScraperRapidAPIService:
             if description:
                 update_payload["scrapedDescription"] = description
 
-            # 2. LLM extract speaking opportunities
+            # 2. LLM extract; keep only opportunities confirmed on their own URL
             opportunities, llm_error = self.opportunity_extractor.extract(content, url=url)
             if opportunities:
-                opportunities = self.submission_resolver.resolve_opportunities(
-                    opportunities,
-                    source_url=url,
-                    source_page_content=content,
-                    source_page_links=result.get("data", {}).get("urls") or [],
-                )
-                qualify_opportunities_batch(
+                opportunities = filter_opportunities_verified_on_official_site(
                     opportunities,
                     scraper=self.rapidapi_scraper,
                     source_page_url=url,
                     source_page_content=content,
                 )
+                if opportunities:
+                    opportunities = self.submission_resolver.resolve_opportunities(
+                        opportunities,
+                        source_url=url,
+                        source_page_content=content,
+                        source_page_links=result.get("data", {}).get("urls") or [],
+                    )
+                    qualify_opportunities_batch(
+                        opportunities,
+                        scraper=self.rapidapi_scraper,
+                        source_page_url=url,
+                        source_page_content=content,
+                    )
             error_to_store = llm_error if llm_error and not opportunities else None
 
             # 3. Update DB with success

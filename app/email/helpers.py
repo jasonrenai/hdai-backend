@@ -5,6 +5,18 @@ from typing import Any, Dict, Optional
 from app.email.constants import POSTMARK_TOKEN_ENV_KEYS, SENDER_EMAILS
 from app.email.enums import SenderType
 
+# Truthy values for EMAIL_SENDING_ENABLED. Default is enabled when unset (prod-safe).
+_EMAIL_ENABLED_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+def is_email_sending_enabled() -> bool:
+    """
+    When EMAIL_SENDING_ENABLED is false/0/no/off, skip Postmark sends (useful in local/dev).
+    Unset or any other value defaults to True so production keeps sending.
+    """
+    raw = (os.getenv("EMAIL_SENDING_ENABLED") or "true").strip().lower()
+    return raw in _EMAIL_ENABLED_VALUES
+
 
 def get_postmark_server_token() -> str | None:
     for key in POSTMARK_TOKEN_ENV_KEYS:
