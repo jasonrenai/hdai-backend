@@ -5,7 +5,11 @@ import logging
 from postmarker.core import PostmarkClient
 
 from app.email.enums import SenderType
-from app.email.helpers import get_postmark_server_token, resolve_sender_email
+from app.email.helpers import (
+    get_postmark_server_token,
+    is_email_sending_enabled,
+    resolve_sender_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,12 @@ def build_speaker_credentials_text(full_name: str, login_email: str, plain_passw
 
 
 def send_speaker_credentials_email(to_email: str, full_name: str, plain_password: str) -> bool:
+    if not is_email_sending_enabled():
+        logger.info(
+            "Email sending disabled (EMAIL_SENDING_ENABLED=false); skipped speaker credentials email to %s",
+            (to_email or "").strip(),
+        )
+        return False
     from_email = resolve_sender_email(SenderType.HELLO)
     token = get_postmark_server_token()
     if not from_email or not token or not (to_email or "").strip():

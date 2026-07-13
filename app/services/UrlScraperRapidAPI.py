@@ -1,9 +1,12 @@
 """
 Service for scraping URLs via RapidAPI and storing opportunities.
-Flow: Save url+createdAt to UrlCollection -> background task scrapes -> updates sourceName/description -> extracts via LLM -> inserts opportunities into Opportunities collection.
+Flow: Save url+createdAt to UrlCollection -> background task scrapes -> updates sourceName/description
+-> extracts via LLM -> verifies each opportunity on its official event page -> inserts verified
+opportunities into Opportunities collection.
 No connection with existing Scraper/Scrapers collection.
 Blocking I/O (RapidAPI requests, OpenAI) runs in a thread pool to avoid blocking the event loop.
 PDF URLs are not scraped. Only opportunities with all required fields (link, event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences) are saved.
+Blog/aggregator mentions are kept only when the official event page confirms a speaking opportunity.
 Qualified opportunities (isQualified) are upserted to Pinecone; unqualified are Mongo-only with reasonForUnqualify.
 """
 import asyncio
@@ -25,7 +28,10 @@ from app.helpers.RapidAPIScraper import RapidAPIScraper
 from app.helpers.SpeakingOpportunityExtractor import SpeakingOpportunityExtractor
 from app.helpers.SerpHelper import SerpHelper
 from app.helpers.PineconeOpportunityStore import PineconeOpportunityStore
-from app.helpers.OpportunityQualifier import qualify_opportunities_batch
+from app.helpers.OpportunityQualifier import (
+    filter_opportunities_verified_on_official_site,
+    qualify_opportunities_batch,
+)
 from app.helpers.OpportunitySubmissionResolver import OpportunitySubmissionResolver
 from app.agents.EventDetailEnricherAgent import EventDetailEnricherAgent
 
@@ -120,23 +126,70 @@ def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[
         description = description[:DESCRIPTION_MAX_LENGTH] + "..."
 
     opportunities, llm_error = extractor.extract(content, url=url)
+    extracted_count = len(opportunities or [])
     if llm_error and not opportunities:
-        logger.warning("LLM extraction error: %s", llm_error)
+        logger.warning("[opp-pipeline] LLM extraction error url=%s err=%s", url[:120], llm_error)
+    logger.info(
+        "[opp-pipeline] extracted=%d url=%s",
+        extracted_count,
+        url[:120],
+    )
     if opportunities:
         opportunities = enricher.enrich_opportunities(opportunities)
-        opportunities = submission_resolver.resolve_opportunities(
-            opportunities,
-            source_url=url,
-            source_page_content=content,
-            source_page_links=source_links,
+        logger.info(
+            "[opp-pipeline] after_enrich=%d url=%s",
+            len(opportunities),
+            url[:120],
         )
-        qualify_opportunities_batch(
+        # Hard filter: keep only opportunities confirmed on the official event page
+        # (drops blog-only mentions with no real CFS on the event site).
+        before_verify = len(opportunities)
+        opportunities = filter_opportunities_verified_on_official_site(
             opportunities,
             scraper=scraper,
             source_page_url=url,
             source_page_content=content,
         )
+        logger.info(
+            "[opp-pipeline] after_official_verify kept=%d dropped=%d url=%s",
+            len(opportunities),
+            before_verify - len(opportunities),
+            url[:120],
+        )
+        if opportunities:
+            opportunities = submission_resolver.resolve_opportunities(
+                opportunities,
+                source_url=url,
+                source_page_content=content,
+                source_page_links=source_links,
+            )
+            qualify_opportunities_batch(
+                opportunities,
+                scraper=scraper,
+                source_page_url=url,
+                source_page_content=content,
+            )
+            qualified = sum(1 for o in opportunities if o.get("isQualified"))
+            logger.info(
+                "[opp-pipeline] after_qualify total=%d qualified=%d unqualified=%d url=%s",
+                len(opportunities),
+                qualified,
+                len(opportunities) - qualified,
+                url[:120],
+            )
+        else:
+            logger.info(
+                "[opp-pipeline] no opportunities left after official-site verify url=%s",
+                url[:120],
+            )
+    else:
+        logger.info("[opp-pipeline] LLM found 0 opportunities url=%s", url[:120])
 
+    logger.info(
+        "[opp-pipeline] sync_done returning=%d opportunities url=%s",
+        len(opportunities or []),
+        url[:120],
+    )
     return {"source_name": source_name, "description": description, "opportunities": opportunities or []}
 
 
@@ -237,11 +290,30 @@ class UrlScraperRapidAPIService:
             source_name = parsed["source_name"]
             description = parsed["description"]
             opportunities = parsed["opportunities"]
+            logger.info(
+                "[opp-pipeline] job=%s from_google_query=%s after_sync opportunities=%d url=%s",
+                url_collection_id,
+                from_google_query,
+                len(opportunities or []),
+                url[:120],
+            )
 
             complete = filter_complete_opportunities(opportunities)
             dropped = len(opportunities) - len(complete)
+            logger.info(
+                "[opp-pipeline] job=%s complete_filter complete=%d incomplete_dropped=%d",
+                url_collection_id,
+                len(complete),
+                dropped,
+            )
             if dropped:
-                logger.info("Job %s: dropped %d opportunities missing required fields (link, event_name, location, topics or aipredictedTopics, start_date, end_date, speaking_format, delivery_mode, target_audiences)", url_collection_id, dropped)
+                logger.info(
+                    "[opp-pipeline] job=%s dropped %d opportunities missing required fields "
+                    "(link, event_name, location, topics or aipredictedTopics, start_date, end_date, "
+                    "speaking_format, delivery_mode, target_audiences)",
+                    url_collection_id,
+                    dropped,
+                )
 
             # Unique topics from saved opportunities, for UrlCollection
             extracted_topics = sorted(
@@ -271,7 +343,11 @@ class UrlScraperRapidAPIService:
                 )
 
             if not opportunities:
-                logger.info("Job %s completed with 0 opportunities", url_collection_id)
+                logger.info(
+                    "[opp-pipeline] job=%s completed inserted=0 (none after extract/verify) url=%s",
+                    url_collection_id,
+                    url[:120],
+                )
                 return 0
 
             for opp in complete:
@@ -307,26 +383,28 @@ class UrlScraperRapidAPIService:
                     seen_batch.add(k)
                     to_insert.append(opp)
 
-                if skipped_db or skipped_batch:
-                    logger.info(
-                        "Job %s: skipping %d opportunity(ies) already in Mongo, %d duplicate(s) within batch",
-                        url_collection_id,
-                        skipped_db,
-                        skipped_batch,
-                    )
+                logger.info(
+                    "[opp-pipeline] job=%s dedupe to_insert=%d skipped_already_in_db=%d skipped_batch_dup=%d",
+                    url_collection_id,
+                    len(to_insert),
+                    skipped_db,
+                    skipped_batch,
+                )
 
                 if not to_insert:
                     logger.info(
-                        "Job %s completed: 0 new opportunities (all duplicates or no valid keys)",
+                        "[opp-pipeline] job=%s completed inserted=0 (all duplicates or no valid keys) url=%s",
                         url_collection_id,
+                        url[:120],
                     )
                     return 0
 
                 inserted_ids = await self.opportunity_model.insert_many(to_insert)
                 logger.info(
-                    "Job %s completed: inserted %d opportunities into Opportunities collection",
+                    "[opp-pipeline] job=%s completed inserted=%d into Opportunities url=%s",
                     url_collection_id,
                     len(inserted_ids),
+                    url[:120],
                 )
                 if not from_google_query:
                     await self.recent_activity_model.try_insert_activity(
@@ -357,7 +435,11 @@ class UrlScraperRapidAPIService:
                     logger.warning("Pinecone upsert failed for job %s: %s", url_collection_id, pin_e)
                 return len(inserted_ids)
             else:
-                logger.info("Job %s completed with 0 opportunities to insert (all incomplete)", url_collection_id)
+                logger.info(
+                    "[opp-pipeline] job=%s completed inserted=0 (all incomplete after complete_filter) url=%s",
+                    url_collection_id,
+                    url[:120],
+                )
                 return 0
         except Exception as e:
             logger.exception("Job %s failed: %s", url_collection_id, e)
