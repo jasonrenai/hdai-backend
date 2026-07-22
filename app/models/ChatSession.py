@@ -125,6 +125,74 @@ class ChatSessionModel:
         )
         return await self.get_by_id(chat_session_id)
 
+    async def update_conversation_status(
+        self,
+        chat_session_id: str,
+        status: str,
+    ) -> Optional[dict]:
+        """Set conversation_status: IN_PROGRESS | COMPLETED | QUIT."""
+        if not chat_session_id:
+            return None
+        try:
+            oid = ObjectId(chat_session_id)
+        except Exception:
+            return None
+        await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "conversation_status": (status or "IN_PROGRESS").upper(),
+                    "updatedAt": datetime.utcnow(),
+                },
+            },
+        )
+        return await self.get_by_id(chat_session_id)
+
+    async def update_skipped_questions(
+        self,
+        chat_session_id: str,
+        skipped: List[str],
+    ) -> Optional[dict]:
+        if not chat_session_id:
+            return None
+        try:
+            oid = ObjectId(chat_session_id)
+        except Exception:
+            return None
+        await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "skipped_questions": list(skipped or []),
+                    "updatedAt": datetime.utcnow(),
+                },
+            },
+        )
+        return await self.get_by_id(chat_session_id)
+
+    async def update_pending_confirmation(
+        self,
+        chat_session_id: str,
+        pending: Optional[Dict[str, Any]],
+    ) -> Optional[dict]:
+        """Store or clear pending field conflict confirmation."""
+        if not chat_session_id:
+            return None
+        try:
+            oid = ObjectId(chat_session_id)
+        except Exception:
+            return None
+        await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "pending_confirmation": pending,
+                    "updatedAt": datetime.utcnow(),
+                },
+            },
+        )
+        return await self.get_by_id(chat_session_id)
+
     async def get_by_id(self, chat_session_id: str) -> Optional[dict]:
         """Get chat session by id."""
         try:

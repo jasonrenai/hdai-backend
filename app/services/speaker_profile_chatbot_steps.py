@@ -231,18 +231,44 @@ def normalize_preferred_speaking_times(raw: Any, filter_enum_fn) -> List[str]:
     return filter_enum_fn(canonical, _PREFERRED_SPEAKING_TIMES)
 
 
+_SKIP_DECLINE_REST_RE = re.compile(
+    r"^(thanks|thank\s+you|not\s+really|i\s+don'?t(?:\s+have(?:\s+any)?)?|"
+    r"i\s+do\s+not(?:\s+have(?:\s+any)?)?|don'?t\s+have(?:\s+any)?|"
+    r"do\s+not\s+have(?:\s+any)?|haven'?t|have\s+none|none|nothing|"
+    r"memberships?|examples?|videos?|testimonials?|past\s+speaking|"
+    r"skip(?:\s+it)?|pass|later)?\.?$",
+    re.I,
+)
+# "no my company is X" / corrections — not a decline of the current question.
+_SKIP_CORRECTION_RE = re.compile(
+    r"\b(my\s+company|company\s+is|change\s+my|update\s+my|actually|"
+    r"full\s+name|my\s+name|my\s+email|my\s+phone|my\s+title|"
+    r"my\s+topics|preferred\s+speaking)\b",
+    re.I,
+)
+
+
 def detect_skip_intent(message: str) -> bool:
     """True when the user declines an optional/skippable onboarding question."""
     text = (message or "").strip()
     if not text:
         return False
+    lowered = text.lower().rstrip(".!")
+    if _SKIP_CORRECTION_RE.search(lowered):
+        return False
     if _SKIP_RE.search(text):
         return True
-    lowered = text.lower().rstrip(".!")
     if lowered in ("no", "nope", "nah", "n/a", "na"):
         return True
+    # Leading "no …" only when the rest is empty or clearly decline-like.
+    m_no = re.match(r"^no\b[\s,]*", lowered)
+    if m_no:
+        rest = lowered[m_no.end() :].strip()
+        if not rest or _SKIP_DECLINE_REST_RE.match(rest):
+            return True
+        return False
     if re.match(
-        r"^(no\b|nope|nah|not really|i\s+don'?t|i\s+do\s+not|don'?t\s+have|do\s+not\s+have|haven'?t|have\s+none)\b",
+        r"^(nope|nah|not really|i\s+don'?t|i\s+do\s+not|don'?t\s+have|do\s+not\s+have|haven'?t|have\s+none)\b",
         lowered,
     ):
         return True
@@ -926,9 +952,11 @@ _PROMPT_INJECTION_PATTERNS = [
     for p in (
         r"ignore\s+(all\s+)?(previous|prior|above|earlier)\s+instructions?",
         r"disregard\s+(all\s+)?(previous|prior|above)\s+instructions?",
-        r"forget\s+(all\s+)?(previous|prior|your)\s+instructions?",
-        r"(return|reveal|show|print|dump|repeat)\s+(your\s+)?(system\s+)?prompt",
+        r"forget\s+(all\s+)?(previous|prior|your)\s+(instructions?|prompts?)",
+        r"forget\s+(all\s+)?your\s+prompt",
+        r"(return|reveal|show|print|dump|repeat|tell)\s+(me\s+)?(your\s+)?(system\s+)?promp?t",
         r"(what|show)\s+(is|are)\s+your\s+(system\s+)?(prompt|instructions?)",
+        r"your\s+system\s+promp?t",
         r"complete\s+(my\s+)?profile\s+automatically",
         r"auto[- ]?complete\s+(my\s+)?profile",
         r"fill\s+(out\s+)?(my\s+)?profile\s+(for\s+me|automatically)",
