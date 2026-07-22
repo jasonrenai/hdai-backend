@@ -256,13 +256,55 @@ def rescue_intent(analysis: AnalysisResult, message: str) -> AnalysisResult:
     return analysis
 
 
-def should_validate_as_answer(analysis: AnalysisResult, message: str, current_step: str) -> bool:
+_PRE_CREATE_CONTACT_STEPS = frozenset({
+    "prompt_welcome_and_contact",
+    "post_welcome",
+    "ready_to_create",
+    "create_profile",
+})
+
+
+def _message_has_email(message: str) -> bool:
+    return "@" in (message or "")
+
+
+def _message_looks_like_phone_attempt(message: str) -> bool:
+    text = (message or "").strip()
+    if not text:
+        return False
+    digits = sum(1 for c in text if c.isdigit())
+    if digits < 7:
+        return False
+    compact = re.sub(r"[\s().+-]+", "", text)
+    if not compact:
+        return False
+    return (digits / max(len(compact), 1)) >= 0.7
+
+
+def should_validate_as_answer(
+    analysis: AnalysisResult,
+    message: str,
+    current_step: str,
+    pending_identity: Optional[Dict[str, Any]] = None,
+) -> bool:
     """
     True when ValidateAnswer should run.
     Driven by LLM flags / attemptedValues — not duration regex.
+    Pre-create contact: always validate when the message has email/phone cues.
     """
     if analysis.prompt_injection:
         return False
+
+    pending = pending_identity if isinstance(pending_identity, dict) else {}
+    pending_email = bool(str(pending.get("email") or "").strip())
+    contact_step = current_step in _PRE_CREATE_CONTACT_STEPS
+    if contact_step and (
+        _message_has_email(message)
+        or _message_looks_like_phone_attempt(message)
+        or (pending_email and _message_looks_like_phone_attempt(message))
+    ):
+        return True
+
     if analysis.skip_intent and not analysis.has_extractable_content():
         return False
     if analysis.uncertain and not analysis.has_extractable_content() and not analysis.attempted_values:
@@ -285,6 +327,8 @@ def should_validate_as_answer(analysis: AnalysisResult, message: str, current_st
                 "delivery_mode",
                 "target_audiences",
             ):
+                return True
+            if contact_step:
                 return True
         return False
 

@@ -396,7 +396,9 @@ class SpeakerOnboardingAgent:
                 and analysis.intent not in ("ANSWER", "SKIP", "CHANGE_PREVIOUS")
             )
         )
-        if should_validate_as_answer(analysis, message or "", state.current_question_id):
+        if should_validate_as_answer(
+            analysis, message or "", state.current_question_id, pending_identity
+        ):
             conversational = False
 
         if conversational and analysis.intent not in ("ANSWER", "CHANGE_PREVIOUS", "SKIP"):
@@ -446,7 +448,7 @@ class SpeakerOnboardingAgent:
             )
 
         if analysis.intent in ("ANSWER", "CHANGE_PREVIOUS", "UNKNOWN") and not should_validate_as_answer(
-            analysis, message or "", state.current_question_id
+            analysis, message or "", state.current_question_id, pending_identity
         ):
             next_id = state.current_question_id
             if not state.has_profile:
@@ -639,17 +641,84 @@ class SpeakerOnboardingAgent:
             )
 
         if not validation.valid:
-            # Persist any partial pre-create extractions (email/phone) even when name is missing.
+            # Persist any partial pre-create extractions even when validation fails
+            # (e.g. INVALID_PHONE still keeps email in pending).
             if not state.has_profile and validation.normalized_updates:
                 pending_identity = merge_pending_identity(
                     pending_identity, validation.normalized_updates
                 )
+
+            # Invalid phone: keep email, ask phone only — never re-welcome / re-ask email.
+            if (
+                not state.has_profile
+                and validation.reason == "INVALID_PHONE"
+            ):
+                pending_email = (pending_identity.get("email") or "").strip()
+                msg = (
+                    validation.message
+                    or (
+                        "That phone number doesn't look valid. "
+                        "Please share a valid phone number (with country code if possible)."
+                    )
+                )
+                if pending_email:
+                    ack = (
+                        f"{msg} I've still got your email ({pending_email}). "
+                        "Could you share a valid phone number?"
+                    )
+                else:
+                    ack = msg
+                chat_session_id = await self._ensure_session_meta(
+                    chat_session_id=chat_session_id,
+                    session=session,
+                    speaker_profile_id="",
+                    steps_done=steps_done,
+                    skipped=skipped,
+                    pending_identity=pending_identity,
+                )
+                assistant = self._reply(
+                    client,
+                    user_message=message or "",
+                    ack=ack,
+                    next_question_id="",
+                    catalog=catalog,
+                    history=history,
+                    pending_identity=pending_identity,
+                    profile=None,
+                    steps_done=steps_done,
+                    has_profile=False,
+                    situation="invalid_phone",
+                    facts=[f"email={pending_email}"] if pending_email else None,
+                )
+                return await self._persist_and_return(
+                    message=message,
+                    assistant=assistant,
+                    chat_session_id=chat_session_id,
+                    session=session,
+                    speaker_profile_id=speaker_profile_id,
+                    profile=profile,
+                    action=None,
+                    steps_done=steps_done,
+                    skipped=skipped,
+                    pending_identity=pending_identity,
+                )
+
+            if not state.has_profile and validation.normalized_updates:
                 next_id = derive_pre_create_question(pending_identity)
                 msg = validation.message or "Could you try answering that again?"
+                pending_email = (pending_identity.get("email") or "").strip()
+                pending_phone = (pending_identity.get("phone_number") or "").strip()
                 if not (pending_identity.get("full_name") or "").strip():
                     msg = (
                         "Please share your professional name, title, and company first "
                         "(e.g., Jane Doe, MBA, PMP — Speaker, Acme Corp)."
+                    )
+                    next_id = ""
+                elif pending_email and not pending_phone:
+                    # Never re-ask email once saved
+                    msg = validation.message or (
+                        f"Thanks — I've got your email ({pending_email}). "
+                        "Could you also share your phone number?"
                     )
                     next_id = ""
                 assistant = self._reply(
@@ -664,6 +733,7 @@ class SpeakerOnboardingAgent:
                     steps_done=steps_done,
                     has_profile=False,
                     situation="reask",
+                    facts=[f"email={pending_email}"] if pending_email else None,
                 )
                 return await self._persist_and_return(
                     message=message,
@@ -678,6 +748,40 @@ class SpeakerOnboardingAgent:
                     pending_identity=pending_identity,
                 )
             msg = validation.message or "Could you try answering that again?"
+            # Pre-create contact re-ask: if we already have email, ask phone only
+            if not state.has_profile and (pending_identity.get("email") or "").strip():
+                pending_email = (pending_identity.get("email") or "").strip()
+                if not (pending_identity.get("phone_number") or "").strip():
+                    ack = (
+                        f"{msg} I've still got your email ({pending_email}). "
+                        "Could you share your phone number?"
+                    )
+                    assistant = self._reply(
+                        client,
+                        user_message=message or "",
+                        ack=ack,
+                        next_question_id="",
+                        catalog=catalog,
+                        history=history,
+                        pending_identity=pending_identity,
+                        profile=None,
+                        steps_done=steps_done,
+                        has_profile=False,
+                        situation="reask",
+                        facts=[f"email={pending_email}"],
+                    )
+                    return await self._persist_and_return(
+                        message=message,
+                        assistant=assistant,
+                        chat_session_id=chat_session_id,
+                        session=session,
+                        speaker_profile_id=speaker_profile_id,
+                        profile=profile,
+                        action=None,
+                        steps_done=steps_done,
+                        skipped=skipped,
+                        pending_identity=pending_identity,
+                    )
             if validation.reason in ("UNCERTAIN", "META", "OFF_LIST"):
                 if validation.reason == "OFF_LIST":
                     ack = validation.message or off_list_reask_ack(
@@ -725,7 +829,7 @@ class SpeakerOnboardingAgent:
                     client,
                     user_message=message or "",
                     ack=msg,
-                    next_question_id=state.current_question_id,
+                    next_question_id=state.current_question_id if state.has_profile else "",
                     catalog=catalog,
                     history=history,
                     pending_identity=pending_identity,
@@ -959,12 +1063,19 @@ class SpeakerOnboardingAgent:
                     "Let's start with your professional name, title, and company "
                     "(e.g., Jane Doe, MBA, PMP — Speaker, Acme Corp)."
                 )
+                facts = None
             elif email and not phone:
-                ack = "Thanks — could you also share your phone number?"
+                ack = (
+                    f"Thanks — I've got your email ({email}). "
+                    "Could you also share your phone number?"
+                )
+                facts = [f"email={email}"]
             elif phone and not email:
                 ack = "Thanks — could you share your email address?"
+                facts = None
             else:
                 ack = "Could you please provide your email and phone number?"
+                facts = None
             assistant = self._reply(
                 client,
                 user_message=message or "",
@@ -975,6 +1086,7 @@ class SpeakerOnboardingAgent:
                 pending_identity=pending_identity,
                 has_profile=False,
                 situation="reask",
+                facts=facts,
             )
             return await self._persist_and_return(
                 message=message,

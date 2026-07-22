@@ -16,6 +16,7 @@ from app.services.speaker_profile_chatbot_steps import (
     build_step_user_message,
     ensure_catalog_list_in_reply,
     speakerpitcher_welcome_already_sent,
+    strip_duplicate_speakerpitcher_welcome,
 )
 
 logger = logging.getLogger(__name__)
@@ -224,11 +225,22 @@ def generate_assistant_reply(
 
     facts_lines = [str(f).strip() for f in (facts or []) if str(f).strip()]
     skippable = next_question_id in SKIPPABLE_STEPS
+    welcome_sent = speakerpitcher_welcome_already_sent(history or [])
     catalog_note = (
         "This next step uses a fixed option list. Write only a short ack + a brief ask to choose "
         "from the list — do NOT paste bullet options; the server appends them."
         if next_question_id in OPTION_LIST_STEPS
         else "Do not invent catalog options."
+    )
+    welcome_rule = (
+        "FORBIDDEN: Do NOT say 'Thanks for joining SpeakerPitcher' or any joining-SpeakerPitcher welcome — "
+        "it was already sent. Do not invent a welcome."
+        if welcome_sent
+        else "Only include a SpeakerPitcher joining welcome if the template next question already has it."
+    )
+    name_rule = (
+        "Use ONLY the provided first name in acknowledgments. "
+        "Never invent a name from an email address (e.g. do not call them Alex because of alex@…)."
     )
 
     system = (
@@ -245,10 +257,13 @@ def generate_assistant_reply(
         "- Do not claim the profile is complete.\n"
         "- Plain text only; no markdown fences or JSON.\n"
         f"- {catalog_note}\n"
+        f"- {welcome_rule}\n"
+        f"- {name_rule}\n"
     )
     user_prompt = (
         f"Situation: {situation}\n"
-        f"First name (use sparingly in ack): {fn or '(unknown)'}\n"
+        f"First name (use sparingly in ack; from profile/pending full_name only): {fn or '(unknown)'}\n"
+        f"Welcome already sent: {welcome_sent}\n"
         f"Next question id: {next_question_id or '(none)'}\n"
         f"Skippable step: {skippable}\n"
         f"Must-mention facts:\n"
@@ -282,6 +297,8 @@ def generate_assistant_reply(
             if polished.lower().startswith("text"):
                 polished = polished[4:].lstrip()
             polished = polished.strip()
+        if welcome_sent:
+            polished = strip_duplicate_speakerpitcher_welcome(polished)
         return ensure_catalog_list_in_reply(
             has_profile=has_profile,
             profile_marked_complete=False,

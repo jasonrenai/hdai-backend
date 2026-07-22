@@ -1149,7 +1149,17 @@ If valid=true, fill all three (title-case / standard forms). If valid=false, use
 
 
 def speakerpitcher_welcome_in_text(text: str) -> bool:
-    return _SPEAKERPITCHER_WELCOME_LINE.lower() in (text or "").lower()
+    """True when assistant text includes the one-time SpeakerPitcher joining welcome (exact or paraphrased)."""
+    t = (text or "").lower()
+    if not t:
+        return False
+    if _SPEAKERPITCHER_WELCOME_LINE.lower() in t:
+        return True
+    if "thanks for joining speakerpitcher" in t or "thank you for joining speakerpitcher" in t:
+        return True
+    if "joining speakerpitcher" in t and ("profile" in t or "opportunities" in t):
+        return True
+    return False
 
 
 def speakerpitcher_welcome_already_sent(messages: List[Dict[str, Any]]) -> bool:
@@ -1160,14 +1170,27 @@ def speakerpitcher_welcome_already_sent(messages: List[Dict[str, Any]]) -> bool:
 
 
 def strip_duplicate_speakerpitcher_welcome(text: str) -> str:
-    """Remove the one-time welcome line when the model repeats it."""
+    """Remove the one-time welcome line when the model repeats it (exact or paraphrased)."""
     if not text or not speakerpitcher_welcome_in_text(text):
         return text
+    cleaned = text
+    # Exact canonical line
     pattern = re.compile(
         r"\s*" + re.escape(_SPEAKERPITCHER_WELCOME_LINE) + r"\.?\s*",
         re.IGNORECASE,
     )
-    cleaned = pattern.sub(" ", text).strip()
+    cleaned = pattern.sub(" ", cleaned)
+    # Paraphrased "thanks/thank you for joining SpeakerPitcher … opportunities/profile."
+    para = re.compile(
+        r"(?i)\s*(?:thanks|thank you) for joining speakerpitcher[!.,]?\s+"
+        r".{0,160}?(?:opportunities|profile)[^.!?\n]*[.!]?\s*"
+    )
+    cleaned = para.sub(" ", cleaned)
+    # Shorter joining + profile/opportunities sentence
+    para2 = re.compile(
+        r"(?i)\s*[^.!\n]*joining speakerpitcher[^.!\n]*(?:profile|opportunities)[^.!\n]*[.!]?\s*"
+    )
+    cleaned = para2.sub(" ", cleaned)
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()

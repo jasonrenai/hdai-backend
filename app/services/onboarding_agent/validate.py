@@ -21,6 +21,41 @@ _EMAIL_RE = re.compile(
 )
 _URL_RE = re.compile(r"^https?://", re.I)
 _PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{6,}\d)")
+_MIN_PHONE_DIGITS = 10
+_INVALID_PHONE_MESSAGE = (
+    "That phone number doesn't look valid. "
+    "Please share a valid phone number (with country code if possible)."
+)
+
+
+def _phone_digit_count(raw: str) -> int:
+    return sum(1 for c in (raw or "") if c.isdigit())
+
+
+def _looks_like_phone_attempt(message: str) -> bool:
+    text = (message or "").strip()
+    if not text:
+        return False
+    digits = _phone_digit_count(text)
+    if digits < 7:
+        return False
+    compact = re.sub(r"[\s().+-]+", "", text)
+    if not compact:
+        return False
+    return (digits / max(len(compact), 1)) >= 0.7
+
+
+def _extract_phone_candidate(message: str, updates: Dict[str, Any]) -> str:
+    phone = str(updates.get("phone_number") or "").strip()
+    if phone:
+        return phone
+    phone_match = _PHONE_RE.search(message or "")
+    if phone_match:
+        return phone_match.group(0).strip()
+    # Bare digit strings (e.g. "23695874") that fail the spaced phone regex
+    if _looks_like_phone_attempt(message or ""):
+        return re.sub(r"[^\d+]", "", (message or "").strip())
+    return ""
 
 CONFIDENCE_ACCEPT = 0.9
 CONFIDENCE_CONFIRM = 0.7
@@ -417,15 +452,27 @@ def validate_answer(
                 )
             normalized["email"] = email
 
-        phone = str(normalized.get("phone_number") or updates.get("phone_number") or "").strip()
+        phone = str(normalized.get("phone_number") or "").strip()
         if not phone:
-            phone_match = _PHONE_RE.search(message or "")
-            if phone_match:
-                digits = sum(1 for c in phone_match.group(0) if c.isdigit())
-                if digits >= 7:
-                    phone = phone_match.group(0).strip()
+            phone = _extract_phone_candidate(message or "", updates)
         if phone:
+            digits = _phone_digit_count(phone)
+            if digits < _MIN_PHONE_DIGITS:
+                # Keep any email already extracted; reject short/invalid phone.
+                return ValidationResult(
+                    valid=False,
+                    reason="INVALID_PHONE",
+                    message=_INVALID_PHONE_MESSAGE,
+                    normalized_updates={k: v for k, v in normalized.items() if k != "phone_number"},
+                )
             normalized["phone_number"] = phone
+        elif _looks_like_phone_attempt(message or ""):
+            return ValidationResult(
+                valid=False,
+                reason="INVALID_PHONE",
+                message=_INVALID_PHONE_MESSAGE,
+                normalized_updates=dict(normalized),
+            )
 
         # Identity step needs at least a name — trust LLM greetingOnly flag
         if step == "ask_identity" and not normalized.get("full_name"):
