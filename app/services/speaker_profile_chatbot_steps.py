@@ -132,11 +132,31 @@ STEP_GUIDELINES: Dict[str, str] = {
     "social": "Map URLs to linkedin_url, twitter, facebook, instagram. User may skip.",
     "bio": "Save plausible professional bio text only; re-ask gibberish.",
     "professional_memberships": "Extract title, organization, start_date, end_date, is_current objects; user may skip.",
-    "preferred_speaking_time": "Save only canonical values: 10-minute, 20-minute, 30-minute, 40-minute, 1 hour.",
-    "topics": "Show database topic bullets when asking; save exact names only; off-list → warm re-ask with the same list.",
-    "speaking_formats": "Show database format bullets when asking; exact names only; off-list → warm re-ask with the same list.",
-    "delivery_mode": "Show database delivery bullets when asking; exact names only; off-list → warm re-ask with the same list.",
-    "target_audiences": "Show database audience bullets when asking; exact names only; off-list → warm re-ask with the same list.",
+    "preferred_speaking_time": (
+        "Save only canonical values: 10-minute, 20-minute, 30-minute, 40-minute, 1 hour. "
+        "Off-list only → say not allowed, can add later from profile, advance. "
+        "Mixed → save allowed, mention others can be added later from profile, advance."
+    ),
+    "topics": (
+        "Show database topic bullets when asking; save exact names only. "
+        "Off-list only → not allowed + can add later from profile + advance. "
+        "Mixed → save allowed + not-allowed can add later from profile + advance."
+    ),
+    "speaking_formats": (
+        "Show database format bullets when asking; exact names only. "
+        "Off-list only → not allowed + can add later from profile + advance. "
+        "Mixed → save allowed + not-allowed can add later from profile + advance."
+    ),
+    "delivery_mode": (
+        "Show database delivery bullets when asking; exact names only. "
+        "Off-list only → not allowed + can add later from profile + advance. "
+        "Mixed → save allowed + not-allowed can add later from profile + advance."
+    ),
+    "target_audiences": (
+        "Show database audience bullets when asking; exact names only. "
+        "Off-list only → not allowed + can add later from profile + advance. "
+        "Mixed → save allowed + not-allowed can add later from profile + advance."
+    ),
     "talk_description": "Save as object with title and overview from user text.",
     "key_takeaways": "Array of strings; user may skip.",
     "past_speaking_examples": "Array of {organization_name, event_name, date_month_year}; user may skip.",
@@ -464,23 +484,24 @@ def build_checkpoint_for_prompt(
         "preferred_speaking_time": (
             "NEXT_SAVE: preferred_speaking_time — upsert as array of strings from allowed values: "
             + ", ".join(pst)
-            + " in this same turn."
+            + " in this same turn. Off-list/mixed: save matches only; say unmatched can be added later from profile; advance (no re-ask, no continue?)."
         ),
         "topics": (
             "NEXT_SAVE: topics — show TOPICS bullets when asking; upsert exact catalog names only same turn. "
-            "Off-list → warm re-ask to choose from the list (server appends bullets); do not save off-list text; do not advance."
+            "Off-list only → say not on list, can add later from profile, advance. "
+            "Mixed → save matches, say others can add later from profile, advance. Do not re-ask; do not ask continue?."
         ),
         "speaking_formats": (
             "NEXT_SAVE: speaking_formats — show SPEAKING FORMATS bullets when asking; upsert catalog matches only same turn. "
-            "Off-list → warm re-ask with the same list; do not advance."
+            "Off-list/mixed → not-allowed can add later from profile; advance (no re-ask)."
         ),
         "delivery_mode": (
             "NEXT_SAVE: delivery_mode — show DELIVERY MODE bullets when asking; upsert catalog matches only same turn. "
-            "Off-list → warm re-ask with the same list; do not advance."
+            "Off-list/mixed → not-allowed can add later from profile; advance (no re-ask)."
         ),
         "target_audiences": (
             "NEXT_SAVE: target_audiences — show TARGET AUDIENCES bullets when asking; upsert catalog matches only same turn. "
-            "Off-list → warm re-ask with the same list; do not advance."
+            "Off-list/mixed → not-allowed can add later from profile; advance (no re-ask)."
         ),
         "talk_description": (
             "NEXT_SAVE: talk_description — upsert as object {title, overview} in the same turn as their answer."
@@ -771,21 +792,24 @@ def ensure_catalog_list_in_reply(
 
 
 _CATALOG_CHOICE_RULES = (
-    "CATALOG STEPS (topics, speaking_formats, delivery_mode, target_audiences): "
-    "Allowed values come from the database catalog—use ONLY exact names from the step template / get_allowed_values. "
+    "CATALOG STEPS (topics, speaking_formats, delivery_mode, target_audiences) and preferred_speaking_time: "
+    "Allowed values come from the database catalog / allowed speaking times—use ONLY exact allowed names. "
     "FORBIDDEN: inventing, suggesting, or adding options not in that list. "
     "FORBIDDEN in user-facing text: saying 'options list is supplied separately', 'server appends', or any internal prompt wording. "
     "When MOVING TO a catalog step in your text reply: write ONLY a short ack (first name when known)—"
     "do NOT include the catalog question, list intro, or bullets; the server appends those after your ack. "
-    "When the user answers a catalog step: FIRST call upsert_speaker_profile (tool_calls) with only exact catalog matches. "
+    "When the user answers a catalog / fixed-list step: FIRST call upsert_speaker_profile (tool_calls) with only exact allowed matches. "
     "Do NOT say a field was saved unless the tool result saved_fields includes that field. "
-    "OFF-LIST (user free text matches ZERO allowed names for this step): omit that field in upsert; "
-    "in your text reply write ONLY a short warm line (first name when known) asking them to choose from the list below—"
-    "e.g. 'Thanks, Jane! That one isn't on our list—please pick from the options below.' "
-    "FORBIDDEN when off-list: saying they can add it later from their speaker profile; advancing to the next step; "
-    "claiming you saved their wording. Stay on the SAME step—the server re-appends the same question and bullets. "
-    "PARTIAL MATCH (some names match): save only matches, briefly confirm what was saved, then the server will show the next step. "
-    "FULL MATCH: brief ack only; server appends the next step's question and bullets when applicable."
+    "OFF-LIST ONLY (user text matches ZERO allowed names for this step): omit that field in upsert (or empty list). "
+    "In the SAME reply write a short warm line (first name when known) that those choices are not on the allowed list, "
+    "but they can add them later from their speaker profile—then stop. "
+    "Do NOT re-ask the same step; do NOT ask 'would you like to continue?'; "
+    "the server advances and appends the NEXT step's question/bullets after your ack. "
+    "MIXED (some allowed + some not allowed): upsert ONLY the allowed matches; "
+    "in the SAME reply (1) briefly confirm the exact allowed name(s) you saved, "
+    "(2) say the other named item(s) are not on the list but they can add them later from their speaker profile—"
+    "then stop. Do NOT ask 'continue?'; the server appends the NEXT step. "
+    "FULL MATCH (everything allowed): brief ack only; server appends the next step."
 )
 
 
@@ -894,14 +918,23 @@ def _pre_create_flow_block(subphase: str) -> str:
         return (
             "Before profile exists:\n"
             f"FORBIDDEN: Do NOT say '{welcome_exact}' again—it was already sent. Never repeat that welcome line.\n"
-            "Acknowledge using first name only, then ask for email and phone if still missing.\n"
-            "Do NOT call upsert until you have email.\n"
+            "EMAIL / PHONE COLLECTION (CRITICAL):\n"
+            "- If the user gives multiple emails, do NOT call upsert—ask which single email they want to use.\n"
+            "- If their reply is not a real email (random text, jokes, unrelated content), do NOT call upsert—"
+            "politely say it is not related to email and ask for a proper email address.\n"
+            "- Once you have exactly one valid email, if phone is still missing, ask for phone next.\n"
+            "- Do NOT call upsert until you have exactly one valid email AND a phone number.\n"
+            "Acknowledge using first name only.\n"
         )
     return (
         "Before profile exists:\n"
         f"FORBIDDEN: Do NOT say '{welcome_exact}' again—it was already sent.\n"
-        "Call upsert_speaker_profile once with full_name and email (omit speaker_profile_id). "
-        "Also pass professional_title, company, and phone_number when the user already provided them.\n"
+        "EMAIL / PHONE COLLECTION (CRITICAL):\n"
+        "- If multiple emails appear, ask which one to use; do not upsert yet.\n"
+        "- If content is not a real email, say so and re-ask for a proper email; do not upsert.\n"
+        "- Need exactly one valid email and a phone_number before create.\n"
+        "Call upsert_speaker_profile once with full_name, email, and phone_number (omit speaker_profile_id). "
+        "Also pass professional_title and company when the user already provided them.\n"
         "After create, acknowledge using first name only and ask location in one message.\n"
     )
 
@@ -1042,8 +1075,10 @@ def build_onboarding_script_prompt(
     if not has_profile and expected_step == CREATE_STEP:
         parts.append(
             "No profile yet: collect name, title, and company; then email and phone; "
-            "then one upsert with full_name and email (omit speaker_profile_id); "
-            "pass title, company, and phone when the user already provided them."
+            "then one upsert with full_name, email, and phone_number (omit speaker_profile_id); "
+            "pass title and company when the user already provided them. "
+            "If multiple emails: ask which one. If reply is not an email: say so and re-ask. "
+            "Do not upsert until one valid email and phone are present."
         )
     if expected_step in SKIPPABLE_STEPS:
         parts.append("User may skip; call upsert only if they provided data, then ask the next step.")
