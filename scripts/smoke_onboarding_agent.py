@@ -838,7 +838,11 @@ async def _test_welcome_once_via_session_flag():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe", "company": "Acme"},
+        "pending_identity": {
+            "full_name": "Chris Doe",
+            "professional_title": "Speaker",
+            "company": "Acme",
+        },
         "speakerpitcher_welcome_sent": True,
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
@@ -882,7 +886,11 @@ async def _test_welcome_blocked_by_history_without_flag():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe"},
+        "pending_identity": {
+            "full_name": "Chris Doe",
+            "professional_title": "Speaker",
+            "company": "Acme",
+        },
         "speakerpitcher_welcome_sent": False,
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
@@ -935,7 +943,7 @@ async def _test_first_welcome_sets_session_flag():
             "app.agents.SpeakerOnboardingAgent.extract_pre_create_identity",
             return_value={
                 "full_name": "Chris Doe",
-                "title": "CEO",
+                "professional_title": "CEO",
                 "company": "Acme",
             },
         ):
@@ -946,7 +954,7 @@ async def _test_first_welcome_sets_session_flag():
                     confidence=0.95,
                     profile_updates={
                         "full_name": "Chris Doe",
-                        "title": "CEO",
+                        "professional_title": "CEO",
                         "company": "Acme",
                     },
                 ),
@@ -1023,6 +1031,8 @@ async def _test_agent_email_then_invalid_phone():
         "skipped_questions": [],
         "pending_identity": {
             "full_name": "Chris Doe",
+            "professional_title": "Speaker",
+            "company": "Acme",
             "email": "alex@gmail.com",
         },
     }
@@ -1072,7 +1082,11 @@ async def _test_agent_help_intent_still_saves_email():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe", "company": "Acme"},
+        "pending_identity": {
+            "full_name": "Chris Doe",
+            "professional_title": "Speaker",
+            "company": "Acme",
+        },
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
     svc.profile_model.get_profile = AsyncMock(return_value=None)
@@ -1158,7 +1172,11 @@ async def _test_agent_precreate_contact_decline_required():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe", "company": "Acme"},
+        "pending_identity": {
+            "full_name": "Chris Doe",
+            "professional_title": "Speaker",
+            "company": "Acme",
+        },
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
     svc.profile_model.get_profile = AsyncMock(return_value=None)
@@ -1196,6 +1214,101 @@ def test_required_field_decline_mentions_cannot_skip():
     ack = required_field_decline_ack("location").lower()
     assert "cannot be skipped" in ack
     assert "city" in ack or "location" in ack
+
+
+def test_identity_title_followup_does_not_clobber_name():
+    """Name then 'CEO, DCL' must keep full_name and set title/company."""
+    from app.services.onboarding_agent.profile_update import merge_pending_identity
+    from app.services.speaker_profile_chatbot_steps import (
+        extract_pre_create_identity,
+        looks_like_person_name,
+    )
+    from app.services.onboarding_agent.validate import validate_answer
+    from app.services.onboarding_agent.question_schema import get_question
+
+    assert looks_like_person_name("Alison Dawson")
+    assert not looks_like_person_name("CEO, DCL")
+    assert not looks_like_person_name("CEO")
+
+    extracted = extract_pre_create_identity(
+        None,
+        "CEO, DCL",
+        pending_identity={"full_name": "Alison Dawson"},
+    )
+    assert extracted.get("professional_title", "").upper() == "CEO"
+    assert extracted.get("company", "").upper() == "DCL"
+    assert "full_name" not in extracted or not extracted.get("full_name")
+
+    merged = merge_pending_identity(
+        {"full_name": "Alison Dawson"},
+        {"full_name": "CEO, DCL", "professional_title": "CEO", "company": "DCL"},
+    )
+    assert merged["full_name"] == "Alison Dawson"
+    assert merged["professional_title"] == "CEO"
+    assert merged["company"] == "DCL"
+
+    q = get_question("ask_identity", {})
+    vr = validate_answer(
+        question=q,
+        analysis=AnalysisResult(intent="ANSWER", confidence=0.95, profile_updates={}),
+        message="CEO, DCL",
+        current_step="ask_identity",
+        pending_identity={"full_name": "Alison Dawson"},
+    )
+    assert vr.valid
+    assert vr.normalized_updates.get("professional_title") == "CEO"
+    assert vr.normalized_updates.get("company") == "DCL"
+    assert "full_name" not in (vr.normalized_updates or {})
+
+
+async def _test_agent_name_then_title_company():
+    """Agent: name first, then title/company — welcome uses Alison, not CEO."""
+    svc = _mock_svc()
+    session = {
+        "_id": "sess1",
+        "speaker_profile_id": "",
+        "conversation": [
+            {
+                "role": "assistant",
+                "content": "Please share your professional name, title, and company.",
+            },
+            {"role": "user", "content": "My name is Alison Dawson"},
+            {
+                "role": "assistant",
+                "content": "Thanks for sharing your name, Alison! Could you also share your title and company?",
+            },
+        ],
+        "onboarding_steps_done": [],
+        "skipped_questions": [],
+        "pending_identity": {"full_name": "Alison Dawson"},
+        "speakerpitcher_welcome_sent": False,
+    }
+    svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
+    svc.profile_model.get_profile = AsyncMock(return_value=None)
+    agent = SpeakerOnboardingAgent(svc)
+
+    with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), _template_replies():
+        with patch(
+            "app.agents.SpeakerOnboardingAgent.analyze_user_message",
+            return_value=AnalysisResult(
+                intent="ANSWER",
+                confidence=0.9,
+                # Simulate Analyze wrongly stuffing title/company into full_name
+                profile_updates={"full_name": "CEO, DCL"},
+            ),
+        ):
+            out = await agent.handle_turn(
+                message="CEO, DCL",
+                chat_session_id="sess1",
+            )
+
+    pending_arg = svc.chat_session_model.update_pending_identity.call_args[0][1]
+    assert (pending_arg or {}).get("full_name") == "Alison Dawson"
+    assert (pending_arg or {}).get("professional_title") == "CEO"
+    assert (pending_arg or {}).get("company") == "DCL"
+    lower = (out["assistant_message"] or "").lower()
+    assert "alison" in lower or "joining speakerpitcher" in lower
+    assert not lower.startswith("thanks for sharing your details, ceo")
 
 
 def test_partial_contact_ask_only_missing():
@@ -1335,6 +1448,7 @@ def main():
     test_paraphrased_welcome_already_sent()
     test_invalid_phone_keeps_email()
     test_should_validate_contact_help_with_email()
+    test_identity_title_followup_does_not_clobber_name()
     test_partial_contact_ask_only_missing()
     test_recent_inputs_and_multi_step_partials()
     test_required_field_decline_mentions_cannot_skip()
@@ -1356,6 +1470,7 @@ def main():
     asyncio.run(_test_welcome_once_via_session_flag())
     asyncio.run(_test_welcome_blocked_by_history_without_flag())
     asyncio.run(_test_first_welcome_sets_session_flag())
+    asyncio.run(_test_agent_name_then_title_company())
     print("smoke behaviors ok")
 
 

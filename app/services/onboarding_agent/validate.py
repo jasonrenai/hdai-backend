@@ -11,6 +11,7 @@ from app.services.speaker_profile_chatbot_steps import (
     CATALOG_STEPS,
     SKIPPABLE_STEPS,
     looks_like_invalid_location_answer,
+    looks_like_person_name,
     normalize_preferred_speaking_times,
     validate_and_normalize_location,
 )
@@ -126,6 +127,7 @@ def validate_answer(
     catalog: Optional[Dict[str, List[str]]] = None,
     client: Any = None,
     current_step: str = "",
+    pending_identity: Optional[Dict[str, Any]] = None,
 ) -> ValidationResult:
     """
     Deterministic validation for the current question's fields in profile_updates.
@@ -477,6 +479,8 @@ def validate_answer(
         # Identity step needs at least a name — trust LLM greetingOnly flag
         if step == "ask_identity" and not normalized.get("full_name"):
             msg = (message or "").strip()
+            pending = pending_identity if isinstance(pending_identity, dict) else {}
+            pending_name = str(pending.get("full_name") or "").strip()
             if analysis.greeting_only or (msg and len(msg.split()) <= 2 and "@" not in msg and not _PHONE_RE.search(msg) and msg.lower().rstrip(".!") in {
                 "hi", "hello", "hey", "howdy", "yo", "sup",
             }):
@@ -485,14 +489,59 @@ def validate_answer(
                     reason="GREETING",
                     message="Please share your professional name, title, and company.",
                 )
+            if pending_name:
+                # Name already known — do not treat title/company follow-ups as a new full_name.
+                # Prefer fields already extracted; if still empty, split "CEO, DCL".
+                if not normalized.get("professional_title") and not normalized.get("company"):
+                    parts = [p.strip() for p in msg.split(",") if p.strip()]
+                    if len(parts) >= 2:
+                        normalized["professional_title"] = parts[0]
+                        normalized["company"] = ", ".join(parts[1:])
+                    elif msg and looks_like_person_name(msg) is False:
+                        # Bare title token
+                        from app.services.speaker_profile_chatbot_steps import _COMMON_TITLE_TOKENS
+
+                        if msg.lower() in _COMMON_TITLE_TOKENS:
+                            normalized["professional_title"] = msg
+                        elif msg:
+                            normalized["company"] = msg
+                # Valid if we have title and/or company updates (or already had them in analysis)
+                if normalized.get("professional_title") or normalized.get("company"):
+                    return ValidationResult(valid=True, normalized_updates=normalized)
+                return ValidationResult(
+                    valid=bool(normalized),
+                    normalized_updates=normalized,
+                    reason="" if normalized else "EMPTY",
+                    message="" if normalized else "Could you share your title and company?",
+                )
             if (
                 msg
                 and len(msg.split()) <= 8
                 and "@" not in msg
                 and not _PHONE_RE.search(msg)
                 and not analysis.greeting_only
+                and looks_like_person_name(msg)
             ):
                 normalized["full_name"] = msg
+            elif (
+                msg
+                and len(msg.split()) <= 8
+                and "@" not in msg
+                and not _PHONE_RE.search(msg)
+                and not analysis.greeting_only
+            ):
+                # Short non-name message without pending name — still accept as name only if
+                # it looks like "My name is X" or multi-token; else ask again
+                lower = msg.lower()
+                if lower.startswith("my name is ") or looks_like_person_name(msg):
+                    normalized["full_name"] = msg
+                else:
+                    return ValidationResult(
+                        valid=False,
+                        reason="MISSING_NAME",
+                        message="Please share your professional name, title, and company.",
+                        normalized_updates=normalized,
+                    )
             else:
                 # Keep any email/phone we already extracted; still need a name.
                 return ValidationResult(

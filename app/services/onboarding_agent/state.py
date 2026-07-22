@@ -73,13 +73,17 @@ def derive_pre_create_question(pending_identity: Optional[Dict[str, Any]]) -> st
     Pre-create step from accumulated pending_identity — NOT from chat history.
 
     Order: name/title/company → email/phone → ready to create.
+    Stay on ask_identity until we have a name plus title and company so follow-ups
+    like "CEO, DCL" are not treated as contact answers (and cannot clobber the name).
     """
     pending = pending_identity if isinstance(pending_identity, dict) else {}
     full_name = str(pending.get("full_name") or "").strip()
+    title = str(pending.get("professional_title") or "").strip()
+    company = str(pending.get("company") or "").strip()
     email = str(pending.get("email") or "").strip()
     phone = str(pending.get("phone_number") or "").strip()
 
-    if not full_name:
+    if not full_name or not title or not company:
         return PRE_CREATE_ASK_IDENTITY
     if email and phone:
         return PRE_CREATE_READY

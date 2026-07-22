@@ -367,9 +367,29 @@ class SpeakerOnboardingAgent:
             and analysis.intent in ("ANSWER", "UNKNOWN", "CHANGE_PREVIOUS")
             and not analysis.greeting_only
         ):
-            extracted = extract_pre_create_identity(client, message or "")
-            if extracted:
-                analysis.profile_updates = {**analysis.profile_updates, **extracted}
+            extracted = extract_pre_create_identity(
+                client, message or "", pending_identity=pending_identity
+            )
+            from app.services.speaker_profile_chatbot_steps import (
+                _scrub_identity_against_pending,
+            )
+
+            combined = {**(analysis.profile_updates or {}), **(extracted or {})}
+            # Drop Analyze hallucinations that treat title/company as a new name
+            identity_keys = ("full_name", "professional_title", "company")
+            scrubbed = _scrub_identity_against_pending(
+                {k: str(combined[k]) for k in identity_keys if combined.get(k)},
+                pending_identity,
+                message or "",
+            )
+            for k in identity_keys:
+                if k in scrubbed:
+                    combined[k] = scrubbed[k]
+                else:
+                    combined.pop(k, None)
+            if extracted or scrubbed or combined != (analysis.profile_updates or {}):
+                analysis.profile_updates = combined
+            if extracted or scrubbed:
                 analysis.intent = "ANSWER"
                 analysis.confidence = max(analysis.confidence, 0.85)
                 analysis.gibberish = False
@@ -637,6 +657,7 @@ class SpeakerOnboardingAgent:
             catalog=catalog,
             client=client,
             current_step=state.current_question_id,
+            pending_identity=pending_identity,
         )
 
         if analysis.gibberish and not validation.valid:
@@ -931,8 +952,17 @@ class SpeakerOnboardingAgent:
             if phone:
                 pending_identity["phone_number"] = phone
 
-            # After identity → welcome + ask contact
-            if full_name and not email and not phone and state.current_question_id == PRE_CREATE_ASK_IDENTITY:
+            # After identity (name + title + company) → welcome + ask contact
+            title = (pending_identity.get("professional_title") or "").strip()
+            company = (pending_identity.get("company") or "").strip()
+            if (
+                full_name
+                and title
+                and company
+                and not email
+                and not phone
+                and state.current_question_id == PRE_CREATE_ASK_IDENTITY
+            ):
                 chat_session_id = await self._ensure_session_meta(
                     chat_session_id=chat_session_id,
                     session=session,
@@ -1083,29 +1113,39 @@ class SpeakerOnboardingAgent:
                 skipped=skipped,
                 pending_identity=pending_identity,
             )
+            title = (pending_identity.get("professional_title") or "").strip()
+            company = (pending_identity.get("company") or "").strip()
             if not full_name:
                 ack = (
                     "Let's start with your professional name, title, and company "
                     "(e.g., Jane Doe, MBA, PMP — Speaker, Acme Corp)."
                 )
+                next_id = PRE_CREATE_ASK_IDENTITY
+                facts = None
+            elif not title or not company:
+                ack = ""
+                next_id = PRE_CREATE_ASK_IDENTITY
                 facts = None
             elif email and not phone:
                 ack = (
                     f"Thanks — I've got your email ({email}). "
                     "Could you also share your phone number?"
                 )
+                next_id = ""
                 facts = [f"email={email}"]
             elif phone and not email:
                 ack = "Thanks — could you share your email address?"
+                next_id = ""
                 facts = None
             else:
                 ack = "Could you please provide your email and phone number?"
+                next_id = PRE_CREATE_PROMPT_WELCOME if not email and not phone else ""
                 facts = None
             assistant = self._reply(
                 client,
                 user_message=message or "",
                 ack=ack,
-                next_question_id="",
+                next_question_id=next_id,
                 catalog=catalog,
                 history=history,
                 pending_identity=pending_identity,

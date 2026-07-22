@@ -104,9 +104,35 @@ def merge_pending_identity(
     pending: Optional[Dict[str, Any]],
     updates: Dict[str, Any],
 ) -> Dict[str, Any]:
+    """
+    Merge identity/contact fields into pending.
+    Never overwrite an existing full_name with a value that does not look like a person name
+    (e.g. title/company follow-ups like "CEO, DCL").
+    """
+    from app.services.speaker_profile_chatbot_steps import looks_like_person_name
+
     merged = dict(pending or {})
+    existing_name = str(merged.get("full_name") or "").strip()
     for k in ("full_name", "professional_title", "company", "email", "phone_number"):
         v = updates.get(k)
-        if isinstance(v, str) and v.strip():
-            merged[k] = v.strip()
+        if not isinstance(v, str) or not v.strip():
+            continue
+        val = v.strip()
+        if k == "full_name" and existing_name:
+            # Protect known name from title/company dumps or same-as-title overwrites
+            if not looks_like_person_name(val):
+                continue
+            title = str(updates.get("professional_title") or merged.get("professional_title") or "").strip()
+            company = str(updates.get("company") or merged.get("company") or "").strip()
+            if title and company and val.lower() in {
+                f"{title}, {company}".lower(),
+                f"{title} {company}".lower(),
+                title.lower(),
+            }:
+                continue
+            if val.lower() == existing_name.lower():
+                continue
+        merged[k] = val
+        if k == "full_name":
+            existing_name = val
     return merged
