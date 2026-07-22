@@ -59,8 +59,8 @@ from app.services.speaker_profile_chatbot_steps import (
 
 logger = logging.getLogger(__name__)
 
-_CHATBOT_MODEL = "gpt-5"
-# gpt-5 family typically only supports the default temperature (1); do not pass temperature.
+_CHATBOT_MODEL = "gpt-4o-mini"
+_CHATBOT_TEMPERATURE = 0.25
 
 
 def _jwt_user_id(user: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -1746,6 +1746,7 @@ class SpeakerProfileChatbotService:
                 messages=chat_messages,
                 tools=tools,
                 tool_choice=tool_choice,
+                temperature=_CHATBOT_TEMPERATURE,
                 timeout=30,
             )
             msg = completion.choices[0].message
@@ -2049,6 +2050,7 @@ class SpeakerProfileChatbotService:
                     s = client.chat.completions.create(
                         model=_CHATBOT_MODEL,
                         messages=chat_messages + [{"role": "user", "content": prompt}],
+                        temperature=0.3,
                         timeout=15,
                     )
                     assistant_content = (s.choices[0].message.content or "").strip()
@@ -2076,6 +2078,7 @@ class SpeakerProfileChatbotService:
                         s = client.chat.completions.create(
                             model=_CHATBOT_MODEL,
                             messages=chat_messages + [{"role": "user", "content": prompt}],
+                            temperature=0.3,
                             timeout=15,
                         )
                         assistant_content = (s.choices[0].message.content or "").strip()
