@@ -70,13 +70,9 @@ TARGET_AUDIENCES = [
 MANDATORY_FIELDS = [
     "full_name",
     "email",
-    "topics",
-    "speaking_formats",
-    "delivery_mode",
-    "target_audiences",
 ]
 
-# Optional fields (asked after all mandatory are filled)
+# Optional fields (asked after profile create; not required to set isCompleted)
 OPTIONAL_FIELDS = [
     "talk_description",
     "key_takeaways",
@@ -95,16 +91,16 @@ OPTIONAL_FIELDS = [
     "address_country",
     "phone_number",
     "preferred_speaking_time",
+    "topics",
+    "speaking_formats",
+    "delivery_mode",
+    "target_audiences",
 ]
 
 # Human-readable labels for mandatory fields (used in user-facing messages)
 MANDATORY_FIELDS_DISPLAY = {
     "full_name": "Full name",
     "email": "Email",
-    "topics": "Topics",
-    "speaking_formats": "Speaking formats",
-    "delivery_mode": "Delivery mode",
-    "target_audiences": "Target audiences",
 }
 
 # Human-readable labels for optional fields (used in LLM prompts / user-facing messages)
@@ -126,4 +122,8 @@ OPTIONAL_FIELDS_DISPLAY = {
     "address_country": "Address country",
     "phone_number": "Phone number",
     "preferred_speaking_time": "Preferred speaking time",
+    "topics": "Topics",
+    "speaking_formats": "Speaking formats",
+    "delivery_mode": "Delivery mode",
+    "target_audiences": "Target audiences",
 }
