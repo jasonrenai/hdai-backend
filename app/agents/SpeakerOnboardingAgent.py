@@ -364,8 +364,12 @@ class SpeakerOnboardingAgent:
         if (
             not state.has_profile
             and state.current_question_id == PRE_CREATE_ASK_IDENTITY
-            and analysis.intent in ("ANSWER", "UNKNOWN", "CHANGE_PREVIOUS")
+            and analysis.intent
+            in ("ANSWER", "UNKNOWN", "CHANGE_PREVIOUS", "HELP", "SMALL_TALK", "ASK_QUESTION")
             and not analysis.greeting_only
+            and not analysis.skip_intent
+            and analysis.intent != "SKIP"
+            and analysis.intent != "QUIT"
         ):
             extracted = extract_pre_create_identity(client, message or "")
             if extracted:
@@ -374,6 +378,8 @@ class SpeakerOnboardingAgent:
                 analysis.confidence = max(analysis.confidence, 0.85)
                 analysis.gibberish = False
                 analysis.greeting_only = False
+                analysis.uncertain = False
+                analysis.meta_question = False
 
         action: Optional[str] = None
         profile_marked_complete = False
@@ -538,7 +544,11 @@ class SpeakerOnboardingAgent:
                     steps_done=steps_done,
                     has_profile=state.has_profile,
                     situation="refuse_skip",
-                    facts=["required=true", f"field={next_id}"],
+                    facts=[
+                        "required=true",
+                        "cannot_skip=true",
+                        f"field={next_id}",
+                    ],
                 )
                 return await self._persist_and_return(
                     message=message,
@@ -922,13 +932,76 @@ class SpeakerOnboardingAgent:
             email = (pending_identity.get("email") or updates.get("email") or "").strip().lower()
             phone = (pending_identity.get("phone_number") or updates.get("phone_number") or "").strip()
             full_name = (pending_identity.get("full_name") or "").strip()
+            title = (pending_identity.get("professional_title") or "").strip()
+            company = (pending_identity.get("company") or "").strip()
             if email:
                 pending_identity["email"] = email
             if phone:
                 pending_identity["phone_number"] = phone
 
-            # After identity → welcome + ask contact
-            if full_name and not email and not phone and state.current_question_id == PRE_CREATE_ASK_IDENTITY:
+            # Partial identity: name (and/or some fields) saved — ask only what's still missing
+            identity_complete = bool(full_name and title and company)
+            if (
+                full_name
+                and not identity_complete
+                and not email
+                and not phone
+                and state.current_question_id == PRE_CREATE_ASK_IDENTITY
+            ):
+                chat_session_id = await self._ensure_session_meta(
+                    chat_session_id=chat_session_id,
+                    session=session,
+                    speaker_profile_id="",
+                    steps_done=steps_done,
+                    skipped=skipped,
+                    pending_identity=pending_identity,
+                    pending_confirmation=None,
+                )
+                fn = first_name(full_name)
+                if title and not company:
+                    ack = f"Thanks{', ' + fn if fn else ''} — I've got your name and title."
+                elif company and not title:
+                    ack = f"Thanks{', ' + fn if fn else ''} — I've got your name and company."
+                else:
+                    ack = f"Thank you for sharing your name{', ' + fn if fn else ''}!"
+                assistant = self._reply(
+                    client,
+                    user_message=message or "",
+                    ack=ack,
+                    next_question_id=PRE_CREATE_ASK_IDENTITY,
+                    catalog=catalog,
+                    history=history,
+                    pending_identity=pending_identity,
+                    profile=None,
+                    steps_done=steps_done,
+                    has_profile=False,
+                    situation="answered",
+                    facts=[
+                        f"full_name={full_name}",
+                        *([f"professional_title={title}"] if title else []),
+                        *([f"company={company}"] if company else []),
+                    ],
+                )
+                return await self._persist_and_return(
+                    message=message,
+                    assistant=assistant,
+                    chat_session_id=chat_session_id,
+                    session=session,
+                    speaker_profile_id=None,
+                    profile=None,
+                    action=None,
+                    steps_done=steps_done,
+                    skipped=skipped,
+                    pending_identity=pending_identity,
+                )
+
+            # After full identity → welcome + ask contact
+            if (
+                identity_complete
+                and not email
+                and not phone
+                and state.current_question_id == PRE_CREATE_ASK_IDENTITY
+            ):
                 chat_session_id = await self._ensure_session_meta(
                     chat_session_id=chat_session_id,
                     session=session,
@@ -1079,13 +1152,40 @@ class SpeakerOnboardingAgent:
                 skipped=skipped,
                 pending_identity=pending_identity,
             )
-            if not full_name:
-                ack = (
-                    "Let's start with your professional name, title, and company "
-                    "(e.g., Jane Doe, MBA, PMP — Speaker, Acme Corp)."
+            title = (pending_identity.get("professional_title") or "").strip()
+            company = (pending_identity.get("company") or "").strip()
+            if not full_name or not title or not company:
+                fn = first_name(full_name) if full_name else ""
+                if full_name and (not title or not company):
+                    ack = f"Thank you for sharing your name{', ' + fn if fn else ''}!"
+                else:
+                    ack = (
+                        "Let's start with your professional name, title, and company "
+                        "(e.g., Jane Doe, MBA, PMP — Speaker, Acme Corp)."
+                    )
+                assistant = self._reply(
+                    client,
+                    user_message=message or "",
+                    ack=ack,
+                    next_question_id=PRE_CREATE_ASK_IDENTITY,
+                    catalog=catalog,
+                    history=history,
+                    pending_identity=pending_identity,
+                    has_profile=False,
+                    situation="reask",
+                    facts=[f"full_name={full_name}"] if full_name else None,
                 )
-                facts = None
-            elif email and not phone:
+                return await self._persist_and_return(
+                    message=message,
+                    assistant=assistant,
+                    chat_session_id=chat_session_id,
+                    session=session,
+                    speaker_profile_id=None,
+                    profile=None,
+                    action=None,
+                    pending_identity=pending_identity,
+                )
+            if email and not phone:
                 ack = (
                     f"Thanks — I've got your email ({email}). "
                     "Could you also share your phone number?"
@@ -1101,7 +1201,7 @@ class SpeakerOnboardingAgent:
                 client,
                 user_message=message or "",
                 ack=ack,
-                next_question_id="",
+                next_question_id=PRE_CREATE_PROMPT_WELCOME if not email and not phone else "",
                 catalog=catalog,
                 history=history,
                 pending_identity=pending_identity,

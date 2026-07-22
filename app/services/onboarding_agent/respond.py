@@ -12,9 +12,11 @@ from app.services.speaker_profile_chatbot_steps import (
     PRE_CREATE_PROMPT_WELCOME,
     PRE_CREATE_READY,
     SKIPPABLE_STEPS,
+    STEP_UPSERT_FIELDS,
     build_identity_welcome_reply,
     build_step_user_message,
     ensure_catalog_list_in_reply,
+    looks_like_prompt_injection,
     speakerpitcher_welcome_already_sent,
     strip_duplicate_speakerpitcher_welcome,
 )
@@ -32,6 +34,61 @@ _PROFILE_COMPLETION_MESSAGE = (
 )
 
 _IDENTITY_EMAIL_PHONE_QUESTION = "Could you please provide your email and phone number?"
+_IDENTITY_PHONE_ONLY_QUESTION = "Could you please share your phone number?"
+_IDENTITY_EMAIL_ONLY_QUESTION = "Could you please share your email address?"
+_IDENTITY_FULL_QUESTION = "Please share your professional name, title, and company."
+
+_CONTACT_QUESTION_IDS = frozenset(
+    {
+        PRE_CREATE_PROMPT_WELCOME,
+        PRE_CREATE_POST_WELCOME,
+        PRE_CREATE_READY,
+        "create_profile",
+    }
+)
+
+_PENDING_CONTEXT_KEYS = (
+    "full_name",
+    "professional_title",
+    "company",
+    "email",
+    "phone_number",
+)
+
+_PROFILE_CONTEXT_KEYS = (
+    "full_name",
+    "professional_title",
+    "company",
+    "email",
+    "phone_number",
+    "address_city",
+    "address_state",
+    "address_country",
+    "bio",
+    "linkedin_url",
+    "website_url",
+    "twitter",
+    "facebook",
+    "instagram",
+)
+
+_FIELD_ASK_LABELS = {
+    "full_name": "professional name",
+    "professional_title": "title",
+    "company": "company",
+    "email": "email",
+    "phone_number": "phone number",
+    "address_city": "city",
+    "address_state": "state or province",
+    "address_country": "country",
+    "linkedin_url": "LinkedIn",
+    "twitter": "X/Twitter",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+}
+
+_RECENT_USER_INPUT_LIMIT = 5
+_RECENT_USER_INPUT_MAX_CHARS = 500
 
 
 def completion_message() -> str:
@@ -47,26 +104,253 @@ def first_name(full_name: str) -> str:
     return parts[0] if parts else ""
 
 
+def _nonempty_str(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (list, dict)):
+        return ""
+    return str(value).strip()
+
+
+def recent_valid_user_inputs(
+    history: Optional[List[Dict[str, Any]]],
+    *,
+    limit: int = _RECENT_USER_INPUT_LIMIT,
+    max_chars: int = _RECENT_USER_INPUT_MAX_CHARS,
+) -> List[str]:
+    """
+    Last N non-empty user messages from history (oldest→newest).
+    Skips prompt-injection-looking text; truncates long messages.
+    """
+    collected: List[str] = []
+    for msg in history or []:
+        if (msg or {}).get("role") != "user":
+            continue
+        text = _nonempty_str((msg or {}).get("content"))
+        if not text:
+            continue
+        if looks_like_prompt_injection(text):
+            continue
+        if len(text) > max_chars:
+            text = text[:max_chars].rstrip() + "…"
+        collected.append(text)
+    if limit <= 0:
+        return []
+    return collected[-limit:]
+
+
+def _contact_ask_only(pending_identity: Optional[Dict[str, Any]]) -> str:
+    """Return 'phone' | 'email' | 'both' based on pending contact fields."""
+    pending = pending_identity if isinstance(pending_identity, dict) else {}
+    email = _nonempty_str(pending.get("email"))
+    phone = _nonempty_str(pending.get("phone_number"))
+    if email and not phone:
+        return "phone"
+    if phone and not email:
+        return "email"
+    return "both"
+
+
+def _contact_question_text(pending_identity: Optional[Dict[str, Any]]) -> str:
+    ask = _contact_ask_only(pending_identity)
+    if ask == "phone":
+        return _IDENTITY_PHONE_ONLY_QUESTION
+    if ask == "email":
+        return _IDENTITY_EMAIL_ONLY_QUESTION
+    return _IDENTITY_EMAIL_PHONE_QUESTION
+
+
+def _step_fields_for_partial(question_id: str) -> List[str]:
+    if question_id == PRE_CREATE_ASK_IDENTITY:
+        return ["full_name", "professional_title", "company"]
+    if question_id in _CONTACT_QUESTION_IDS:
+        return ["email", "phone_number"]
+    if question_id == "location":
+        return sorted(STEP_UPSERT_FIELDS.get("location") or [])
+    if question_id == "social":
+        return sorted(STEP_UPSERT_FIELDS.get("social") or [])
+    return []
+
+
+def _join_field_labels(fields: List[str]) -> str:
+    labels = [_FIELD_ASK_LABELS.get(f, f.replace("_", " ")) for f in fields]
+    if not labels:
+        return ""
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{labels[0]} and {labels[1]}"
+    return ", ".join(labels[:-1]) + f", and {labels[-1]}"
+
+
+def _identity_question_text(pending_identity: Optional[Dict[str, Any]]) -> str:
+    pending = pending_identity if isinstance(pending_identity, dict) else {}
+    fields = _step_fields_for_partial(PRE_CREATE_ASK_IDENTITY)
+    missing = [f for f in fields if not _nonempty_str(pending.get(f))]
+    if not missing or len(missing) == len(fields):
+        return _IDENTITY_FULL_QUESTION
+    return f"Could you also share your {_join_field_labels(missing)}?"
+
+
+def _location_question_text(profile: Optional[dict]) -> str:
+    prof = profile if isinstance(profile, dict) else {}
+    fields = _step_fields_for_partial("location")
+    missing = [f for f in fields if not _nonempty_str(prof.get(f))]
+    if not missing or len(missing) == len(fields):
+        return build_step_user_message("location", None)
+    if missing == ["address_state"]:
+        return "What state or province are you based in?"
+    if missing == ["address_city"]:
+        return "What city are you based in?"
+    if missing == ["address_country"]:
+        return "What country are you based in?"
+    return f"Could you also share your {_join_field_labels(missing)}?"
+
+
+def _social_question_text(profile: Optional[dict]) -> str:
+    prof = profile if isinstance(profile, dict) else {}
+    fields = _step_fields_for_partial("social")
+    have = [f for f in fields if _nonempty_str(prof.get(f))]
+    missing = [f for f in fields if not _nonempty_str(prof.get(f))]
+    if not have or not missing:
+        return build_step_user_message("social", None)
+    return (
+        "Do you have any other professional social URLs to add "
+        f"(e.g. {_join_field_labels(missing)})? You can also say skip."
+    )
+
+
+def _compute_step_partial(
+    *,
+    question_id: str,
+    known: Dict[str, str],
+) -> Optional[Dict[str, Any]]:
+    fields = _step_fields_for_partial(question_id)
+    if len(fields) < 2:
+        return None
+    have = [f for f in fields if known.get(f)]
+    missing = [f for f in fields if not known.get(f)]
+    if not have:
+        return None
+    return {
+        "have": have,
+        "missing": missing,
+        "ask_only": missing if missing else list(fields),
+    }
+
+
+def build_reply_user_context(
+    *,
+    pending_identity: Optional[Dict[str, Any]] = None,
+    profile: Optional[dict] = None,
+    next_question_id: str = "",
+) -> Dict[str, Any]:
+    """
+    Compact known-user snapshot for reply polish.
+    Omits empty values; adds step_partial / contact hints for multi-field steps.
+    """
+    known: Dict[str, str] = {}
+    pending = pending_identity if isinstance(pending_identity, dict) else {}
+    for key in _PENDING_CONTEXT_KEYS:
+        val = _nonempty_str(pending.get(key))
+        if val:
+            known[key] = val
+
+    prof = profile if isinstance(profile, dict) else {}
+    for key in _PROFILE_CONTEXT_KEYS:
+        if key in known:
+            continue
+        val = _nonempty_str(prof.get(key))
+        if val:
+            known[key] = val
+
+    ctx: Dict[str, Any] = {"known": known}
+    if next_question_id in _CONTACT_QUESTION_IDS:
+        email = _nonempty_str(pending.get("email")) or _nonempty_str(prof.get("email"))
+        phone = _nonempty_str(pending.get("phone_number")) or _nonempty_str(
+            prof.get("phone_number")
+        )
+        have_email = bool(email)
+        have_phone = bool(phone)
+        if have_email and not have_phone:
+            ask_only = "phone"
+        elif have_phone and not have_email:
+            ask_only = "email"
+        else:
+            ask_only = "both"
+        ctx["contact"] = {
+            "have_email": have_email,
+            "have_phone": have_phone,
+            "ask_only": ask_only,
+        }
+
+    step_partial = _compute_step_partial(question_id=next_question_id or "", known=known)
+    if step_partial:
+        ctx["step_partial"] = step_partial
+    return ctx
+
+
+def format_reply_user_context_lines(ctx: Dict[str, Any]) -> List[str]:
+    """Labeled lines for the LLM prompt."""
+    lines: List[str] = []
+    known = ctx.get("known") if isinstance(ctx.get("known"), dict) else {}
+    if known:
+        for key, val in known.items():
+            lines.append(f"{key}={val}")
+    else:
+        lines.append("(none)")
+    contact = ctx.get("contact")
+    if isinstance(contact, dict):
+        lines.append(
+            "contact_ask_only="
+            f"{contact.get('ask_only')} "
+            f"(have_email={contact.get('have_email')}, have_phone={contact.get('have_phone')})"
+        )
+    step_partial = ctx.get("step_partial")
+    if isinstance(step_partial, dict):
+        lines.append(
+            "step_partial "
+            f"have={step_partial.get('have')} "
+            f"missing={step_partial.get('missing')} "
+            f"ask_only={step_partial.get('ask_only')}"
+        )
+    return lines
+
+
 def build_next_question_text(
     question_id: str,
     catalog: Optional[Dict[str, List[str]]],
     *,
     history: Optional[List[Dict[str, Any]]] = None,
     pending_identity: Optional[Dict[str, Any]] = None,
+    profile: Optional[dict] = None,
     welcome_sent: bool = False,
 ) -> str:
     if not question_id:
         return ""
     if question_id == PRE_CREATE_ASK_IDENTITY:
-        return "Please share your professional name, title, and company."
+        return _identity_question_text(pending_identity)
     if question_id == PRE_CREATE_PROMPT_WELCOME:
         full_name = (pending_identity or {}).get("full_name") or ""
         already = welcome_sent or speakerpitcher_welcome_already_sent(history or [])
+        contact_q = _contact_question_text(pending_identity)
         if full_name and not already:
-            return build_identity_welcome_reply(full_name)
-        return _IDENTITY_EMAIL_PHONE_QUESTION
+            # Welcome once, then ask only for still-missing contact fields
+            welcome = build_identity_welcome_reply(full_name)
+            # build_identity_welcome_reply embeds dual ask — replace with context-aware ask
+            dual = _IDENTITY_EMAIL_PHONE_QUESTION
+            if dual in welcome and contact_q != dual:
+                return welcome.replace(dual, contact_q)
+            return welcome
+        return contact_q
     if question_id in (PRE_CREATE_POST_WELCOME, PRE_CREATE_READY, "create_profile"):
-        return _IDENTITY_EMAIL_PHONE_QUESTION
+        return _contact_question_text(pending_identity)
+    if question_id == "location":
+        return _location_question_text(profile)
+    if question_id == "social":
+        return _social_question_text(profile)
     return build_step_user_message(question_id, catalog)
 
 
@@ -88,6 +372,7 @@ def compose_reply(
         catalog,
         history=history,
         pending_identity=pending_identity,
+        profile=profile,
         welcome_sent=welcome_sent,
     )
     parts = [p for p in [(ack or "").strip(), (q or "").strip()] if p]
@@ -214,6 +499,7 @@ def generate_assistant_reply(
         catalog,
         history=history,
         pending_identity=pending_identity,
+        profile=profile,
         welcome_sent=already_welcome,
     )
     ack_s = (ack or "").strip()
@@ -234,6 +520,13 @@ def generate_assistant_reply(
             options = list((catalog or {}).get(next_question_id) or [])
 
     facts_lines = [str(f).strip() for f in (facts or []) if str(f).strip()]
+    user_ctx = build_reply_user_context(
+        pending_identity=pending_identity,
+        profile=profile,
+        next_question_id=next_question_id or "",
+    )
+    context_lines = format_reply_user_context_lines(user_ctx)
+    recent_inputs = recent_valid_user_inputs(history)
     skippable = next_question_id in SKIPPABLE_STEPS
     welcome_rule = (
         "FORBIDDEN: Do NOT say 'Thanks for joining SpeakerPitcher' or any joining-SpeakerPitcher welcome — "
@@ -251,23 +544,51 @@ def generate_assistant_reply(
         if next_question_id in OPTION_LIST_STEPS
         else "Do not invent catalog options."
     )
+    partial = user_ctx.get("step_partial") if isinstance(user_ctx.get("step_partial"), dict) else None
+    partial_rule = (
+        "step_partial is set: acknowledge values already in Known user context / recent inputs, "
+        f"and ask ONLY for these missing fields: {partial.get('ask_only')}. "
+        "Do not re-ask fields listed under have."
+        if partial
+        else "If the user already answered part of this step in recent inputs or known context, "
+        "ask only for what is still missing."
+    )
+    refuse_skip_rule = (
+        "REQUIRED: The user tried to skip a non-skippable step. In the acknowledgment you MUST clearly "
+        "say this step cannot be skipped (or is required) and that they need to answer to continue. "
+        "Do not offer skip, do not move to another step, and keep asking the same required question."
+        if situation == "refuse_skip" or (not skippable and "required=true" in facts_lines)
+        else (
+            "If Skippable step is false and the user is declining/skipping, say the step cannot be skipped."
+            if not skippable
+            else "This step is skippable; do not invent a required-field warning."
+        )
+    )
 
     system = (
         "You polish SpeakerPitcher onboarding assistant replies.\n"
-        "The server already chose the next question and built a template skeleton.\n"
+        "The server already chose the next question id and built a template skeleton.\n"
         "Rewrite into warmer, clearer copy with the SAME structure:\n"
-        "1) One short acknowledgment (may lightly reference the user's last message)\n"
+        "1) One short acknowledgment (may lightly reference the user's last message and recent inputs)\n"
         "2) A blank line\n"
-        "3) The next question — same meaning as the template (do not change what is asked)\n\n"
+        "3) The next question for the same step/intent\n\n"
         "Rules:\n"
-        "- Stay close to the skeleton; improve wording only.\n"
+        "- Keep the same next step / intent as the template (do not invent a different step).\n"
+        f"- {partial_rule}\n"
+        f"- {refuse_skip_rule}\n"
+        "- Use Known user context and Recent valid user inputs for continuity; "
+        "never invent values not present there or in facts.\n"
+        "- Never treat known context fields as unknown.\n"
         "- Do not invent validation outcomes, next steps, or option names.\n"
-        "- Do not drop required asks from the template question.\n"
+        "- Do not drop required missing asks from the template question.\n"
         "- Do not claim the profile is complete.\n"
         "- Plain text only; no markdown fences or JSON.\n"
         f"- {catalog_note}\n"
         f"- {welcome_rule}\n"
         f"- {name_rule}\n"
+    )
+    recent_block = (
+        "\n".join(f"- {x}" for x in recent_inputs) if recent_inputs else "- (none)"
     )
     user_prompt = (
         f"Situation: {situation}\n"
@@ -275,6 +596,10 @@ def generate_assistant_reply(
         f"Welcome already sent: {already_welcome}\n"
         f"Next question id: {next_question_id or '(none)'}\n"
         f"Skippable step: {skippable}\n"
+        f"Known user context:\n"
+        + ("\n".join(f"- {x}" for x in context_lines))
+        + "\n"
+        f"Recent valid user inputs (oldest→newest):\n{recent_block}\n"
         f"Must-mention facts:\n"
         + ("\n".join(f"- {x}" for x in facts_lines) if facts_lines else "- (none)")
         + "\n"
@@ -395,11 +720,11 @@ def required_field_decline_ack(question_id: str = "") -> str:
     label = _REQUIRED_FIELD_LABELS.get(question_id or "", "")
     if label:
         return (
-            f"This is a required field — we need {label} to continue building your speaker profile. "
+            f"This step cannot be skipped — we need {label} to continue building your speaker profile. "
             "Please share an answer when you can."
         )
     return (
-        "This is a required field — we need it to continue building your speaker profile. "
+        "This step cannot be skipped — it is required to continue building your speaker profile. "
         "Please share an answer when you can."
     )
 

@@ -329,11 +329,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "GIBBERISH" i
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. One of: {\"status\": \"VALID\", \"reason_code\": \"OK\"} or {\"status\": \"INVALID\", \"reason_code\": \"GIBBERISH\"}"},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -395,11 +395,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": one of {allow
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. No extra text."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -438,11 +438,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": one of {allow
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. When status is VALID, normalized_value must be a JSON array of strings, e.g. [\"Environment\"], even for a single topic."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=15,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -508,11 +508,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "OK" | "REFUS
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. Judge user intent: accept any capitalization (e.g. Mike tyson, mike tyson). When status is VALID, normalized_value must be the extracted full name with standard capitalization (First Last). Reject only for REFUSAL or when both first and last are not real-looking names (gibberish). When INVALID, use reason_code REFUSAL if user declined, else INVALID_FULL_NAME. normalized_value must be null when INVALID."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -545,11 +545,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "OK" | "REFUS
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. Extract the email the user gave. Use reason_code REFUSAL when user declines to share; INVALID_EMAIL when no email found. Do not judge if it is temporary or disposable. When status is VALID, normalized_value must be the single extracted email string, lowercase. When INVALID, normalized_value must be null."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -579,11 +579,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "REFUSAL" | "
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. If user skips, defers to profile update later, or has no social URLs, return {\"status\": \"VALID\", \"reason_code\": \"REFUSAL\", \"refusal\": true}. If gibberish or failed URL attempt without clear skip intent, return {\"status\": \"INVALID\", \"reason_code\": \"INVALID_URL\"}. No other fields."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -610,11 +610,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "REFUSAL" | "
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. If user declines or has no examples, return {\"status\": \"VALID\", \"reason_code\": \"REFUSAL\", \"refusal\": true}. If they provided examples/events, return {\"status\": \"INVALID\", \"reason_code\": \"EMPTY\"}. No other fields."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -641,11 +641,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "REFUSAL" | "
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. If user declines or has no videos, return {\"status\": \"VALID\", \"reason_code\": \"REFUSAL\", \"refusal\": true}. If they provided URL(s), return {\"status\": \"INVALID\", \"reason_code\": \"INVALID_URL\"}. No other fields."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -672,11 +672,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "REFUSAL" | "
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. If user declines or has no testimonials, return {\"status\": \"VALID\", \"reason_code\": \"REFUSAL\", \"refusal\": true}. If they provided testimonials, return {\"status\": \"INVALID\", \"reason_code\": \"EMPTY\"}. No other fields."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -703,11 +703,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "REFUSAL" | "
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. Skip/defer → {\"status\":\"VALID\",\"reason_code\":\"REFUSAL\",\"refusal\":true}. Otherwise → {\"status\":\"INVALID\",\"reason_code\":\"EMPTY\"}."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -741,11 +741,11 @@ Return JSON ONLY, no markdown.
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. For VALID, both title and overview must be non-empty strings."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=20,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -779,11 +779,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "REFUSAL" | "
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. Skip → {\"status\":\"VALID\",\"reason_code\":\"REFUSAL\",\"refusal\":true}. Else → {\"status\":\"INVALID\",\"reason_code\":\"EMPTY\"}."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -814,11 +814,11 @@ Return JSON ONLY: {{"status":"VALID","reason_code":"OK","items":["..."]}} or INV
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. items must be a non-empty array of strings when status is VALID."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=20,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -858,11 +858,11 @@ Return JSON ONLY: {{"status":"VALID","reason_code":"OK","items":["..."]}} or INV
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. items must be non-empty when VALID."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=20,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -901,11 +901,11 @@ Return JSON ONLY with shape {schema_hint}. One object per distinct engagement. U
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY valid JSON with an 'entries' array. No markdown."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=20,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -940,11 +940,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": "INVALID_FULL
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. One of: {\"status\": \"VALID\", \"reason_code\": \"OK\"} or {\"status\": \"INVALID\", \"reason_code\": \"INVALID_FULL_NAME\"}"},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -981,11 +981,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": one of {allow
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. normalized_value must be a subset of the allowed values when VALID."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -1035,11 +1035,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": one of {allow
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. normalized_value must be a subset of the allowed topic names when VALID."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
@@ -1090,11 +1090,11 @@ Return JSON ONLY: {{ "status": "VALID" | "INVALID", "reason_code": one of {allow
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {"role": "system", "content": "Return ONLY JSON. normalized_value must be a subset of the allowed audience names when VALID."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0,
             timeout=10,
         )
         obj = _parse_validation_ai_json(completion.choices[0].message.content or "")
