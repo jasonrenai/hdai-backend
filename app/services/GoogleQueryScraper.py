@@ -194,7 +194,7 @@ class GoogleQueryScraperService:
 
     async def process_all_pending(self) -> dict:
         """
-        Claim and process every pending GoogleQuery (no limit). Used by the 72h scheduled cron.
+        Claim and process every pending GoogleQuery (no limit). Used by the weekly scheduled cron.
         Same pipeline as process_pending_batch: SERP -> top URLs -> scrape -> opportunities.
         """
         return await self._process_claimed_pending(

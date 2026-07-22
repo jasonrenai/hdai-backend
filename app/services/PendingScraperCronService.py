@@ -49,7 +49,8 @@ def _interval_hours(env_key: str, default_hours: int = 72) -> int:
 
 
 def pending_google_queries_cron_interval_hours() -> int:
-    return _interval_hours("PENDING_GOOGLE_QUERY_CRON_INTERVAL_HOURS", 72)
+    """Default 168h (1 week). Override with PENDING_GOOGLE_QUERY_CRON_INTERVAL_HOURS."""
+    return _interval_hours("PENDING_GOOGLE_QUERY_CRON_INTERVAL_HOURS", 168)
 
 
 def pending_url_collections_cron_interval_hours() -> int:
