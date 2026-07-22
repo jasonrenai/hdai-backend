@@ -492,9 +492,7 @@ def validate_answer(
                 and not _PHONE_RE.search(msg)
                 and not analysis.greeting_only
             ):
-                from app.services.speaker_profile_chatbot_steps import _clean_displayed_name
-
-                normalized["full_name"] = _clean_displayed_name(msg) or msg
+                normalized["full_name"] = msg
             else:
                 # Keep any email/phone we already extracted; still need a name.
                 return ValidationResult(

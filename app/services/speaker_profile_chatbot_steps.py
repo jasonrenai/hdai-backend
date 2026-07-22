@@ -1279,38 +1279,15 @@ def _heuristic_identity_parse(user_text: str) -> Dict[str, str]:
     parts = [p.strip() for p in text.split(",") if p.strip()]
     if len(parts) >= 3:
         return {
-            "full_name": _clean_displayed_name(", ".join(parts[:-2])),
+            "full_name": ", ".join(parts[:-2]),
             "professional_title": parts[-2],
             "company": parts[-1],
         }
     if len(parts) == 2:
-        return {
-            "full_name": _clean_displayed_name(parts[0]),
-            "professional_title": parts[1],
-            "company": "",
-        }
+        return {"full_name": parts[0], "professional_title": parts[1], "company": ""}
     if len(parts) == 1:
-        return {
-            "full_name": _clean_displayed_name(parts[0]),
-            "professional_title": "",
-            "company": "",
-        }
+        return {"full_name": parts[0], "professional_title": "", "company": ""}
     return {}
-
-
-_NAME_PREFIX_RE = re.compile(
-    r"^(?:my\s+name\s+is|i\s+am|i'm|im|this\s+is|name\s*[:\-]|i\s+go\s+by)\s+",
-    re.IGNORECASE,
-)
-
-
-def _clean_displayed_name(name: str) -> str:
-    """Strip common lead-ins like 'My name is' from a name-only answer."""
-    s = (name or "").strip()
-    if not s:
-        return ""
-    cleaned = _NAME_PREFIX_RE.sub("", s).strip(" .,!")
-    return cleaned or s
 
 
 def _normalize_identity_fields(raw: Dict[str, Any]) -> Dict[str, str]:
@@ -1318,11 +1295,7 @@ def _normalize_identity_fields(raw: Dict[str, Any]) -> Dict[str, str]:
     for key in ("full_name", "professional_title", "company"):
         val = raw.get(key)
         if isinstance(val, str) and val.strip():
-            text = val.strip()
-            if key == "full_name":
-                text = _clean_displayed_name(text)
-            if text:
-                out[key] = text
+            out[key] = val.strip()
     return out
 
 

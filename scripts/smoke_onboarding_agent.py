@@ -838,7 +838,7 @@ async def _test_welcome_once_via_session_flag():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe", "professional_title": "Speaker", "company": "Acme"},
+        "pending_identity": {"full_name": "Chris Doe", "company": "Acme"},
         "speakerpitcher_welcome_sent": True,
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
@@ -882,7 +882,7 @@ async def _test_welcome_blocked_by_history_without_flag():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe", "professional_title": "Speaker", "company": "Acme"},
+        "pending_identity": {"full_name": "Chris Doe"},
         "speakerpitcher_welcome_sent": False,
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
@@ -935,7 +935,7 @@ async def _test_first_welcome_sets_session_flag():
             "app.agents.SpeakerOnboardingAgent.extract_pre_create_identity",
             return_value={
                 "full_name": "Chris Doe",
-                "professional_title": "CEO",
+                "title": "CEO",
                 "company": "Acme",
             },
         ):
@@ -946,7 +946,7 @@ async def _test_first_welcome_sets_session_flag():
                     confidence=0.95,
                     profile_updates={
                         "full_name": "Chris Doe",
-                        "professional_title": "CEO",
+                        "title": "CEO",
                         "company": "Acme",
                     },
                 ),
@@ -1072,7 +1072,7 @@ async def _test_agent_help_intent_still_saves_email():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe", "professional_title": "Speaker", "company": "Acme"},
+        "pending_identity": {"full_name": "Chris Doe", "company": "Acme"},
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
     svc.profile_model.get_profile = AsyncMock(return_value=None)
@@ -1158,7 +1158,7 @@ async def _test_agent_precreate_contact_decline_required():
         ],
         "onboarding_steps_done": [],
         "skipped_questions": [],
-        "pending_identity": {"full_name": "Chris Doe", "professional_title": "Speaker", "company": "Acme"},
+        "pending_identity": {"full_name": "Chris Doe", "company": "Acme"},
     }
     svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
     svc.profile_model.get_profile = AsyncMock(return_value=None)
@@ -1324,57 +1324,6 @@ def test_recent_inputs_and_multi_step_partials():
     assert loc_ctx["step_partial"]["ask_only"] == loc_ctx["step_partial"]["missing"]
 
 
-async def _test_name_only_asks_title_company_not_name():
-    """'My name is Mayank' saves name and asks only title + company (not name again)."""
-    svc = _mock_svc()
-    session = {
-        "_id": "sess1",
-        "speaker_profile_id": "",
-        "conversation": [
-            {
-                "role": "assistant",
-                "content": "Please share your professional name, title, and company.",
-            },
-        ],
-        "onboarding_steps_done": [],
-        "skipped_questions": [],
-        "pending_identity": {},
-        "speakerpitcher_welcome_sent": False,
-    }
-    svc.chat_session_model.get_by_id = AsyncMock(return_value=session)
-    svc.profile_model.get_profile = AsyncMock(return_value=None)
-    agent = SpeakerOnboardingAgent(svc)
-
-    with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), _template_replies():
-        with patch(
-            "app.agents.SpeakerOnboardingAgent.extract_pre_create_identity",
-            return_value={"full_name": "Mayank"},
-        ):
-            with patch(
-                "app.agents.SpeakerOnboardingAgent.analyze_user_message",
-                return_value=AnalysisResult(
-                    intent="ANSWER",
-                    confidence=0.9,
-                    profile_updates={"full_name": "Mayank"},
-                ),
-            ):
-                out = await agent.handle_turn(
-                    message="My name is Mayank",
-                    chat_session_id="sess1",
-                )
-
-    lower = (out["assistant_message"] or "").lower()
-    assert "mayank" in lower
-    assert "title" in lower and "company" in lower
-    # Must not re-ask for professional name as part of the full triple
-    assert "professional name, title, and company" not in lower
-    assert "joining speakerpitcher" not in lower
-    pending_arg = svc.chat_session_model.update_pending_identity.call_args[0][1]
-    assert (pending_arg or {}).get("full_name") == "Mayank"
-    assert not (pending_arg or {}).get("professional_title")
-    assert not (pending_arg or {}).get("company")
-
-
 def main():
     test_injection_refused()
     test_conflict_confirmation()
@@ -1407,7 +1356,6 @@ def main():
     asyncio.run(_test_welcome_once_via_session_flag())
     asyncio.run(_test_welcome_blocked_by_history_without_flag())
     asyncio.run(_test_first_welcome_sets_session_flag())
-    asyncio.run(_test_name_only_asks_title_company_not_name())
     print("smoke behaviors ok")
 
 
