@@ -1643,7 +1643,7 @@ class SpeakerProfileChatbotService:
                     s = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=chat_messages + [{"role": "user", "content": prompt}],
-                        temperature=0.5,
+                        temperature=0.3,
                         timeout=15,
                     )
                     assistant_content = (s.choices[0].message.content or "").strip()
@@ -1671,7 +1671,7 @@ class SpeakerProfileChatbotService:
                         s = client.chat.completions.create(
                             model="gpt-4o-mini",
                             messages=chat_messages + [{"role": "user", "content": prompt}],
-                            temperature=0.5,
+                            temperature=0.3,
                             timeout=15,
                         )
                         assistant_content = (s.choices[0].message.content or "").strip()
