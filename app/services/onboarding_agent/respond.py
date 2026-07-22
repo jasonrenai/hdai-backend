@@ -53,6 +53,7 @@ def build_next_question_text(
     *,
     history: Optional[List[Dict[str, Any]]] = None,
     pending_identity: Optional[Dict[str, Any]] = None,
+    welcome_sent: bool = False,
 ) -> str:
     if not question_id:
         return ""
@@ -60,7 +61,8 @@ def build_next_question_text(
         return "Please share your professional name, title, and company."
     if question_id == PRE_CREATE_PROMPT_WELCOME:
         full_name = (pending_identity or {}).get("full_name") or ""
-        if full_name and not speakerpitcher_welcome_already_sent(history or []):
+        already = welcome_sent or speakerpitcher_welcome_already_sent(history or [])
+        if full_name and not already:
             return build_identity_welcome_reply(full_name)
         return _IDENTITY_EMAIL_PHONE_QUESTION
     if question_id in (PRE_CREATE_POST_WELCOME, PRE_CREATE_READY, "create_profile"):
@@ -79,12 +81,14 @@ def compose_reply(
     steps_done: Optional[List[str]] = None,
     has_profile: bool = False,
     profile_marked_complete: bool = False,
+    welcome_sent: bool = False,
 ) -> str:
     q = build_next_question_text(
         next_question_id,
         catalog,
         history=history,
         pending_identity=pending_identity,
+        welcome_sent=welcome_sent,
     )
     parts = [p for p in [(ack or "").strip(), (q or "").strip()] if p]
     text = "\n\n".join(parts)
@@ -145,6 +149,7 @@ def faq_or_smalltalk_reply(
     message: str = "",
     wants_update_previous: bool = False,
     uncertain: bool = False,
+    welcome_sent: bool = False,
 ) -> str:
     opener = faq_ack_opener(
         intent=intent,
@@ -163,6 +168,7 @@ def faq_or_smalltalk_reply(
         profile=profile,
         steps_done=steps_done,
         has_profile=has_profile,
+        welcome_sent=welcome_sent,
     )
 
 
@@ -181,11 +187,13 @@ def generate_assistant_reply(
     situation: str = "answered",
     facts: Optional[List[str]] = None,
     profile_marked_complete: bool = False,
+    welcome_sent: bool = False,
 ) -> str:
     """
     Polish the compose_reply skeleton (ack + next question) with the last user message.
     Falls back to compose_reply on LLM failure. Catalog bullets are always server-appended.
     """
+    already_welcome = welcome_sent or speakerpitcher_welcome_already_sent(history or [])
     fallback = compose_reply(
         ack=ack,
         next_question_id=next_question_id,
@@ -196,6 +204,7 @@ def generate_assistant_reply(
         steps_done=steps_done,
         has_profile=has_profile,
         profile_marked_complete=profile_marked_complete,
+        welcome_sent=already_welcome,
     )
     if profile_marked_complete or client is None:
         return fallback
@@ -205,6 +214,7 @@ def generate_assistant_reply(
         catalog,
         history=history,
         pending_identity=pending_identity,
+        welcome_sent=already_welcome,
     )
     ack_s = (ack or "").strip()
     if not ack_s and not (next_q or "").strip():
@@ -225,22 +235,21 @@ def generate_assistant_reply(
 
     facts_lines = [str(f).strip() for f in (facts or []) if str(f).strip()]
     skippable = next_question_id in SKIPPABLE_STEPS
-    welcome_sent = speakerpitcher_welcome_already_sent(history or [])
-    catalog_note = (
-        "This next step uses a fixed option list. Write only a short ack + a brief ask to choose "
-        "from the list — do NOT paste bullet options; the server appends them."
-        if next_question_id in OPTION_LIST_STEPS
-        else "Do not invent catalog options."
-    )
     welcome_rule = (
         "FORBIDDEN: Do NOT say 'Thanks for joining SpeakerPitcher' or any joining-SpeakerPitcher welcome — "
         "it was already sent. Do not invent a welcome."
-        if welcome_sent
+        if already_welcome
         else "Only include a SpeakerPitcher joining welcome if the template next question already has it."
     )
     name_rule = (
         "Use ONLY the provided first name in acknowledgments. "
         "Never invent a name from an email address (e.g. do not call them Alex because of alex@…)."
+    )
+    catalog_note = (
+        "This next step uses a fixed option list. Write only a short ack + a brief ask to choose "
+        "from the list — do NOT paste bullet options; the server appends them."
+        if next_question_id in OPTION_LIST_STEPS
+        else "Do not invent catalog options."
     )
 
     system = (
@@ -263,7 +272,7 @@ def generate_assistant_reply(
     user_prompt = (
         f"Situation: {situation}\n"
         f"First name (use sparingly in ack; from profile/pending full_name only): {fn or '(unknown)'}\n"
-        f"Welcome already sent: {welcome_sent}\n"
+        f"Welcome already sent: {already_welcome}\n"
         f"Next question id: {next_question_id or '(none)'}\n"
         f"Skippable step: {skippable}\n"
         f"Must-mention facts:\n"
@@ -297,7 +306,7 @@ def generate_assistant_reply(
             if polished.lower().startswith("text"):
                 polished = polished[4:].lstrip()
             polished = polished.strip()
-        if welcome_sent:
+        if already_welcome:
             polished = strip_duplicate_speakerpitcher_welcome(polished)
         return ensure_catalog_list_in_reply(
             has_profile=has_profile,
@@ -363,6 +372,38 @@ def uncertain_catalog_ack(*, hint: str = "") -> str:
     )
 
 
+_REQUIRED_FIELD_LABELS = {
+    "ask_identity": "your professional name, title, and company",
+    "prompt_welcome_and_contact": "your email and phone number",
+    "post_welcome": "your email and phone number",
+    "ready_to_create": "your email and phone number",
+    "create_profile": "your email and phone number",
+    "location": "your location",
+    "bio": "your professional bio",
+    "preferred_speaking_time": "your preferred speaking time",
+    "topics": "your speaking topics",
+    "speaking_formats": "your speaking formats",
+    "delivery_mode": "your delivery mode",
+    "target_audiences": "your target audiences",
+    "talk_description": "your talk description",
+    "key_takeaways": "your key takeaways",
+}
+
+
+def required_field_decline_ack(question_id: str = "") -> str:
+    """Ack when the user declines a required (non-skippable) onboarding question."""
+    label = _REQUIRED_FIELD_LABELS.get(question_id or "", "")
+    if label:
+        return (
+            f"This is a required field — we need {label} to continue building your speaker profile. "
+            "Please share an answer when you can."
+        )
+    return (
+        "This is a required field — we need it to continue building your speaker profile. "
+        "Please share an answer when you can."
+    )
+
+
 def refuse_skip_reply(
     *,
     next_question_id: str,
@@ -372,9 +413,10 @@ def refuse_skip_reply(
     profile: Optional[dict] = None,
     steps_done: Optional[List[str]] = None,
     has_profile: bool = False,
+    welcome_sent: bool = False,
 ) -> str:
     return compose_reply(
-        ack="This step is required to continue — please share an answer when you can.",
+        ack=required_field_decline_ack(next_question_id),
         next_question_id=next_question_id,
         catalog=catalog,
         history=history,
@@ -382,6 +424,7 @@ def refuse_skip_reply(
         profile=profile,
         steps_done=steps_done,
         has_profile=has_profile,
+        welcome_sent=welcome_sent,
     )
 
 

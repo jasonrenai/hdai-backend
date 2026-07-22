@@ -26,6 +26,7 @@ class ChatSessionModel:
         doc = {
             "speaker_profile_id": speaker_profile_id,
             "conversation": messages or [],
+            "speakerpitcher_welcome_sent": False,
             "createdAt": datetime.utcnow(),
             "updatedAt": datetime.utcnow(),
         }
@@ -187,6 +188,29 @@ class ChatSessionModel:
             {
                 "$set": {
                     "pending_confirmation": pending,
+                    "updatedAt": datetime.utcnow(),
+                },
+            },
+        )
+        return await self.get_by_id(chat_session_id)
+
+    async def update_speakerpitcher_welcome_sent(
+        self,
+        chat_session_id: str,
+        sent: bool = True,
+    ) -> Optional[dict]:
+        """Mark that the one-time SpeakerPitcher joining welcome was already sent."""
+        if not chat_session_id:
+            return None
+        try:
+            oid = ObjectId(chat_session_id)
+        except Exception:
+            return None
+        await self.collection.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "speakerpitcher_welcome_sent": bool(sent),
                     "updatedAt": datetime.utcnow(),
                 },
             },

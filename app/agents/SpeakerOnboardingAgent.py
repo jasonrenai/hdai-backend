@@ -34,6 +34,7 @@ from app.services.onboarding_agent.respond import (
     off_list_reask_ack,
     previous_fields_update_ack,
     quit_reply,
+    required_field_decline_ack,
     build_next_question_text,
 )
 from app.services.onboarding_agent.state import (
@@ -51,6 +52,8 @@ from app.services.speaker_profile_chatbot_steps import (
     extract_pre_create_identity,
     last_assistant_asked_testimonial,
     merge_steps_done,
+    speakerpitcher_welcome_already_sent,
+    speakerpitcher_welcome_in_text,
     steps_from_saved_fields,
 )
 
@@ -78,8 +81,14 @@ class SpeakerOnboardingAgent:
         has_profile: bool = False,
         situation: str = "answered",
         facts: Optional[List[str]] = None,
+        welcome_sent: Optional[bool] = None,
     ) -> str:
         """Polish compose_reply skeleton via LLM; templates used as fallback."""
+        sent = (
+            bool(welcome_sent)
+            if welcome_sent is not None
+            else bool(getattr(self, "_turn_welcome_sent", False))
+        )
         return generate_assistant_reply(
             client,
             user_message=user_message or "",
@@ -93,6 +102,7 @@ class SpeakerOnboardingAgent:
             has_profile=has_profile,
             situation=situation,
             facts=facts,
+            welcome_sent=sent,
         )
 
     async def handle_turn(
@@ -136,6 +146,10 @@ class SpeakerOnboardingAgent:
         if not speaker_profile_id and requested_profile_id:
             speaker_profile_id = requested_profile_id
 
+        # One-time welcome: session flag OR history detect (legacy sessions)
+        self._turn_welcome_sent = bool((session or {}).get("speakerpitcher_welcome_sent")) or (
+            speakerpitcher_welcome_already_sent(history)
+        )
         if speaker_profile_id:
             profile = await self.svc.profile_model.get_profile(speaker_profile_id)
             if profile:
@@ -181,6 +195,7 @@ class SpeakerOnboardingAgent:
                 catalog,
                 history=history,
                 pending_identity=pending_identity,
+                welcome_sent=self._turn_welcome_sent,
             )
             assistant = moderation.message
             if q_text and moderation.action in ("REFUSE", "WARN", "REDIRECT"):
@@ -217,6 +232,7 @@ class SpeakerOnboardingAgent:
                 catalog,
                 history=history,
                 pending_identity=pending_identity,
+                welcome_sent=self._turn_welcome_sent,
             )
             assistant = moderation.message
             if q_text and q_text not in assistant:
@@ -505,19 +521,24 @@ class SpeakerOnboardingAgent:
         )
         if can_skip:
             step = state.current_question_id
-            if step not in SKIPPABLE_STEPS and state.has_profile:
+            # Required (non-skippable) — including pre-create identity/contact
+            if step not in SKIPPABLE_STEPS:
+                next_id = step
+                if not state.has_profile:
+                    next_id = derive_pre_create_question(pending_identity) or step
                 assistant = self._reply(
                     client,
                     user_message=message or "",
-                    ack="This step is required to continue — please share an answer when you can.",
-                    next_question_id=step,
+                    ack=required_field_decline_ack(next_id),
+                    next_question_id=next_id,
                     catalog=catalog,
                     history=history,
                     pending_identity=pending_identity,
                     profile=profile,
                     steps_done=steps_done,
-                    has_profile=True,
+                    has_profile=state.has_profile,
                     situation="refuse_skip",
+                    facts=["required=true", f"field={next_id}"],
                 )
                 return await self._persist_and_return(
                     message=message,
@@ -1386,6 +1407,13 @@ class SpeakerOnboardingAgent:
             await self.svc.chat_session_model.update_conversation_status(out_id, conversation_status)
         if speaker_profile_id:
             await self.svc.chat_session_model.update_speaker_profile_id(out_id, speaker_profile_id)
+
+        # Persist one-time welcome flag when this turn first emitted it
+        if not getattr(self, "_turn_welcome_sent", False) and speakerpitcher_welcome_in_text(
+            assistant or ""
+        ):
+            await self.svc.chat_session_model.update_speakerpitcher_welcome_sent(out_id, True)
+            self._turn_welcome_sent = True
 
         self.svc._catalog_name_lists = None
         return {
