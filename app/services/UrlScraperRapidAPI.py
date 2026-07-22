@@ -1,10 +1,8 @@
 """
 Service for scraping URLs via RapidAPI and storing opportunities.
-Flow: Save url+createdAt to UrlCollection -> background task scrapes -> updates sourceName/description
--> extracts via LLM -> verifies each opportunity by scraping its own URL (drop if missing) then
-LLM-checking whether that page hosts a speaking/CFS opportunity for the event (drop if no);
--> overwrites event_name/location/dates/speaking fields from that same LLM response -> inserts
-verified opportunities into Opportunities collection.
+Flow: Save url+createdAt to UrlCollection -> background task runs multi-hop discovery
+(classify page → resolve official opportunity URLs from blogs → verify speaking → exact dates →
+submission resolve) -> inserts verified opportunities into Opportunities collection.
 No connection with existing Scraper/Scrapers collection.
 Blocking I/O (RapidAPI requests, OpenAI) runs in a thread pool to avoid blocking the event loop.
 PDF URLs are not scraped. Only opportunities with all required fields (link, event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences) are saved.
@@ -15,7 +13,6 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from app.config.recent_activity import (
     MESSAGE_SCRAPER_ADDED,
@@ -26,15 +23,10 @@ from app.config.recent_activity import (
 from app.models.UrlCollection import UrlCollectionModel
 from app.models.Opportunity import OpportunityModel, opportunity_dedupe_key
 from app.models.RecentActivity import RecentActivityModel
-from app.helpers.RapidAPIScraper import RapidAPIScraper
-from app.helpers.SpeakingOpportunityExtractor import SpeakingOpportunityExtractor
-from app.helpers.SerpHelper import SerpHelper
+from app.helpers.OpportunityDiscoveryPipeline import OpportunityDiscoveryPipeline, is_pdf_url
 from app.helpers.PineconeOpportunityStore import PineconeOpportunityStore
-from app.helpers.OpportunityQualifier import (
-    filter_opportunities_verified_on_official_site,
-    qualify_opportunities_batch,
-)
-from app.helpers.OpportunitySubmissionResolver import OpportunitySubmissionResolver
+from app.helpers.SerpHelper import SerpHelper
+from app.helpers.SpeakingOpportunityExtractor import _is_future_or_today, _parse_date_to_iso
 from app.agents.EventDetailEnricherAgent import EventDetailEnricherAgent
 
 RAPIDAPI_DELAY_SECONDS = 5
@@ -48,18 +40,11 @@ DESCRIPTION_MAX_LENGTH = 500
 DESCRIPTION_FALLBACK = "Scraped page"
 
 
-def is_pdf_url(url: str) -> bool:
-    """True if URL path ends with .pdf (case-insensitive), ignoring query/fragment."""
-    if not url or not isinstance(url, str):
-        return False
-    path = (urlparse(url.strip()).path or "").rstrip("/")
-    return path.lower().endswith(".pdf")
-
-
 def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Keep only opportunities that have all required fields filled. Canonical topics may be empty when
     the content does not match the allowed topic catalog, but aipredictedTopics must then be present.
+    Also requires start_date and end_date to be today or in the future.
     """
     result = []
     for opp in opportunities:
@@ -84,6 +69,10 @@ def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[D
             continue
         if end_date is None or not str(end_date).strip():
             continue
+        start_iso = _parse_date_to_iso(start_date, require_day=True)
+        end_iso = _parse_date_to_iso(end_date, require_day=True) or start_iso
+        if not start_iso or not _is_future_or_today(start_iso) or not _is_future_or_today(end_iso):
+            continue
         if not speaking_format or not delivery_mode:
             continue
         if not isinstance(target_audiences, list):
@@ -94,105 +83,14 @@ def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[D
 
 def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[dict]:
     """
-    Synchronous scrape + LLM extract + enrich. Runs in thread pool to avoid blocking event loop.
+    Synchronous multi-hop discovery pipeline. Runs in thread pool to avoid blocking event loop.
     Returns dict with keys: source_name, description, opportunities; or None on failure.
     Does not scrape URLs that end with .pdf.
-
-    Args:
-        url: URL to scrape
-        delay_seconds: Optional delay before each RapidAPI call (e.g. 5 to avoid rate limits). Default 0.
     """
     if is_pdf_url(url):
         return None
-    scraper = RapidAPIScraper(delay_seconds=delay_seconds)
-    extractor = SpeakingOpportunityExtractor()
-    enricher = EventDetailEnricherAgent(rapidapi_scraper=scraper)
-    submission_resolver = OpportunitySubmissionResolver(rapidapi_scraper=scraper)
-
-    result = scraper.scrape(url)
-    if not result.get("success"):
-        return None
-    content = result.get("data", {}).get("content", "")
-    if not content:
-        return None
-    data = result.get("data", {})
-    source_links = data.get("urls") or []
-    source_name = data.get("name") or ""
-    if not source_name:
-        parsed = urlparse(url)
-        source_name = parsed.netloc or parsed.path or "unknown"
-    description = (data.get("description") or "").strip()
-    if not description:
-        description = source_name or DESCRIPTION_FALLBACK
-    if len(description) > DESCRIPTION_MAX_LENGTH:
-        description = description[:DESCRIPTION_MAX_LENGTH] + "..."
-
-    opportunities, llm_error = extractor.extract(content, url=url)
-    extracted_count = len(opportunities or [])
-    if llm_error and not opportunities:
-        logger.warning("[opp-pipeline] LLM extraction error url=%s err=%s", url[:120], llm_error)
-    logger.info(
-        "[opp-pipeline] extracted=%d url=%s",
-        extracted_count,
-        url[:120],
-    )
-    if opportunities:
-        opportunities = enricher.enrich_opportunities(opportunities)
-        logger.info(
-            "[opp-pipeline] after_enrich=%d url=%s",
-            len(opportunities),
-            url[:120],
-        )
-        # Hard filter: scrape each opportunity URL, LLM-verify speaking/CFS for this event.
-        # Drop if missing/LLM says no; otherwise overwrite core fields from the same LLM response.
-        before_verify = len(opportunities)
-        opportunities = filter_opportunities_verified_on_official_site(
-            opportunities,
-            scraper=scraper,
-            source_page_url=url,
-            source_page_content=content,
-        )
-        logger.info(
-            "[opp-pipeline] after_official_verify kept=%d dropped=%d url=%s",
-            len(opportunities),
-            before_verify - len(opportunities),
-            url[:120],
-        )
-        if opportunities:
-            opportunities = submission_resolver.resolve_opportunities(
-                opportunities,
-                source_url=url,
-                source_page_content=content,
-                source_page_links=source_links,
-            )
-            qualify_opportunities_batch(
-                opportunities,
-                scraper=scraper,
-                source_page_url=url,
-                source_page_content=content,
-            )
-            qualified = sum(1 for o in opportunities if o.get("isQualified"))
-            logger.info(
-                "[opp-pipeline] after_qualify total=%d qualified=%d unqualified=%d url=%s",
-                len(opportunities),
-                qualified,
-                len(opportunities) - qualified,
-                url[:120],
-            )
-        else:
-            logger.info(
-                "[opp-pipeline] no opportunities left after official-site verify url=%s",
-                url[:120],
-            )
-    else:
-        logger.info("[opp-pipeline] LLM found 0 opportunities url=%s", url[:120])
-
-    logger.info(
-        "[opp-pipeline] sync_done returning=%d opportunities url=%s",
-        len(opportunities or []),
-        url[:120],
-    )
-    return {"source_name": source_name, "description": description, "opportunities": opportunities or []}
+    pipeline = OpportunityDiscoveryPipeline(delay_seconds=delay_seconds)
+    return pipeline.run(url, delay_seconds=delay_seconds)
 
 
 class UrlScraperRapidAPIService:

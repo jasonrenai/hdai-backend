@@ -154,10 +154,13 @@ def _filter_target_audiences_to_allowed(raw_list: List[str]) -> List[str]:
     )
 
 
-def _parse_date_to_iso(value: Any) -> Optional[str]:
+def _parse_date_to_iso(value: Any, require_day: bool = False) -> Optional[str]:
     """
     Parse a date string from LLM (various formats) to ISO date YYYY-MM-DD.
     Returns None if parsing fails.
+
+    When require_day=True (event start/end), month/year-only values are rejected so
+    we never invent day=01 from incomplete dates.
     """
     if value is None:
         return None
@@ -171,7 +174,7 @@ def _parse_date_to_iso(value: Any) -> Optional[str]:
             return s[:10]
         except ValueError:
             pass
-    formats = [
+    day_formats = [
         "%Y-%m-%d",
         "%d %b %Y",
         "%d %B %Y",
@@ -180,9 +183,12 @@ def _parse_date_to_iso(value: Any) -> Optional[str]:
         "%m/%d/%Y",
         "%d/%m/%Y",
         "%Y/%m/%d",
-        "%B %Y",  # March 2025 -> first day of month
+    ]
+    month_year_formats = [
+        "%B %Y",  # March 2025 -> first day of month (only when require_day=False)
         "%b %Y",
     ]
+    formats = day_formats if require_day else day_formats + month_year_formats
     for fmt in formats:
         try:
             dt = datetime.strptime(s[:50].strip(), fmt)
@@ -228,13 +234,13 @@ class SpeakingOpportunityExtractor:
 
                     For each opportunity, return a JSON array of objects with EXACTLY these keys:
 
-                    - link: Source URL if mentioned, otherwise empty string
-                    - event_name: Clear name of the event or opportunity from chunk content, otherwise make one up based on context. 
+                    - link: Official event page or call-for-speakers URL that appears explicitly in the chunk content (markdown href) or is clearly stated as a full URL. Empty string if unknown. NEVER use the scraped Website URL when this page is a blog, listicle, guide, news post, or aggregator listing other events — only use this page's URL when THIS page itself hosts the speaking opportunity / CFS for that event. NEVER invent or guess domains.
+                    - event_name: Exact event or opportunity name as written in the chunk. Empty string if not stated. Do NOT invent or paraphrase a new name.
                     - location: Event location (city, country, or "Virtual") if mentioned, otherwise empty string
                     - topics: Array of relevant topics. You MUST choose ONLY from this exact list (use the exact string): """ + _TOPICS_LIST_STR + """. Pick one or more that best match the event. NEVER leave empty - pick at least one from the list.
                     - aipredictedTopics: Array of concise freeform topic labels predicted from the chunk content when no exact topic from the allowed topics list fits the opportunity. Use [] when allowed topics fit well.
-                    - start_date: Event start date in ISO format YYYY-MM-DD (e.g. "2025-03-15"). Only include FUTURE events. If only a month/year is known use the first day (e.g. "March 2025" -> "2025-03-01"). null if not mentioned.
-                    - end_date: Event end date in ISO format YYYY-MM-DD. For one-day events use the SAME date as start_date. For multi-day events use the actual end date. null if not mentioned.
+                    - start_date: Event start date in ISO format YYYY-MM-DD only when an explicit day is stated (e.g. "2025-03-15", "March 15, 2025"). null if only a month/year is known or the day is missing. Do NOT invent day=01.
+                    - end_date: Event end date in ISO format YYYY-MM-DD only when an explicit day is stated. For one-day events use the SAME date as start_date. null if not mentioned with day precision.
                     - speaking_format: You MUST choose exactly ONE from this list (use the exact string): """ + _SPEAKING_FORMATS_STR + """. Pick the one that best matches the opportunity.
                     - delivery_mode: You MUST choose exactly ONE from this list (use the exact string), or empty string if unclear: """ + _DELIVERY_MODE_STR + """
                     - target_audiences: Array of audience types. You MUST choose ONLY from this exact list (use the exact strings): """ + _TARGET_AUDIENCES_STR + """. Empty array if none match.
@@ -377,8 +383,8 @@ class SpeakingOpportunityExtractor:
         raw_delivery = (opp.get("delivery_mode") or "").strip()
         raw_audiences = opp.get("target_audiences") if isinstance(opp.get("target_audiences"), list) else []
 
-        start_iso = _parse_date_to_iso(opp.get("start_date") or opp.get("date"))
-        end_iso = _parse_date_to_iso(opp.get("end_date"))
+        start_iso = _parse_date_to_iso(opp.get("start_date") or opp.get("date"), require_day=True)
+        end_iso = _parse_date_to_iso(opp.get("end_date"), require_day=True)
         if not start_iso:
             return None
         if not end_iso:

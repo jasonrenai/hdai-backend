@@ -119,8 +119,8 @@ Extract and return a JSON object with EXACTLY these keys (no array, single objec
 - event_name: Full name of the event (from page title/heading if not in content)
 - location: City, country, or "Virtual" (e.g. "Leipzig, Germany", "New York, USA")
 - topics: Array of relevant topics. You MUST choose ONLY from this exact list (use the exact string): """ + _TOPICS_LIST_STR + """. Pick one or more that best match the event. NEVER leave empty - pick at least one from the list.
-- start_date: Event start date in ISO format YYYY-MM-DD (e.g. "2026-03-06"). Use first day of month if only month/year known.
-- end_date: Event end date in ISO format YYYY-MM-DD. For one-day events use the SAME date as start_date.
+- start_date: Event start date in ISO format YYYY-MM-DD (e.g. "2026-03-06") only when an explicit calendar day is present. null if only month/year is known. Do NOT invent day=01.
+- end_date: Event end date in ISO format YYYY-MM-DD. For one-day events use the SAME date as start_date. null if day precision is missing.
 - speaking_format: You MUST choose exactly ONE from this list (use the exact string): """ + _SPEAKING_FORMATS_STR + """
 - delivery_mode: You MUST choose exactly ONE from this list (use the exact string), or empty string if unclear: """ + _DELIVERY_MODE_STR + """
 - target_audiences: Array of audience types. You MUST choose ONLY from this exact list (use the exact strings): """ + _TARGET_AUDIENCES_STR + """. Empty array if none match.
@@ -139,7 +139,7 @@ Full content:
 {content}
 ---
 
-Return a single JSON object with keys: event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences, metadata. Use start_date and end_date in ISO format (YYYY-MM-DD); for one-day events set end_date equal to start_date. Use ONLY: topics from """ + _TOPICS_LIST_STR + """; speaking_format from """ + _SPEAKING_FORMATS_STR + """; delivery_mode from """ + _DELIVERY_MODE_STR + """; target_audiences from """ + _TARGET_AUDIENCES_STR + """."""
+Return a single JSON object with keys: event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences, metadata. Use start_date and end_date in ISO format (YYYY-MM-DD) only when an explicit calendar day is present; use null if only month/year is known. For one-day events set end_date equal to start_date. Prefer empty/null over guessing. Use ONLY: topics from """ + _TOPICS_LIST_STR + """; speaking_format from """ + _SPEAKING_FORMATS_STR + """; delivery_mode from """ + _DELIVERY_MODE_STR + """; target_audiences from """ + _TARGET_AUDIENCES_STR + """."""
 
     VERIFY_AND_REFRESH_SYSTEM_PROMPT = """You verify whether a scraped webpage hosts a real speaking opportunity for a specific event, then extract updated event details from that page.
 
@@ -157,8 +157,8 @@ Return ONLY valid JSON (no markdown) with EXACTLY these keys:
 - event_name: Full event name from the page when present, else empty string
 - location: City/country or "Virtual" when present, else empty string
 - topics: Array chosen ONLY from this list (exact strings): """ + _TOPICS_LIST_STR + """. Empty array if unclear.
-- start_date: ISO YYYY-MM-DD when present, else null
-- end_date: ISO YYYY-MM-DD when present, else null (same as start_date for one-day events)
+- start_date: ISO YYYY-MM-DD when an explicit day is present, else null. Never invent day=01 from month/year only.
+- end_date: ISO YYYY-MM-DD when an explicit day is present, else null (same as start_date for one-day events)
 - speaking_format: Exactly ONE from """ + _SPEAKING_FORMATS_STR + """ when clear, else empty string
 - delivery_mode: Exactly ONE from """ + _DELIVERY_MODE_STR + """ when clear, else empty string
 - target_audiences: Array chosen ONLY from """ + _TARGET_AUDIENCES_STR + """. Empty array if none match.
@@ -319,12 +319,20 @@ Return only the JSON object described in the system prompt."""
                 result["location"] = page_location
 
         start_raw = extracted.get("start_date") or extracted.get("date")
-        start_iso = _parse_date_to_iso(str(start_raw).strip()) if start_raw not in (None, "") else None
+        start_iso = (
+            _parse_date_to_iso(str(start_raw).strip(), require_day=True)
+            if start_raw not in (None, "")
+            else None
+        )
         if start_iso:
             result["start_date"] = start_iso
 
         end_raw = extracted.get("end_date")
-        end_iso = _parse_date_to_iso(str(end_raw).strip()) if end_raw not in (None, "") else None
+        end_iso = (
+            _parse_date_to_iso(str(end_raw).strip(), require_day=True)
+            if end_raw not in (None, "")
+            else None
+        )
         if end_iso:
             result["end_date"] = end_iso
         elif result.get("start_date") and not (result.get("end_date") or "").strip():
@@ -337,6 +345,18 @@ Return only the JSON object described in the system prompt."""
         delivery_mode = _filter_delivery_mode((extracted.get("delivery_mode") or "").strip())
         if delivery_mode:
             result["delivery_mode"] = delivery_mode
+
+        raw_topics = extracted.get("topics")
+        if isinstance(raw_topics, list) and raw_topics:
+            filtered_topics = _filter_topics_to_allowed([str(t).strip() for t in raw_topics if t])
+            if filtered_topics:
+                result["topics"] = filtered_topics
+
+        raw_audiences = extracted.get("target_audiences")
+        if isinstance(raw_audiences, list):
+            result["target_audiences"] = _filter_target_audiences_to_allowed(
+                [str(a).strip() for a in raw_audiences if a]
+            )
 
         if extracted.get("metadata") and isinstance(extracted["metadata"], dict):
             meta = result.get("metadata") or {}
@@ -481,6 +501,42 @@ Return only the JSON object described in the system prompt."""
 
         updated = self._overwrite_core_fields_from_page(opp, parsed)
         return True, "", updated
+
+    def extract_exact_dates_from_content(
+        self,
+        content: str,
+        *,
+        name: str = "",
+        description: str = "",
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Extract day-precision start/end dates only; returns (None, None) if not explicit."""
+        from app.helpers.SpeakingOpportunityExtractor import _parse_date_to_iso
+
+        # Prefer the portion of the page that mentions dates (dates often appear mid-page)
+        text = (content or "").strip()
+        window = text
+        lower = text.lower()
+        for needle in ("date", "when", "october", "november", "september", "2026", "2027", "2025"):
+            idx = lower.find(needle)
+            if idx >= 0:
+                start = max(0, idx - 500)
+                window = text[start : start + 6000]
+                break
+        if len(window) > 8000:
+            window = window[:8000]
+
+        extracted = self._extract_details_from_page_content(
+            window, name=name, description=description
+        )
+        if not extracted:
+            return None, None
+        start_iso = _parse_date_to_iso(
+            extracted.get("start_date") or extracted.get("date"), require_day=True
+        )
+        end_iso = _parse_date_to_iso(extracted.get("end_date"), require_day=True)
+        if start_iso and not end_iso:
+            end_iso = start_iso
+        return start_iso, end_iso
 
     def _enrich_opportunity(self, opp: Dict[str, Any]) -> Dict[str, Any]:
         """Enrich a single opportunity by scraping its link and extracting via LLM."""

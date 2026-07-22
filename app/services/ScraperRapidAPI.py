@@ -1,6 +1,7 @@
 """
 Service for scraping URLs via RapidAPI AI Content Scraper and extracting
 Speaking Opportunities via LLM. Replaces crawl+scrape flow with single-URL scraping.
+Uses the shared multi-hop OpportunityDiscoveryPipeline.
 """
 from datetime import datetime
 from typing import Optional
@@ -8,26 +9,17 @@ from bson import ObjectId
 from urllib.parse import urlparse
 
 from app.models.Scraper import ScraperModel
-from app.helpers.RapidAPIScraper import RapidAPIScraper
-from app.helpers.SpeakingOpportunityExtractor import SpeakingOpportunityExtractor
-from app.helpers.OpportunityQualifier import (
-    filter_opportunities_verified_on_official_site,
-    qualify_opportunities_batch,
-)
-from app.helpers.OpportunitySubmissionResolver import OpportunitySubmissionResolver
+from app.helpers.OpportunityDiscoveryPipeline import OpportunityDiscoveryPipeline, is_pdf_url
 
 
 class ScraperRapidAPIService:
     """
     Uses RapidAPI AI Content Scraper to scrape a single URL, then extracts
-    speaking opportunities via LLM. Crawler and legacy Scraper are not used.
+    speaking opportunities via the multi-hop discovery pipeline.
     """
 
     def __init__(self):
         self.model = ScraperModel()
-        self.rapidapi_scraper = RapidAPIScraper()
-        self.opportunity_extractor = SpeakingOpportunityExtractor()
-        self.submission_resolver = OpportunitySubmissionResolver(rapidapi_scraper=self.rapidapi_scraper)
 
     async def create_scrape_job(self, url: str, user_id: str) -> str:
         """
@@ -59,7 +51,7 @@ class ScraperRapidAPIService:
 
     async def run_scrape_and_extract(self, job_id: str) -> None:
         """
-        Background task: scrape URL via RapidAPI, extract opportunities via LLM, update DB.
+        Background task: multi-hop scrape/discover opportunities, update DB.
         """
         try:
             await self.model.update_by_id(job_id, {"status": "IN_PROGRESS", "error": None})
@@ -73,64 +65,34 @@ class ScraperRapidAPIService:
                 return
 
             url = doc.get("url")
-
-            # 1. Scrape via RapidAPI AI Content Scraper
-            result = self.rapidapi_scraper.scrape(url)
-            if not result.get("success"):
+            if is_pdf_url(url or ""):
                 await self.model.update_by_id(
                     job_id,
-                    {"status": "FAILED", "error": result.get("error", "Scraping failed")},
+                    {"status": "FAILED", "error": "PDF URLs are not scraped"},
                 )
                 return
 
-            content = result.get("data", {}).get("content", "")
-            if not content:
+            parsed = OpportunityDiscoveryPipeline().run(url)
+            if parsed is None:
                 await self.model.update_by_id(
                     job_id,
-                    {"status": "FAILED", "error": "No content returned from scraper"},
+                    {"status": "FAILED", "error": "Scraping or discovery failed"},
                 )
                 return
 
-            # Optionally store name/description from scraper response
-            name = result.get("data", {}).get("name")
-            description = result.get("data", {}).get("description")
+            opportunities = parsed.get("opportunities") or []
             update_payload = {}
-            if name:
-                update_payload["scrapedName"] = name
-            if description:
-                update_payload["scrapedDescription"] = description
+            if parsed.get("source_name"):
+                update_payload["scrapedName"] = parsed["source_name"]
+            if parsed.get("description"):
+                update_payload["scrapedDescription"] = parsed["description"]
 
-            # 2. LLM extract; keep only opportunities confirmed on their own URL
-            opportunities, llm_error = self.opportunity_extractor.extract(content, url=url)
-            if opportunities:
-                opportunities = filter_opportunities_verified_on_official_site(
-                    opportunities,
-                    scraper=self.rapidapi_scraper,
-                    source_page_url=url,
-                    source_page_content=content,
-                )
-                if opportunities:
-                    opportunities = self.submission_resolver.resolve_opportunities(
-                        opportunities,
-                        source_url=url,
-                        source_page_content=content,
-                        source_page_links=result.get("data", {}).get("urls") or [],
-                    )
-                    qualify_opportunities_batch(
-                        opportunities,
-                        scraper=self.rapidapi_scraper,
-                        source_page_url=url,
-                        source_page_content=content,
-                    )
-            error_to_store = llm_error if llm_error and not opportunities else None
-
-            # 3. Update DB with success
             await self.model.update_by_id(
                 job_id,
                 {
                     "status": "SUCCESS",
                     "opportunities": opportunities,
-                    "error": error_to_store,
+                    "error": None,
                     "scrapedUrlCount": 1,
                     **update_payload,
                 },

@@ -11,24 +11,28 @@ from app.config.recent_activity import (
 )
 from app.helpers.SerpHelper import SerpHelper
 from app.models.GoogleQuery import GoogleQueryModel
+from app.models.Opportunity import OpportunityModel
 from app.models.RecentActivity import RecentActivityModel
 from app.services.UrlScraperRapidAPI import UrlScraperRapidAPIService, RAPIDAPI_DELAY_SECONDS, is_pdf_url
 
 logger = logging.getLogger(__name__)
 
-GOOGLE_QUERY_TOP_N = 5
+GOOGLE_QUERY_TOP_N = 20
+SERP_PAGE_SIZE = 10
 
 
 class GoogleQueryScraperService:
     """
     Flow: Save query+createdAt+status=pending to GoogleQueries -> background task
-    runs SERP -> takes top N URLs -> runs same RapidAPI+LLM extraction flow as UrlScraperRapidAPIService.
+    runs SERP (2 pages / top N URLs) -> skips URLs already known in Opportunities ->
+    runs RapidAPI+LLM extraction flow as UrlScraperRapidAPIService.
     """
 
     def __init__(self):
         self.google_query_model = GoogleQueryModel()
         self.url_scraper_service = UrlScraperRapidAPIService()
         self.recent_activity_model = RecentActivityModel()
+        self.opportunity_model = OpportunityModel()
 
     async def create_google_query_job(self, query: str, user_id: Optional[str] = None) -> str:
         doc = {
@@ -70,15 +74,43 @@ class GoogleQueryScraperService:
             {"status": "running", "updatedAt": datetime.utcnow(), "error": None},
         )
         try:
-            urls = await asyncio.to_thread(SerpHelper().search, query)
+            urls = await asyncio.to_thread(
+                SerpHelper().search_multi_page,
+                query,
+                GOOGLE_QUERY_TOP_N,
+                SERP_PAGE_SIZE,
+            )
             non_pdf = [u for u in (urls or []) if not is_pdf_url(u)]
             top_urls = non_pdf[:GOOGLE_QUERY_TOP_N]
+
+            # Pre-scrape dedupe: skip SERP URLs already stored as opportunity link or source_url
+            already_known = await self.opportunity_model.find_urls_already_known(top_urls)
+            urls_to_scrape = [u for u in top_urls if u not in already_known]
+            skipped = [u for u in top_urls if u in already_known]
+            if skipped:
+                logger.info(
+                    "[opp-pipeline] google_query_id=%s pre_scrape_skip=%d already_known_urls (of %d serp)",
+                    google_query_id,
+                    len(skipped),
+                    len(top_urls),
+                )
+                for u in skipped:
+                    logger.info(
+                        "[opp-pipeline] google_query_id=%s skip_existing_url=%s",
+                        google_query_id,
+                        u[:120],
+                    )
+
             await self.google_query_model.update_by_id(
                 google_query_id,
-                {"urls": top_urls, "updatedAt": datetime.utcnow()},
+                {
+                    "urls": top_urls,
+                    "urlsSkippedExisting": skipped,
+                    "updatedAt": datetime.utcnow(),
+                },
             )
 
-            if not top_urls:
+            if not urls_to_scrape:
                 await self.google_query_model.update_by_id(
                     google_query_id,
                     {"status": "completed", "updatedAt": datetime.utcnow()},
@@ -87,12 +119,17 @@ class GoogleQueryScraperService:
                     RECENT_ACTIVITY_TYPE_GOOGLE_QUERIES,
                     MESSAGE_GOOGLE_QUERIES_ADDED,
                 )
-                logger.info("GoogleQuery job completed (0 urls) google_query_id=%s", google_query_id)
+                logger.info(
+                    "GoogleQuery job completed (0 urls to scrape after dedupe) google_query_id=%s serp=%d skipped=%d",
+                    google_query_id,
+                    len(top_urls),
+                    len(skipped),
+                )
                 return
 
             url_collection_ids: list[str] = []
             total_opportunities_inserted = 0
-            for i, url in enumerate(top_urls):
+            for i, url in enumerate(urls_to_scrape):
                 try:
                     if i > 0:
                         await asyncio.sleep(RAPIDAPI_DELAY_SECONDS)
@@ -114,13 +151,18 @@ class GoogleQueryScraperService:
                         "[opp-pipeline] google_query_id=%s url_index=%d/%d inserted=%d url=%s url_collection_id=%s",
                         google_query_id,
                         i + 1,
-                        len(top_urls),
+                        len(urls_to_scrape),
                         n,
                         url[:120],
                         url_collection_id,
                     )
                 except Exception as e:
-                    logger.exception("GoogleQuery job url failed google_query_id=%s url=%s err=%s", google_query_id, url[:120], e)
+                    logger.exception(
+                        "GoogleQuery job url failed google_query_id=%s url=%s err=%s",
+                        google_query_id,
+                        url[:120],
+                        e,
+                    )
 
             await self.google_query_model.update_by_id(
                 google_query_id,
@@ -136,9 +178,11 @@ class GoogleQueryScraperService:
                     message_opportunities_added(total_opportunities_inserted),
                 )
             logger.info(
-                "[opp-pipeline] GoogleQuery job completed google_query_id=%s urls=%d total_opportunities_inserted=%d",
+                "[opp-pipeline] GoogleQuery job completed google_query_id=%s serp=%d scraped=%d skipped_existing=%d total_opportunities_inserted=%d",
                 google_query_id,
                 len(top_urls),
+                len(urls_to_scrape),
+                len(skipped),
                 total_opportunities_inserted,
             )
         except Exception as e:

@@ -1,8 +1,11 @@
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Sequence
+from urllib.parse import urlparse, urlunparse
 
+import certifi
 from bson import ObjectId
+from pymongo import MongoClient
 
 from app.helpers.Database import MongoDB
 
@@ -19,10 +22,40 @@ def opportunity_dedupe_key(opp: dict) -> tuple[str, str] | None:
     return (link, event_name)
 
 
+def normalize_opportunity_url(url: str) -> str:
+    """Normalize URL for link-level duplicate checks."""
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    try:
+        p = urlparse(raw)
+        path = (p.path or "").rstrip("/")
+        return urlunparse((p.scheme.lower(), (p.netloc or "").lower(), path, "", p.query, ""))
+    except Exception:
+        return raw.rstrip("/")
+
+
+def _url_match_variants(url: str) -> list[str]:
+    """Variants to match against stored link/source_url values."""
+    raw = (url or "").strip()
+    if not raw:
+        return []
+    variants = {raw, raw.rstrip("/")}
+    norm = normalize_opportunity_url(raw)
+    if norm:
+        variants.add(norm)
+        variants.add(norm.rstrip("/"))
+        if "://" in norm and norm.count("/") == 2:
+            variants.add(norm + "/")
+    return [v for v in variants if v]
+
+
 class OpportunityModel:
     """Model for Opportunities - each opportunity stored at root level."""
 
     def __init__(self, db_name=os.getenv("DB_NAME"), collection_name="Opportunities"):
+        self.db_name = db_name
+        self.collection_name = collection_name
         self.collection = MongoDB.get_database(db_name)[collection_name]
 
     async def insert_many(self, opportunities: list[dict]) -> list[str]:
@@ -45,6 +78,7 @@ class OpportunityModel:
             link = (o.get("link") or o.get("url") or "").strip()
             if link:
                 unique_links.add(link)
+                unique_links.update(_url_match_variants(link))
         if not unique_links:
             return set()
         existing: set[tuple[str, str]] = set()
@@ -57,6 +91,132 @@ class OpportunityModel:
             if k:
                 existing.add(k)
         return existing
+
+    async def find_urls_already_known(self, urls: Sequence[str]) -> set[str]:
+        """
+        Return the subset of input URLs that already appear as opportunity.link
+        or source.source_url (resource-saving pre-scrape skip).
+        """
+        if not urls:
+            return set()
+        variant_to_original: dict[str, str] = {}
+        all_variants: list[str] = []
+        for url in urls:
+            raw = (url or "").strip()
+            if not raw:
+                continue
+            for v in _url_match_variants(raw):
+                variant_to_original.setdefault(v, raw)
+                all_variants.append(v)
+        if not all_variants:
+            return set()
+
+        known_originals: set[str] = set()
+        cursor = self.collection.find(
+            {
+                "$or": [
+                    {"link": {"$in": all_variants}},
+                    {"source.source_url": {"$in": all_variants}},
+                ]
+            },
+            projection={"link": 1, "source.source_url": 1},
+        )
+        async for doc in cursor:
+            src = doc.get("source") if isinstance(doc.get("source"), dict) else {}
+            for field in ((doc.get("link") or "").strip(), (src.get("source_url") or "").strip()):
+                field = str(field).strip()
+                if not field:
+                    continue
+                if field in variant_to_original:
+                    known_originals.add(variant_to_original[field])
+                for v in _url_match_variants(field):
+                    if v in variant_to_original:
+                        known_originals.add(variant_to_original[v])
+        return known_originals
+
+    @staticmethod
+    def find_urls_already_known_sync(urls: Sequence[str]) -> set[str]:
+        """Sync variant for thread-pool scrape pipeline (hop pre-check)."""
+        if not urls:
+            return set()
+        connection_string = os.getenv("MONGODB_CONNECTION_STRING")
+        db_name = os.getenv("DB_NAME")
+        if not connection_string or not db_name:
+            return set()
+
+        variant_to_original: dict[str, str] = {}
+        all_variants: list[str] = []
+        for url in urls:
+            raw = (url or "").strip()
+            if not raw:
+                continue
+            for v in _url_match_variants(raw):
+                variant_to_original.setdefault(v, raw)
+                all_variants.append(v)
+        if not all_variants:
+            return set()
+
+        client = MongoClient(connection_string, tlsCAFile=certifi.where())
+        try:
+            col = client[db_name]["Opportunities"]
+            known_originals: set[str] = set()
+            cursor = col.find(
+                {
+                    "$or": [
+                        {"link": {"$in": all_variants}},
+                        {"source.source_url": {"$in": all_variants}},
+                    ]
+                },
+                projection={"link": 1, "source.source_url": 1},
+            )
+            for doc in cursor:
+                src = doc.get("source") if isinstance(doc.get("source"), dict) else {}
+                for field in ((doc.get("link") or "").strip(), (src.get("source_url") or "").strip()):
+                    field = str(field).strip()
+                    if not field:
+                        continue
+                    if field in variant_to_original:
+                        known_originals.add(variant_to_original[field])
+                    for v in _url_match_variants(field):
+                        if v in variant_to_original:
+                            known_originals.add(variant_to_original[v])
+            return known_originals
+        finally:
+            client.close()
+
+    @staticmethod
+    def find_existing_dedupe_keys_sync(candidates: Sequence[dict]) -> set[tuple[str, str]]:
+        """Sync dedupe-key lookup for hop candidates before scrape."""
+        if not candidates:
+            return set()
+        connection_string = os.getenv("MONGODB_CONNECTION_STRING")
+        db_name = os.getenv("DB_NAME")
+        if not connection_string or not db_name:
+            return set()
+
+        unique_links: set[str] = set()
+        for c in candidates:
+            link = (c.get("link") or c.get("url") or "").strip()
+            if link:
+                unique_links.update(_url_match_variants(link))
+        if not unique_links:
+            return set()
+
+        client = MongoClient(connection_string, tlsCAFile=certifi.where())
+        try:
+            col = client[db_name]["Opportunities"]
+            existing: set[tuple[str, str]] = set()
+            cursor = col.find(
+                {"link": {"$in": list(unique_links)}},
+                projection={"link": 1, "event_name": 1, "title": 1},
+            )
+            for doc in cursor:
+                k = opportunity_dedupe_key(doc)
+                if k:
+                    existing.add(k)
+            return existing
+        finally:
+            client.close()
 
     async def get_list(self, skip: int = 0, limit: int = 10, sort_by: dict = None) -> list[dict]:
         """Get opportunities with pagination. Returns list of documents."""

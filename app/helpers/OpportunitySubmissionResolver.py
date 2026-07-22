@@ -21,6 +21,27 @@ MAX_TOOL_CONTENT_CHARS = 10000
 MAX_DISCOVERED_LINKS = 100
 MAX_TOOL_CALL_ROUNDS = 6
 
+_SPEAKER_LINK_HINTS = (
+    "for-speakers",
+    "for_speakers",
+    "forspeakers",
+    "speakers",
+    "speak-at",
+    "speak_at",
+    "call-for-speakers",
+    "call_for_speakers",
+    "cfp",
+    "cfs",
+    "apply-to-speak",
+    "apply_to_speak",
+    "speaker-application",
+    "speaker_application",
+    "submit-a-talk",
+    "submit_a_talk",
+    "submit-talk",
+    "proposal",
+)
+
 
 SUBMISSION_RESOLVER_SYSTEM_PROMPT = """You resolve speaker application/submission details for speaking opportunities.
 
@@ -35,11 +56,12 @@ Return ONLY valid JSON with exactly these keys:
 - contactEmail: valid email address only, general organizer/contact email only when submission data cannot be found, otherwise ""
 - reason: short evidence-based reason
 - sourceUrl: page URL where the strongest evidence was found, or ""
+- submissionVerified: true only when you scraped an application/form URL and confirmed it shows a real submit path (form, apply CTA, or submission email); otherwise false
 
 Workflow:
-1. First inspect the provided page content and current submissionInfo.
-2. If an application/form URL or submission email exists but deadline or details are missing, call scrape_url on the application/form URL to look for the missing fields.
-3. If no application data exists in the page content, choose likely pages from discoveredLinks using semantic judgment from URL/text context. Do not use hardcoded endpoint rules or regex-style path filtering.
+1. First inspect the provided page content and current submissionInfo for apply/CFP/form links or submission emails.
+2. If an application/form URL exists, call scrape_url on it and confirm it is a real submission surface. Extract the deadline from THAT page when explicitly stated; otherwise keep deadline as "deadline not found".
+3. If no application data exists, prioritize discoveredLinks whose URL path or surrounding context suggests speaker submission: "for speakers", "speakers", "speak at", "call for speakers", "cfp", "apply to speak", "speaker application", "submit a talk". Call scrape_url on the best candidates.
 4. If application data is still not found, look for a contact page or page likely to contain an organizer contact email. Return status "contact_found" with contactEmail and reason "Submission details not found; contact email found." when available.
 5. If a valid application/form URL or submission email is found but no deadline is found, keep status "found" and set deadline to "deadline not found".
 
@@ -151,6 +173,13 @@ def normalize_submission_info(raw: Any, base_url: str = "") -> Dict[str, Any]:
         "contactEmail": _validate_email_str(_first_value(data, "contactEmail", "contact_email", "organizerEmail")),
         "reason": _clean_str(data.get("reason")),
         "sourceUrl": _absolute_url(_first_value(data, "sourceUrl", "sourceURL", "evidenceUrl"), base_url),
+        "submissionVerified": bool(
+            data.get("submissionVerified") is True
+            or (
+                isinstance(data.get("submissionVerified"), str)
+                and data.get("submissionVerified").strip().lower() in ("true", "yes", "1")
+            )
+        ),
     }
 
     has_submission_path = bool(info["applicationLink"] or info["formLink"] or info["submissionEmail"])
@@ -211,6 +240,8 @@ def sync_submission_info_to_metadata(opportunity: Dict[str, Any]) -> None:
         meta.setdefault("contact_email", info["submissionEmail"])
     if info.get("contactEmail"):
         meta.setdefault("contact_email", info["contactEmail"])
+    if info.get("submissionVerified"):
+        meta["submission_verified"] = True
     opportunity["metadata"] = meta
 
 
@@ -276,7 +307,17 @@ class OpportunitySubmissionResolver:
             normalized.append(url)
             if len(normalized) >= MAX_DISCOVERED_LINKS:
                 break
-        return normalized
+        return self._prioritize_speaker_links(normalized)
+
+    @staticmethod
+    def _prioritize_speaker_links(links: list[str]) -> list[str]:
+        """Surface Speakers / CFP-style URLs first for the resolver LLM."""
+
+        def score(url: str) -> int:
+            low = (url or "").lower()
+            return sum(1 for hint in _SPEAKER_LINK_HINTS if hint in low)
+
+        return sorted(links, key=score, reverse=True)
 
     def _build_user_prompt(
         self,

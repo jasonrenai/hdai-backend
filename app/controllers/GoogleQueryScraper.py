@@ -14,12 +14,11 @@ async def get_all_google_queries(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     service=Depends(get_google_query_scraper_service),
-    jwt_payload: dict = Depends(jwt_validator),
+    _jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List all Google queries for the current user with pagination."""
+    """List all Google queries with pagination."""
     try:
-        user_id = jwt_payload.get("id")
-        result = await service.get_list(user_id=user_id, skip=skip, limit=limit)
+        result = await service.get_list(skip=skip, limit=limit)
         return Utils.create_response(result, True)
     except HTTPException:
         raise
@@ -39,7 +38,7 @@ async def create_google_query_scrape(
 ):
     """
     Submit a Google search query for processing.
-    Saves query+status=pending immediately, returns the id, and runs SERP + top-5 RapidAPI scraping in background.
+    Saves query+status=pending immediately, returns the id, and runs SERP (top-20 / 2 pages) + RapidAPI scraping in background.
     """
     try:
         query = (data.query or "").strip()

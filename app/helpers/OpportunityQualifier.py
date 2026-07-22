@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from app.agents.EventDetailEnricherAgent import EventDetailEnricherAgent
 from app.helpers.RapidAPIScraper import RapidAPIScraper
-from app.helpers.SpeakingOpportunityExtractor import _parse_date_to_iso
+from app.helpers.SpeakingOpportunityExtractor import _parse_date_to_iso, _is_future_or_today
 from app.helpers.OpportunitySubmissionResolver import (
     DEADLINE_NOT_FOUND,
     normalize_submission_info,
@@ -173,6 +173,8 @@ def _load_official_page_content(
 def verify_opportunity_on_official_site(
     opp: Dict[str, Any],
     ctx: "OpportunityQualificationContext",
+    *,
+    reject_same_as_source: bool = False,
 ) -> Tuple[bool, str]:
     """
     Hard check before save: scrape the opportunity URL, then ask an LLM whether that page
@@ -188,6 +190,19 @@ def verify_opportunity_on_official_site(
         link[:120],
         (ctx.source_page_url or "")[:120],
     )
+
+    if reject_same_as_source and ctx.source_page_url and link and _urls_same_page(link, ctx.source_page_url):
+        reason = (
+            "Opportunity link still points at the blog/aggregator source page; "
+            "official event URL was not resolved."
+        )
+        logger.info(
+            "[opp-pipeline] official_verify FAIL event=%s link=%s reason=%s",
+            event_name[:80],
+            link[:120],
+            reason,
+        )
+        return False, reason
 
     content, page_meta, load_error = _load_official_page_content(opp, ctx)
     if load_error:
@@ -229,6 +244,35 @@ def verify_opportunity_on_official_site(
     opp.clear()
     opp.update(updated)
 
+    # Strict event dates: day precision required. If CFS page lacks dates, try site homepage.
+    start_iso = _parse_date_to_iso(opp.get("start_date"), require_day=True)
+    end_iso = _parse_date_to_iso(opp.get("end_date"), require_day=True)
+    if not start_iso:
+        start_iso, end_iso = _try_exact_dates_from_site_home(opp, ctx)
+    if not start_iso:
+        reason = "Exact event start date (day precision) not found on opportunity page."
+        logger.info(
+            "[opp-pipeline] official_verify FAIL event=%s link=%s reason=%s",
+            event_name[:80],
+            link[:120],
+            reason,
+        )
+        return False, reason
+    end_iso = end_iso or start_iso
+    if not _is_future_or_today(start_iso) or not _is_future_or_today(end_iso):
+        reason = (
+            f"Event start/end date is in the past (start={start_iso}, end={end_iso})."
+        )
+        logger.info(
+            "[opp-pipeline] official_verify FAIL event=%s link=%s reason=past_date %s",
+            event_name[:80],
+            link[:120],
+            reason,
+        )
+        return False, reason
+    opp["start_date"] = start_iso
+    opp["end_date"] = end_iso
+
     logger.info(
         "[opp-pipeline] official_verify PASS event=%s link=%s updated_name=%s location=%s dates=%s..%s",
         event_name[:80],
@@ -241,16 +285,61 @@ def verify_opportunity_on_official_site(
     return True, ""
 
 
+def _try_exact_dates_from_site_home(
+    opp: Dict[str, Any],
+    ctx: "OpportunityQualificationContext",
+) -> Tuple[Optional[str], Optional[str]]:
+    """When the opportunity/CFS page has no day-precision dates, try the site origin homepage."""
+    link = (opp.get("link") or opp.get("url") or "").strip()
+    if not link:
+        return None, None
+    parsed = urlparse(link)
+    if not parsed.scheme or not parsed.netloc:
+        return None, None
+    home = f"{parsed.scheme}://{parsed.netloc}/"
+    if _urls_same_page(home, link):
+        return None, None
+    try:
+        result = ctx.scraper.scrape(home)
+    except Exception as e:
+        logger.info("[opp-pipeline] date_home scrape failed home=%s err=%s", home[:120], e)
+        return None, None
+    if not result.get("success"):
+        return None, None
+    data = result.get("data") or {}
+    content = (data.get("content") or "").strip()
+    if not content:
+        return None, None
+    enricher = ctx.enricher or EventDetailEnricherAgent(rapidapi_scraper=ctx.scraper)
+    start_iso, end_iso = enricher.extract_exact_dates_from_content(
+        content,
+        name=data.get("name") or "",
+        description=data.get("description") or "",
+    )
+    if start_iso:
+        logger.info(
+            "[opp-pipeline] date_home filled start=%s end=%s home=%s for link=%s",
+            start_iso,
+            end_iso or start_iso,
+            home[:120],
+            link[:120],
+        )
+    return start_iso, end_iso
+
+
 def filter_opportunities_verified_on_official_site(
     opportunities: List[Dict[str, Any]],
     scraper: RapidAPIScraper,
     source_page_url: str,
     source_page_content: str,
+    *,
+    reject_same_as_source: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     For each opportunity, scrape its URL and LLM-verify speaking/CFS presence.
     Drop when the page is dead or LLM says it is not a speaking opportunity for this event.
     For kept opportunities, overwrite event_name/location/dates/speaking fields from that URL.
+    When reject_same_as_source is True, drop opportunities whose link is still the blog/source page.
     """
     if not opportunities:
         logger.info(
@@ -268,7 +357,9 @@ def filter_opportunities_verified_on_official_site(
     )
     verified: List[Dict[str, Any]] = []
     for i, opp in enumerate(opportunities, 1):
-        ok, reason = verify_opportunity_on_official_site(opp, ctx)
+        ok, reason = verify_opportunity_on_official_site(
+            opp, ctx, reject_same_as_source=reject_same_as_source
+        )
         event_name = (opp.get("event_name") or opp.get("title") or "")[:80]
         link = (opp.get("link") or opp.get("url") or "")[:120]
         if ok:
