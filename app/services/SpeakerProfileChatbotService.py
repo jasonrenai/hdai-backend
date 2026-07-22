@@ -38,6 +38,13 @@ from app.services.speaker_profile_chatbot_steps import (
     derive_pre_create_subphase,
     extract_pre_create_identity,
     ensure_catalog_list_in_reply,
+    looks_like_prompt_injection,
+    prompt_injection_refusal_message,
+    looks_like_invalid_location_answer,
+    location_invalid_refusal_message,
+    validate_and_normalize_location,
+    build_step_user_message,
+    PRE_CREATE_ASK_IDENTITY,
     PRE_CREATE_POST_WELCOME,
     PRE_CREATE_PROMPT_WELCOME,
     PRE_CREATE_READY,
@@ -51,6 +58,9 @@ from app.services.speaker_profile_chatbot_steps import (
 )
 
 logger = logging.getLogger(__name__)
+
+_CHATBOT_MODEL = "gpt-5"
+# gpt-5 family typically only supports the default temperature (1); do not pass temperature.
 
 
 def _jwt_user_id(user: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -544,9 +554,18 @@ def _build_upsert_tool(speaker_profile_id_from_session: Optional[str] = None):
                     "twitter": {"type": "string", "description": "Full X/Twitter profile URL (twitter.com or x.com)."},
                     "facebook": {"type": "string", "description": "Full Facebook profile URL (facebook.com)."},
                     "instagram": {"type": "string", "description": "Full Instagram profile URL (instagram.com)."},
-                    "address_city": {"type": "string"},
-                    "address_state": {"type": "string"},
-                    "address_country": {"type": "string"},
+                    "address_city": {
+                        "type": "string",
+                        "description": "Real city name only. Never invent or save gibberish/random text.",
+                    },
+                    "address_state": {
+                        "type": "string",
+                        "description": "Real state or province. Never invent or save gibberish/random text.",
+                    },
+                    "address_country": {
+                        "type": "string",
+                        "description": "Real country. Never invent or save gibberish/random text.",
+                    },
                     "professional_memberships": {
                         "type": "array",
                         "items": _PROFESSIONAL_MEMBERSHIP_ITEM_SCHEMA,
@@ -1465,30 +1484,94 @@ class SpeakerProfileChatbotService:
             derive_pre_create_subphase(history, message) if not has_profile else None
         )
 
+        # Hard block jailbreak / prompt-injection attempts (do not treat as name or profile data).
+        if looks_like_prompt_injection(message or ""):
+            ask_identity = (not has_profile) and pre_create_subphase in (
+                PRE_CREATE_ASK_IDENTITY,
+                PRE_CREATE_PROMPT_WELCOME,
+            )
+            assistant_content = prompt_injection_refusal_message(ask_identity=ask_identity)
+            if has_profile and expected_step:
+                step_q = build_step_user_message(expected_step, catalog)
+                if step_q:
+                    assistant_content = (
+                        f"{prompt_injection_refusal_message(ask_identity=False)}<br><br>{step_q}"
+                    )
+            chunk = [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": assistant_content},
+            ]
+            if session:
+                await self.chat_session_model.append_messages(chat_session_id, chunk)
+                chat_session_id_out = chat_session_id
+            else:
+                new_sess = await self.chat_session_model.create_session(
+                    speaker_profile_id=(speaker_profile_id or ""),
+                    messages=chunk,
+                )
+                chat_session_id_out = new_sess["_id"]
+            self._catalog_name_lists = None
+            return {
+                "assistant_message": assistant_content,
+                "action": None,
+                "speaker_profile_id": speaker_profile_id,
+                "chat_session_id": chat_session_id_out,
+                "profile_snapshot": profile,
+            }
+
+        # Location step: reject obvious random/gibberish answers before the LLM can invent places.
+        if (
+            has_profile
+            and expected_step == "location"
+            and looks_like_invalid_location_answer(message or "")
+        ):
+            assistant_content = location_invalid_refusal_message()
+            chunk = [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": assistant_content},
+            ]
+            if session:
+                await self.chat_session_model.append_messages(chat_session_id, chunk)
+                chat_session_id_out = chat_session_id
+            else:
+                new_sess = await self.chat_session_model.create_session(
+                    speaker_profile_id=(speaker_profile_id or ""),
+                    messages=chunk,
+                )
+                chat_session_id_out = new_sess["_id"]
+            self._catalog_name_lists = None
+            return {
+                "assistant_message": assistant_content,
+                "action": None,
+                "speaker_profile_id": speaker_profile_id,
+                "chat_session_id": chat_session_id_out,
+                "profile_snapshot": profile,
+            }
+
         if (
             not has_profile
             and pre_create_subphase == PRE_CREATE_PROMPT_WELCOME
             and (message or "").strip()
         ):
             identity = extract_pre_create_identity(client, message)
-            if identity.get("full_name"):
-                assistant_content = build_identity_welcome_reply(identity["full_name"])
+            if not identity.get("full_name"):
+                # Not a usable identity answer — re-ask (do not store as name).
+                assistant_content = (
+                    "I couldn't find a professional name, title, and company in that reply. "
+                    "Could you share your professional name, job title, and company?"
+                )
                 chunk = [
                     {"role": "user", "content": message},
                     {"role": "assistant", "content": assistant_content},
                 ]
                 if session:
                     await self.chat_session_model.append_messages(chat_session_id, chunk)
-                    await self.chat_session_model.update_pending_identity(chat_session_id, identity)
                     chat_session_id_out = chat_session_id
                 else:
                     new_sess = await self.chat_session_model.create_session(
                         speaker_profile_id="", messages=chunk
                     )
                     chat_session_id_out = new_sess["_id"]
-                    await self.chat_session_model.update_pending_identity(
-                        chat_session_id_out, identity
-                    )
                 self._catalog_name_lists = None
                 return {
                     "assistant_message": assistant_content,
@@ -1497,6 +1580,31 @@ class SpeakerProfileChatbotService:
                     "chat_session_id": chat_session_id_out,
                     "profile_snapshot": None,
                 }
+            assistant_content = build_identity_welcome_reply(identity["full_name"])
+            chunk = [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": assistant_content},
+            ]
+            if session:
+                await self.chat_session_model.append_messages(chat_session_id, chunk)
+                await self.chat_session_model.update_pending_identity(chat_session_id, identity)
+                chat_session_id_out = chat_session_id
+            else:
+                new_sess = await self.chat_session_model.create_session(
+                    speaker_profile_id="", messages=chunk
+                )
+                chat_session_id_out = new_sess["_id"]
+                await self.chat_session_model.update_pending_identity(
+                    chat_session_id_out, identity
+                )
+            self._catalog_name_lists = None
+            return {
+                "assistant_message": assistant_content,
+                "action": None,
+                "speaker_profile_id": None,
+                "chat_session_id": chat_session_id_out,
+                "profile_snapshot": None,
+            }
 
         pending_identity = (session or {}).get("pending_identity") if not has_profile else None
 
@@ -1634,11 +1742,10 @@ class SpeakerProfileChatbotService:
             if loop_i == 0 and force_upsert_first:
                 tool_choice = {"type": "function", "function": {"name": "upsert_speaker_profile"}}
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=_CHATBOT_MODEL,
                 messages=chat_messages,
                 tools=tools,
                 tool_choice=tool_choice,
-                temperature=0.25,
                 timeout=30,
             )
             msg = completion.choices[0].message
@@ -1707,6 +1814,59 @@ class SpeakerProfileChatbotService:
                 # Always prefer the session/known profile id so updates never miss the document.
                 if speaker_profile_id:
                     tc_args["speaker_profile_id"] = speaker_profile_id
+                # Validate location fields before save — never persist random/gibberish places.
+                _loc_keys = ("address_city", "address_state", "address_country")
+                loc_attempted = any(
+                    isinstance(tc_args.get(k), str) and str(tc_args.get(k) or "").strip()
+                    for k in _loc_keys
+                )
+                if loc_attempted:
+                    validated_loc = validate_and_normalize_location(
+                        client,
+                        str(tc_args.get("address_city") or ""),
+                        str(tc_args.get("address_state") or ""),
+                        str(tc_args.get("address_country") or ""),
+                    )
+                    if not validated_loc:
+                        for k in _loc_keys:
+                            tc_args.pop(k, None)
+                        # If this turn is the location step (or only location was being saved), reject outright.
+                        other_profile_keys = [
+                            k
+                            for k, v in tc_args.items()
+                            if k not in ("speaker_profile_id", *_loc_keys)
+                            and v is not None
+                            and v != ""
+                            and v != []
+                        ]
+                        if expected_step == "location" or not other_profile_keys:
+                            result = {
+                                "action": "location_invalid",
+                                "profile": profile,
+                                "saved_fields": [],
+                                "warnings": [
+                                    "Location was NOT saved: not a plausible city, state/province, and country. "
+                                    "Re-ask the location question; do not invent a place."
+                                ],
+                            }
+                            tool_results.append(result)
+                            chat_messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": json.dumps({
+                                    "action": "location_invalid",
+                                    "saved_fields": [],
+                                    "warnings": result["warnings"],
+                                    "reminder": (
+                                        "Do NOT claim you saved a location. "
+                                        "Tell the user it doesn't look like a real location and re-ask "
+                                        "city, state/province, and country."
+                                    ),
+                                }),
+                            })
+                            continue
+                    else:
+                        tc_args.update(validated_loc)
                 spid = (tc_args.get("speaker_profile_id") or "").strip() or None
                 result = await self._execute_upsert(
                     tc_args,
@@ -1845,6 +2005,8 @@ class SpeakerProfileChatbotService:
                     "Please share one proper email (for example, name@company.com), "
                     "and your phone number if you haven't already."
                 )
+            elif action == "location_invalid":
+                assistant_content = location_invalid_refusal_message()
             elif action == "phone_required":
                 email_hint = ""
                 if tool_results:
@@ -1885,9 +2047,8 @@ class SpeakerProfileChatbotService:
                 )
                 try:
                     s = client.chat.completions.create(
-                        model="gpt-4o-mini",
+                        model=_CHATBOT_MODEL,
                         messages=chat_messages + [{"role": "user", "content": prompt}],
-                        temperature=0.3,
                         timeout=15,
                     )
                     assistant_content = (s.choices[0].message.content or "").strip()
@@ -1913,9 +2074,8 @@ class SpeakerProfileChatbotService:
                 if not assistant_content:
                     try:
                         s = client.chat.completions.create(
-                            model="gpt-4o-mini",
+                            model=_CHATBOT_MODEL,
                             messages=chat_messages + [{"role": "user", "content": prompt}],
-                            temperature=0.3,
                             timeout=15,
                         )
                         assistant_content = (s.choices[0].message.content or "").strip()
@@ -1934,6 +2094,10 @@ class SpeakerProfileChatbotService:
                                 else "How can I assist you today to create a speaker profile? I'll need your email address to get started."
                             )
                         )
+
+        # Never claim a location was saved when validation rejected it.
+        if action == "location_invalid":
+            assistant_content = location_invalid_refusal_message()
 
         if profile_marked_complete and user_turn_answered_last_question:
             assistant_content = _PROFILE_COMPLETION_MESSAGE
