@@ -52,9 +52,9 @@ from app.services.speaker_profile_chatbot_steps import (
     speakerpitcher_welcome_already_sent,
     strip_duplicate_speakerpitcher_welcome,
     detect_skip_intent,
-    may_mark_profile_complete,
     merge_steps_done,
     steps_from_saved_fields,
+    last_assistant_asked_testimonial,
 )
 
 logger = logging.getLogger(__name__)
@@ -1232,18 +1232,10 @@ class SpeakerProfileChatbotService:
         jwt_user: Optional[Dict[str, Any]],
     ) -> Tuple[bool, dict, List[str]]:
         """
-        Server-side completion when the user finished the testimonial step.
-        Does not rely on the LLM calling mark_profile_complete (it often sends the completion text only).
-        Sets speaker_profiles.isCompleted and users.isOnboarded.
+        After the user answers the testimonial (last) question, set isCompleted=True.
+        No extra field checks — onboarding questions are asked in sequence by the LLM.
         """
-        if not may_mark_profile_complete(
-            profile,
-            steps_done,
-            has_profile=True,
-            user_turn_answered_last_question=True,
-        ):
-            return False, profile, steps_done
-        if not self._all_mandatory_filled(profile):
+        if not speaker_profile_id or not profile:
             return False, profile, steps_done
         updated = await self._set_profile_completed(speaker_profile_id)
         if updated:
@@ -1252,7 +1244,8 @@ class SpeakerProfileChatbotService:
         else:
             profile["isCompleted"] = True
         await self._sync_user_onboarded(jwt_user, profile=profile)
-        return True, profile, steps_done
+        logger.info("Chatbot: set isCompleted=True for profile %s", speaker_profile_id)
+        return True, profile, merge_steps_done(steps_done, ["testimonial"])
 
     async def _execute_upsert(
         self,
@@ -1260,7 +1253,7 @@ class SpeakerProfileChatbotService:
         speaker_profile_id: Optional[str],
         jwt_user: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        """Create or update by speaker_profile_id (when provided) or by email."""
+        """Create when speaker_profile_id is absent; update only by speaker_profile_id once created."""
         profile_doc = await self._build_profile_doc(args)
         warnings: List[str] = []
         pst_in = args.get("preferred_speaking_time")
@@ -1340,6 +1333,8 @@ class SpeakerProfileChatbotService:
                 "saved_fields": [],
                 "warnings": warnings,
             }
+        # Always create a new profile document. Multiple profiles may share the same email;
+        # updates after create must use speaker_profile_id only (session / request body).
         profile_doc["email"] = email
         profile_doc["full_name"] = full_name
         profile_doc["phone_number"] = phone_number
@@ -1375,6 +1370,7 @@ class SpeakerProfileChatbotService:
         message: str,
         chat_session_id: Optional[str] = None,
         jwt_user: Optional[Dict[str, Any]] = None,
+        speaker_profile_id: Optional[str] = None,
     ) -> dict:
         """
         Flow:
@@ -1397,27 +1393,54 @@ class SpeakerProfileChatbotService:
         catalog = self._catalog_name_lists
 
         session = None
-        speaker_profile_id = None
         profile = None
         history: List[Dict[str, Any]] = []
+        # Prefer session-linked id; allow client to pass speaker_profile_id as fallback.
+        requested_profile_id = (speaker_profile_id or "").strip() or None
+        speaker_profile_id = None
 
         if chat_session_id:
             session = await self.chat_session_model.get_by_id(chat_session_id)
             if session:
                 speaker_profile_id = (session.get("speaker_profile_id") or "").strip() or None
-                if speaker_profile_id:
-                    profile = await self.profile_model.get_profile(speaker_profile_id)
-                    if profile:
-                        profile["_id"] = str(profile["_id"])
                 conv = session.get("conversation") or []
                 history = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in conv]
+
+        if not speaker_profile_id and requested_profile_id:
+            speaker_profile_id = requested_profile_id
+
+        if speaker_profile_id:
+            profile = await self.profile_model.get_profile(speaker_profile_id)
+            if profile:
+                profile["_id"] = str(profile["_id"])
+            else:
+                # Stale id — don't block create/update flow on a missing document.
+                speaker_profile_id = None
+
+        # If session exists but was missing the profile id, attach it now so later turns update.
+        if session and chat_session_id and speaker_profile_id:
+            existing_spid = (session.get("speaker_profile_id") or "").strip()
+            if existing_spid != speaker_profile_id:
+                await self.chat_session_model.update_speaker_profile_id(
+                    chat_session_id, speaker_profile_id
+                )
+                session["speaker_profile_id"] = speaker_profile_id
 
         messages = [*history, {"role": "user", "content": message or ""}]
 
         has_profile = bool(speaker_profile_id and profile)
         steps_done: List[str] = list((session or {}).get("onboarding_steps_done") or [])
         step_at_turn_start = derive_expected_step(profile, steps_done, has_profile=has_profile)
-        user_turn_answered_last_question = has_profile and step_at_turn_start == "testimonial"
+        # Last-question turn: server step is testimonial, OR the assistant just asked the testimonial
+        # question (LLM asks in sequence even if an earlier optional step looks "open" to the server).
+        user_turn_answered_last_question = bool(
+            has_profile
+            and (message or "").strip()
+            and (
+                step_at_turn_start == "testimonial"
+                or last_assistant_asked_testimonial(history)
+            )
+        )
         user_skipped_optional_step = (
             has_profile
             and step_at_turn_start in SKIPPABLE_STEPS
@@ -1779,13 +1802,17 @@ class SpeakerProfileChatbotService:
                     continue
                 if tc.function.name == "mark_profile_complete":
                     spid = (tc_args.get("speaker_profile_id") or "").strip() or speaker_profile_id
-                    allow_complete = may_mark_profile_complete(
-                        profile,
-                        steps_done,
-                        has_profile=bool(spid and profile),
-                        user_turn_answered_last_question=user_turn_answered_last_question,
+                    # After the user has answered testimonial, always allow; no extra field gates.
+                    allow_complete = bool(
+                        spid
+                        and profile
+                        and (
+                            user_turn_answered_last_question
+                            or last_assistant_asked_testimonial(history)
+                            or step_at_turn_start == "testimonial"
+                        )
                     )
-                    if spid and allow_complete and self._all_mandatory_filled(profile or {}):
+                    if allow_complete:
                         updated = await self._set_profile_completed(spid)
                         profile_marked_complete = True
                         if updated:
@@ -1793,6 +1820,7 @@ class SpeakerProfileChatbotService:
                             profile["_id"] = str(profile.get("_id") or spid)
                         elif profile:
                             profile["isCompleted"] = True
+                        steps_done = merge_steps_done(steps_done, ["testimonial"])
                         await self._sync_user_onboarded(jwt_user, profile=profile)
                     chat_messages.append({
                         "role": "tool",
@@ -1911,20 +1939,33 @@ class SpeakerProfileChatbotService:
                     and step_at_turn_start not in steps_done
                 ):
                     steps_done = merge_steps_done(steps_done, [step_at_turn_start])
-                if result.get("action") == "created" and profile and profile.get("_id"):
-                    speaker_profile_id = str(profile["_id"])
-                    has_profile = True
-                    # Link session immediately so later turns (and same-turn follow-ups) update this profile.
-                    if chat_session_id:
-                        await self.chat_session_model.update_speaker_profile_id(
-                            chat_session_id, speaker_profile_id
-                        )
-                    # Switch tool schema to UPDATE mode for any further tool calls this turn.
-                    tools = [
-                        _build_upsert_tool(speaker_profile_id),
-                        _build_get_allowed_values_tool(),
-                        _build_mark_profile_complete_tool(speaker_profile_id),
-                    ]
+                # Link profile id as soon as we have one (create OR recovered update without session id).
+                if result.get("profile") and result["profile"].get("_id"):
+                    pid = str(result["profile"]["_id"])
+                    if result.get("action") == "created" or not speaker_profile_id:
+                        speaker_profile_id = pid
+                        has_profile = True
+                        if chat_session_id:
+                            await self.chat_session_model.update_speaker_profile_id(
+                                chat_session_id, speaker_profile_id
+                            )
+                            if session is not None:
+                                session["speaker_profile_id"] = speaker_profile_id
+                        # Switch tool schema to UPDATE mode for any further tool calls this turn.
+                        tools = [
+                            _build_upsert_tool(speaker_profile_id),
+                            _build_get_allowed_values_tool(),
+                            _build_mark_profile_complete_tool(speaker_profile_id),
+                        ]
+                    elif speaker_profile_id != pid and result.get("action") == "updated":
+                        # Keep session in sync with the document we actually wrote.
+                        speaker_profile_id = pid
+                        if chat_session_id:
+                            await self.chat_session_model.update_speaker_profile_id(
+                                chat_session_id, speaker_profile_id
+                            )
+                            if session is not None:
+                                session["speaker_profile_id"] = speaker_profile_id
                 tr_payload: Dict[str, Any] = {
                     "action": result.get("action"),
                     "profile_id": str(profile.get("_id", "")) if profile else "",
@@ -1971,7 +2012,24 @@ class SpeakerProfileChatbotService:
                     "content": json.dumps(tr_payload),
                 })
 
-        # Testimonial / optional skips: ensure step is recorded, then complete in DB without relying on LLM tool.
+        # Also complete when this turn saved a testimonial (even if step detection missed).
+        if (
+            not profile_marked_complete
+            and has_profile
+            and speaker_profile_id
+            and profile
+            and any("testimonial" in (r.get("saved_fields") or []) for r in tool_results)
+        ):
+            user_turn_answered_last_question = True
+            steps_done = merge_steps_done(steps_done, ["testimonial"])
+            profile_marked_complete, profile, steps_done = await self._try_auto_mark_profile_complete(
+                str(speaker_profile_id),
+                profile,
+                steps_done,
+                jwt_user=jwt_user,
+            )
+
+        # Testimonial reply (last question): set isCompleted in DB — no other field gates.
         if (
             not profile_marked_complete
             and user_turn_answered_last_question
@@ -1979,8 +2037,7 @@ class SpeakerProfileChatbotService:
             and speaker_profile_id
             and profile
         ):
-            if step_at_turn_start in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
-                steps_done = merge_steps_done(steps_done, [step_at_turn_start])
+            steps_done = merge_steps_done(steps_done, ["testimonial"])
             profile_marked_complete, profile, steps_done = await self._try_auto_mark_profile_complete(
                 str(speaker_profile_id),
                 profile,
@@ -2114,8 +2171,7 @@ class SpeakerProfileChatbotService:
             and speaker_profile_id
             and profile
         ):
-            if step_at_turn_start in SKIPPABLE_STEPS and detect_skip_intent(message or ""):
-                steps_done = merge_steps_done(steps_done, [step_at_turn_start])
+            steps_done = merge_steps_done(steps_done, ["testimonial"])
             profile_marked_complete, profile, steps_done = await self._try_auto_mark_profile_complete(
                 str(speaker_profile_id),
                 profile,
@@ -2149,15 +2205,14 @@ class SpeakerProfileChatbotService:
             await self.chat_session_model.append_messages(chat_session_id, chunk)
             chat_session_id_out = chat_session_id
             await self.chat_session_model.update_onboarding_steps_done(chat_session_id, steps_done)
-            # Always attach profile id once we have one (do not require last action == "created").
+            # Always keep session linked to the profile once we have one.
             if profile and profile.get("_id"):
-                existing_spid = (session.get("speaker_profile_id") or "").strip()
-                if not existing_spid:
-                    await self.chat_session_model.update_speaker_profile_id(
-                        chat_session_id, str(profile["_id"])
-                    )
+                pid = str(profile["_id"])
+                await self.chat_session_model.update_speaker_profile_id(chat_session_id, pid)
+                session["speaker_profile_id"] = pid
+                speaker_profile_id = speaker_profile_id or pid
         else:
-            spid_for_session = str(profile.get("_id")) if profile and profile.get("_id") else ""
+            spid_for_session = str(profile.get("_id")) if profile and profile.get("_id") else (speaker_profile_id or "")
             new_sess = await self.chat_session_model.create_session(
                 speaker_profile_id=spid_for_session, messages=chunk
             )
@@ -2175,7 +2230,8 @@ class SpeakerProfileChatbotService:
         return {
             "assistant_message": assistant_content,
             "action": action,
-            "speaker_profile_id": profile.get("_id") if profile else None,
+            "speaker_profile_id": speaker_profile_id
+            or (str(profile["_id"]) if profile and profile.get("_id") else None),
             "chat_session_id": chat_session_id_out,
             "profile_snapshot": profile,
         }

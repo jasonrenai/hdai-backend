@@ -569,7 +569,8 @@ async def speaker_profile_chat(
     Body shape:
       {
         "message": "user message as string",
-        "chat_session_id": "optional existing chat session id"
+        "chat_session_id": "optional existing chat session id",
+        "speaker_profile_id": "optional profile id (fallback if session is missing the link)"
       }
     Flow: name + title + company, then email + phone (profile created), then location, social, bio,
     preferred speaking time, catalog fields, and remaining questions. See SpeakerProfileChatbotService.process_chat.
@@ -590,11 +591,13 @@ async def speaker_profile_chat(
 
     message = body.get("message") or ""
     chat_session_id = body.get("chat_session_id")
+    speaker_profile_id = body.get("speaker_profile_id")
 
     result = await chatbot_service.process_chat(
         message=message,
         chat_session_id=chat_session_id,
         jwt_user=jwt_user,
+        speaker_profile_id=speaker_profile_id,
     )
     return Utils.create_response(result, True)
 
