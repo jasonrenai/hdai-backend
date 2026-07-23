@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Form, HTTPException, UploadFile, File, Depends, Header, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -6,10 +8,43 @@ from app.schemas.ServerResponse import ServerResponse
 from app.helpers.Utilities import Utils
 from app.schemas.User import UpdateUserSchema
 
-from app.dependencies import get_profile_service
+from app.dependencies import get_profile_service, get_user_model
 
 router = APIRouter(prefix="/api/v1/profile", tags=["Profile"])
-    
+
+
+def _user_id_from_jwt(payload: dict) -> str:
+    for key in ("id", "user_id", "_id"):
+        value = payload.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={"data": None, "error": "Missing user id in token", "success": False},
+    )
+
+
+@router.patch("/onboarded", response_model=ServerResponse)
+async def mark_user_onboarded(
+    jwt_payload: dict = Depends(jwt_validator),
+    user_model=Depends(get_user_model),
+):
+    """Mark the authenticated user as onboarded (`isOnboarded=True`)."""
+    try:
+        user_id = _user_id_from_jwt(jwt_payload)
+        await user_model.update_user(
+            user_id,
+            {"isOnboarded": True, "updatedOn": datetime.utcnow()},
+        )
+        return Utils.create_response({"isOnboarded": True}, True, "")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"data": None, "error": "Internal server error", "success": False},
+        )
+
 # @router.put("/update-user-info", response_model=ServerResponse)
 # async def update_user_info(
 #     body: UpdateUserSchema,

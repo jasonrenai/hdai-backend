@@ -33,12 +33,42 @@ class GoogleQueryModel:
     async def get_list(
         self, user_id: str | None = None, skip: int = 0, limit: int = 100, sort_by: dict | None = None
     ) -> list[dict]:
-        """Get GoogleQueries with pagination. Optionally filter by user_id."""
-        if sort_by is None:
-            sort_by = {"createdAt": -1}
-        query = {}
+        """
+        Get GoogleQueries with pagination.
+        Default order by status: running → completed → pending → failed/other,
+        then createdAt desc within each status.
+        """
+        query: dict = {}
         if user_id is not None:
             query["userId"] = user_id
+
+        # Explicit custom order when no override sort is provided.
+        if sort_by is None:
+            pipeline = [
+                {"$match": query},
+                {
+                    "$addFields": {
+                        "_statusOrder": {
+                            "$switch": {
+                                "branches": [
+                                    {"case": {"$eq": ["$status", "running"]}, "then": 0},
+                                    {"case": {"$eq": ["$status", "completed"]}, "then": 1},
+                                    {"case": {"$eq": ["$status", "pending"]}, "then": 2},
+                                    {"case": {"$eq": ["$status", "failed"]}, "then": 3},
+                                ],
+                                "default": 4,
+                            }
+                        }
+                    }
+                },
+                {"$sort": {"_statusOrder": 1, "createdAt": -1}},
+                {"$project": {"_statusOrder": 0}},
+                {"$skip": int(skip)},
+                {"$limit": int(limit)},
+            ]
+            cursor = self.collection.aggregate(pipeline)
+            return [doc async for doc in cursor]
+
         cursor = (
             self.collection.find(query)
             .sort(list(sort_by.items()))

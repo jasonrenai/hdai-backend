@@ -138,11 +138,26 @@ class UrlScraperRapidAPIService:
         """Get a UrlCollection entry by ID."""
         return await self.url_collection_model.get_by_id(url_collection_id, user_id)
 
-    async def get_list(self, skip: int = 0, limit: int = 100) -> dict:
-        """Get list of UrlCollection entries (for get-all-scrapers). No user filter."""
+    async def get_list(self, page: int = 1, limit: int = 10) -> dict:
+        """Get list of UrlCollection entries (for get-all-scrapers) with page/limit pagination."""
+        page = max(1, int(page or 1))
+        limit = max(1, int(limit or 10))
+        skip = (page - 1) * limit
         items = await self.url_collection_model.get_list(user_id=None, skip=skip, limit=limit)
         total = await self.url_collection_model.count(user_id=None)
-        return {"success": True, "data": {"scrapers": items, "total": total}}
+        for doc in items:
+            if doc.get("_id") is not None:
+                doc["_id"] = str(doc["_id"])
+        return {
+            "success": True,
+            "data": {
+                "scrapers": items,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "totalPages": (total + limit - 1) // limit if limit > 0 else 0,
+            },
+        }
 
     async def get_by_id(self, url_collection_id: str, user_id: str) -> dict:
         """Get a single UrlCollection by ID (for get-scraper)."""
