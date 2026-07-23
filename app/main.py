@@ -145,17 +145,23 @@ async def startup_event():
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
 
     google_query_cron_h = pending_google_queries_cron_interval_hours()
-    _cron_scheduler.add_job(
-        run_pending_google_queries_cron_sync,
-        IntervalTrigger(hours=google_query_cron_h),
-        id="pending_google_queries_cron",
-        # Run once on startup (after deploy/check-in), then every interval thereafter.
-        next_run_time=datetime.now(timezone.utc),
-    )
-    log.info(
-        "Pending GoogleQuery scraper cron registered (every %s h, first run now, all pending entries)",
-        google_query_cron_h,
-    )
+    enable_gq_cron = (os.getenv("ENABLE_PENDING_GOOGLE_QUERY_CRON") or "true").strip().lower()
+    if enable_gq_cron in ("0", "false", "no", "off"):
+        log.info("Pending GoogleQuery scraper cron disabled via ENABLE_PENDING_GOOGLE_QUERY_CRON")
+    else:
+        _cron_scheduler.add_job(
+            run_pending_google_queries_cron_sync,
+            IntervalTrigger(hours=google_query_cron_h),
+            id="pending_google_queries_cron",
+            replace_existing=True,
+            # Run once on startup (after deploy/check-in), then every interval thereafter.
+            next_run_time=datetime.now(timezone.utc),
+        )
+        log.info(
+            "Pending GoogleQuery scraper cron registered "
+            "(every %s h, first run now, sequential claim-one-process-one)",
+            google_query_cron_h,
+        )
 
     url_collection_cron_h = pending_url_collections_cron_interval_hours()
     _cron_scheduler.add_job(

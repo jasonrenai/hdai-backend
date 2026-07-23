@@ -22,9 +22,15 @@ def register_app_event_loop(loop: asyncio.AbstractEventLoop) -> None:
     _app_loop = loop
 
 
-def run_coroutine_on_app_loop(coro: Coroutine[Any, Any, T], *, timeout: float = 300) -> T:
+def run_coroutine_on_app_loop(
+    coro: Coroutine[Any, Any, T],
+    *,
+    timeout: float | None = 300,
+) -> T:
     """
     Run `coro` on the registered app loop (thread-safe). Use from APScheduler job callbacks.
+
+    ``timeout=None`` waits until the coroutine finishes (needed for long sequential scrapes).
     """
     loop = _app_loop
     if loop is None or not loop.is_running():

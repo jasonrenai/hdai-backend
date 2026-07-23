@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
@@ -212,20 +213,107 @@ class GoogleQueryScraperService:
         Claims a single job (pending -> running), scrapes it to completion, then claims the
         next — so only one document is ``running`` at a time. Aborting mid-drain leaves the
         rest still ``pending``.
+
+        At start, reclaims stale ``running`` jobs left behind by a killed/redeployed worker.
+        Mongo blips retry with backoff instead of aborting the whole drain.
         """
+        from pymongo.errors import AutoReconnect, NetworkTimeout, ServerSelectionTimeoutError
+
         summary: dict = {
             "claimed": 0,
             "completed": 0,
             "failed": 0,
             "skipped_invalid": 0,
             "unexpected_status_after_run": 0,
+            "reclaimed_stale": 0,
+            "mongo_retries": 0,
         }
+
+        try:
+            stale_raw = (os.getenv("GOOGLE_QUERY_STALE_RUNNING_MINUTES") or "120").strip()
+            stale_minutes = max(1, int(stale_raw))
+        except ValueError:
+            stale_minutes = 120
+
+        try:
+            reclaimed = await self.google_query_model.reclaim_stale_running_jobs(stale_minutes)
+            summary["reclaimed_stale"] = reclaimed
+            if reclaimed:
+                logger.info(
+                    "Reclaimed %s stale running GoogleQueries (>%s min) back to pending",
+                    reclaimed,
+                    stale_minutes,
+                )
+        except Exception:
+            logger.exception("Failed to reclaim stale running GoogleQueries; continuing drain")
+
+        consecutive_mongo_failures = 0
         while True:
-            claimed = await self.google_query_model.claim_pending_jobs(limit=1)
+            try:
+                claimed = await self.google_query_model.claim_pending_jobs(limit=1)
+                consecutive_mongo_failures = 0
+            except (ServerSelectionTimeoutError, AutoReconnect, NetworkTimeout) as e:
+                summary["mongo_retries"] += 1
+                consecutive_mongo_failures += 1
+                sleep_s = min(300, 30 * consecutive_mongo_failures)
+                logger.warning(
+                    "Mongo blip claiming GoogleQuery (attempt %s): %s; sleep %ss",
+                    consecutive_mongo_failures,
+                    e,
+                    sleep_s,
+                )
+                if consecutive_mongo_failures >= 10:
+                    logger.error("Too many consecutive Mongo claim failures; stopping drain")
+                    break
+                await asyncio.sleep(sleep_s)
+                continue
+
             if not claimed:
                 break
-            batch = await self._process_claimed_pending(claimed)
-            for k in summary:
+
+            try:
+                batch = await self._process_claimed_pending(claimed)
+                consecutive_mongo_failures = 0
+            except (ServerSelectionTimeoutError, AutoReconnect, NetworkTimeout) as e:
+                summary["mongo_retries"] += 1
+                consecutive_mongo_failures += 1
+                # Active claim may be stuck running — reclaim stale (and this one if old enough later)
+                # Immediately put this claimed id back to pending so sequential drain can retry.
+                for doc in claimed:
+                    try:
+                        await self.google_query_model.update_by_id(
+                            str(doc["_id"]),
+                            {
+                                "status": "pending",
+                                "error": None,
+                                "updatedAt": datetime.utcnow(),
+                            },
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to reset GoogleQuery to pending after Mongo blip id=%s",
+                            doc.get("_id"),
+                        )
+                sleep_s = min(300, 30 * consecutive_mongo_failures)
+                logger.warning(
+                    "Mongo blip processing GoogleQuery (attempt %s): %s; reset claimed->pending, sleep %ss",
+                    consecutive_mongo_failures,
+                    e,
+                    sleep_s,
+                )
+                if consecutive_mongo_failures >= 10:
+                    logger.error("Too many consecutive Mongo process failures; stopping drain")
+                    break
+                await asyncio.sleep(sleep_s)
+                continue
+
+            for k in (
+                "claimed",
+                "completed",
+                "failed",
+                "skipped_invalid",
+                "unexpected_status_after_run",
+            ):
                 summary[k] += batch.get(k, 0)
         return summary
 

@@ -11,7 +11,7 @@ from app.services.UrlScraperRapidAPI import UrlScraperRapidAPIService
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CRON_TIMEOUT_SECONDS = 14400  # 4h — many URLs × RapidAPI + LLM can run long
+_DEFAULT_CRON_TIMEOUT_SECONDS = 14400  # 4h — UrlCollection drains; GoogleQuery defaults to no timeout
 
 
 def _cron_timeout_seconds() -> float:
@@ -22,6 +22,25 @@ def _cron_timeout_seconds() -> float:
         return max(60.0, float(raw))
     except ValueError:
         return float(_DEFAULT_CRON_TIMEOUT_SECONDS)
+
+
+def _google_query_cron_timeout_seconds() -> float | None:
+    """
+    GoogleQuery drain is sequential and can take many hours (dozens of queries × SERP/scrape).
+
+    Default: no timeout (wait until finished). Override with
+    PENDING_GOOGLE_QUERY_CRON_TIMEOUT_SECONDS (seconds). Set to 0 for no timeout explicitly.
+    """
+    raw = (os.getenv("PENDING_GOOGLE_QUERY_CRON_TIMEOUT_SECONDS") or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    return max(60.0, value)
 
 
 class PendingScraperCronService:
@@ -58,7 +77,7 @@ def pending_url_collections_cron_interval_hours() -> int:
 
 
 def run_pending_google_queries_cron_sync() -> None:
-    """Synchronous entrypoint for APScheduler — all pending GoogleQueries."""
+    """Synchronous entrypoint for APScheduler — all pending GoogleQueries (sequential)."""
 
     async def _run() -> None:
         await PendingScraperCronService().run_all_pending_google_queries()
@@ -66,7 +85,12 @@ def run_pending_google_queries_cron_sync() -> None:
     try:
         from app.helpers.scheduler_async import run_coroutine_on_app_loop
 
-        run_coroutine_on_app_loop(_run(), timeout=_cron_timeout_seconds())
+        timeout = _google_query_cron_timeout_seconds()
+        logger.info(
+            "Pending GoogleQuery cron starting (timeout=%s)",
+            "none" if timeout is None else f"{timeout}s",
+        )
+        run_coroutine_on_app_loop(_run(), timeout=timeout)
     except Exception:
         logger.exception("Pending GoogleQuery cron top-level failure")
 

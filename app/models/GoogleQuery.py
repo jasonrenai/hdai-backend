@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from bson import ObjectId
 from pymongo import ReturnDocument
@@ -92,6 +92,32 @@ class GoogleQueryModel:
         result = await self.collection.delete_one(query)
         return result.deleted_count > 0
 
+    async def reclaim_stale_running_jobs(self, stale_minutes: int = 120) -> int:
+        """
+        Reset ``running`` jobs whose updatedAt is older than ``stale_minutes`` back to
+        ``pending``. Used at cron start so a killed/redeployed worker does not leave
+        jobs stuck forever. Active jobs keep updating updatedAt during scrape.
+        """
+        stale_minutes = max(1, int(stale_minutes))
+        cutoff = datetime.utcnow() - timedelta(minutes=stale_minutes)
+        result = await self.collection.update_many(
+            {
+                "status": "running",
+                "$or": [
+                    {"updatedAt": {"$lt": cutoff}},
+                    {"updatedAt": {"$exists": False}},
+                ],
+            },
+            {
+                "$set": {
+                    "status": "pending",
+                    "error": None,
+                    "updatedAt": datetime.utcnow(),
+                }
+            },
+        )
+        return int(result.modified_count)
+
     async def claim_pending_jobs(self, limit: int = 10) -> list[dict]:
         """
         Atomically claim up to `limit` documents with status \"pending\" (oldest by createdAt first).
@@ -131,4 +157,3 @@ class GoogleQueryModel:
             sort=[("createdAt", 1)],
             return_document=ReturnDocument.AFTER,
         )
-
