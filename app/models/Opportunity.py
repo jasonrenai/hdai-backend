@@ -1,6 +1,6 @@
 import os
-from datetime import datetime
-from typing import List, Sequence
+from datetime import date, datetime
+from typing import Any, List, Optional, Sequence
 from urllib.parse import urlparse, urlunparse
 
 import certifi
@@ -8,6 +8,47 @@ from bson import ObjectId
 from pymongo import MongoClient
 
 from app.helpers.Database import MongoDB
+
+# ISO date strings compare lexicographically; "deadline not found" is treated as still open (future).
+# Deadline lives under submissionInfo.deadline (string "YYYY-MM-DD" or "deadline not found").
+_DEADLINE_FIELD = "submissionInfo.deadline"
+_DEADLINE_ISO_PREFIX = {"$regex": r"^\d{4}-\d{2}-\d{2}"}
+_DEADLINE_NOT_FOUND = {"$regex": r"^deadline not found$", "$options": "i"}
+
+
+def deadline_time_filter_query(time_filter: Optional[str]) -> dict:
+    """
+    Build Mongo filter for submissionInfo.deadline (string "YYYY-MM-DD" or "deadline not found").
+
+    - none / empty: no deadline constraint (all opportunities)
+    - future: deadline >= today, or deadline is "deadline not found"
+    - past: parseable deadline < today
+    """
+    key = (time_filter or "").strip().lower()
+    if not key or key in ("none", "all"):
+        return {}
+    today_str = date.today().isoformat()
+    field = _DEADLINE_FIELD
+    if key == "future":
+        return {
+            "$or": [
+                {
+                    "$and": [
+                        {field: _DEADLINE_ISO_PREFIX},
+                        {field: {"$gte": today_str}},
+                    ]
+                },
+                {field: _DEADLINE_NOT_FOUND},
+            ]
+        }
+    if key == "past":
+        return {
+            "$and": [
+                {field: _DEADLINE_ISO_PREFIX},
+                {field: {"$lt": today_str}},
+            ]
+        }
+    raise ValueError("filter must be one of: future, past, none")
 
 
 def opportunity_dedupe_key(opp: dict) -> tuple[str, str] | None:
@@ -218,21 +259,67 @@ class OpportunityModel:
         finally:
             client.close()
 
-    async def get_list(self, skip: int = 0, limit: int = 10, sort_by: dict = None) -> list[dict]:
-        """Get opportunities with pagination. Returns list of documents."""
+    async def get_list(
+        self,
+        skip: int = 0,
+        limit: int = 10,
+        sort_by: dict = None,
+        query: Optional[dict] = None,
+        sort_by_deadline: Optional[str] = "asc",
+    ) -> list[dict]:
+        """
+        Get opportunities with pagination.
+        sort_by_deadline: asc (default) | desc. ISO deadlines sort first;
+        'deadline not found' / missing / non-date values are always last.
+        """
         if sort_by is None:
             sort_by = {"_id": -1}
-        cursor = (
-            self.collection.find({})
-            .sort(list(sort_by.items()))
-            .skip(skip)
-            .limit(limit)
-        )
+        filt: dict[str, Any] = dict(query or {})
+        deadline_dir = (sort_by_deadline or "asc").strip().lower()
+        if deadline_dir not in ("asc", "desc"):
+            raise ValueError("sort_by_deadline must be asc or desc")
+
+        deadline_order = 1 if deadline_dir == "asc" else -1
+        deadline_expr = {"$ifNull": [f"${_DEADLINE_FIELD}", ""]}
+        is_iso_date = {
+            "$regexMatch": {
+                "input": deadline_expr,
+                "regex": r"^\d{4}-\d{2}-\d{2}",
+            }
+        }
+        sort_spec: dict[str, int] = {
+            "_deadlineMissing": 1,  # dated rows first; not-found / invalid always last
+            "_deadlineSort": deadline_order,
+        }
+        for field, direction in sort_by.items():
+            if field not in sort_spec:
+                sort_spec[field] = direction
+
+        pipeline: list[dict[str, Any]] = [
+            {"$match": filt},
+            {
+                "$addFields": {
+                    "_deadlineMissing": {"$cond": [is_iso_date, 0, 1]},
+                    "_deadlineSort": {
+                        "$cond": [
+                            is_iso_date,
+                            {"$substrBytes": [deadline_expr, 0, 10]},
+                            "",
+                        ]
+                    },
+                }
+            },
+            {"$sort": sort_spec},
+            {"$project": {"_deadlineMissing": 0, "_deadlineSort": 0}},
+            {"$skip": int(skip)},
+            {"$limit": int(limit)},
+        ]
+        cursor = self.collection.aggregate(pipeline)
         return [doc async for doc in cursor]
 
-    async def count(self) -> int:
-        """Get total count of opportunities."""
-        return await self.collection.count_documents({})
+    async def count(self, query: Optional[dict] = None) -> int:
+        """Get total count of opportunities (optionally filtered)."""
+        return await self.collection.count_documents(dict(query or {}))
 
     async def delete_by_id(self, opportunity_id: str) -> bool:
         """Delete an opportunity by ID. Returns True if deleted."""

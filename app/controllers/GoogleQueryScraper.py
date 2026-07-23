@@ -11,14 +11,14 @@ router = APIRouter(prefix="/api/v1/google-query-scraper", tags=["Google Query Sc
 
 @router.get("/get-all-google-queries", response_model=ServerResponse)
 async def get_all_google_queries(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(10, ge=1, le=500, description="Items per page"),
     service=Depends(get_google_query_scraper_service),
     _jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List all Google queries with pagination."""
+    """List all Google queries with page/limit pagination."""
     try:
-        result = await service.get_list(skip=skip, limit=limit)
+        result = await service.get_list(page=page, limit=limit)
         return Utils.create_response(result, True)
     except HTTPException:
         raise

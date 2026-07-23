@@ -27,10 +27,25 @@ async def list_opportunities(
     sort_by_start_date: str = Query(None, description="Sort by start_date: asc or desc"),
     sort_by_end_date: str = Query(None, description="Sort by end_date: asc or desc"),
     sort_by_created_at: str = Query(None, description="Sort by created_at: asc or desc"),
+    sort_by_deadline: str = Query(
+        "asc",
+        description=(
+            "Sort by submissionInfo.deadline: asc (default) or desc. "
+            "'deadline not found' / missing deadlines are always last."
+        ),
+    ),
+    filter: str = Query(
+        "none",
+        description=(
+            "Deadline time filter on submissionInfo.deadline: none (all), "
+            "future (deadline >= today or 'deadline not found'), "
+            "past (deadline < today). Deadline is a string YYYY-MM-DD."
+        ),
+    ),
     service=Depends(get_opportunity_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List opportunities with pagination. Optional sort by start_date, end_date, and/or created_at (asc | desc)."""
+    """List opportunities with pagination, deadline filter, and deadline sort."""
     try:
         result = await service.list_opportunities(
             page=page,
@@ -38,8 +53,15 @@ async def list_opportunities(
             sort_by_start_date=sort_by_start_date,
             sort_by_end_date=sort_by_end_date,
             sort_by_created_at=sort_by_created_at,
+            sort_by_deadline=sort_by_deadline,
+            time_filter=filter,
         )
         return Utils.create_response(result, True)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"data": None, "error": str(e), "success": False},
+        )
     except HTTPException:
         raise
     except Exception as e:

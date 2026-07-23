@@ -8,7 +8,7 @@ from typing import List
 
 logger = logging.getLogger(__name__)
 
-from app.models.Opportunity import OpportunityModel
+from app.models.Opportunity import OpportunityModel, deadline_time_filter_query
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.models.MatchedOpportunities import MatchedOpportunitiesModel
 from app.helpers.PineconeOpportunityStore import PineconeOpportunityStore, OpportunityTextBuilder
@@ -52,22 +52,41 @@ class OpportunityService:
         sort_by_start_date: str | None = None,
         sort_by_end_date: str | None = None,
         sort_by_created_at: str | None = None,
+        sort_by_deadline: str | None = "asc",
+        time_filter: str | None = None,
     ) -> dict:
-        """List opportunities with pagination. page is 1-based. Optional sort by start_date, end_date, and/or created_at (asc/desc)."""
+        """
+        List opportunities with pagination. page is 1-based.
+        Optional sort by start_date, end_date, and/or created_at (asc/desc).
+        sort_by_deadline: asc (default) | desc; 'deadline not found' always last.
+        time_filter: future | past | none (all). Filters on submissionInfo.deadline.
+        """
         skip = (page - 1) * limit
         sort_by = self._build_sort(
             sort_by_start_date,
             sort_by_end_date,
             sort_by_created_at,
         )
-        opportunities = await self.model.get_list(skip=skip, limit=limit, sort_by=sort_by)
-        total = await self.model.count()
+        deadline_sort = (sort_by_deadline or "asc").strip().lower() or "asc"
+        if deadline_sort not in ("asc", "desc"):
+            raise ValueError("sort_by_deadline must be asc or desc")
+        query = deadline_time_filter_query(time_filter)
+        opportunities = await self.model.get_list(
+            skip=skip,
+            limit=limit,
+            sort_by=sort_by,
+            query=query,
+            sort_by_deadline=deadline_sort,
+        )
+        total = await self.model.count(query=query)
         return {
             "opportunities": opportunities,
             "total": total,
             "page": page,
             "limit": limit,
             "totalPages": (total + limit - 1) // limit if limit > 0 else 0,
+            "filter": (time_filter or "none").strip().lower() or "none",
+            "sort_by_deadline": deadline_sort,
         }
 
     def _build_sort(

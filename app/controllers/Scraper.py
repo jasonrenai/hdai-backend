@@ -34,14 +34,14 @@ async def create_scraper(
 
 @router.get("/get-all-scrapers", response_model=ServerResponse)
 async def list_scrapers(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(10, ge=1, le=500, description="Items per page"),
     jwt_payload: dict = Depends(jwt_validator),
     service=Depends(get_url_scraper_rapidapi_service),
 ):
-    """List all scrapers from UrlCollection (sourceName, description updated after RapidAPI scrape)."""
+    """List all scrapers from UrlCollection with page/limit pagination."""
     try:
-        result = await service.get_list(skip=skip, limit=limit)
+        result = await service.get_list(page=page, limit=limit)
         if not result["success"]:
             raise HTTPException(
                 status_code=400,
