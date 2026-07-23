@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -36,9 +35,7 @@ from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
 from app.services.PendingNotificationEmailCronService import run_pending_notification_email_cron_sync
 from app.services.PendingScraperCronService import (
-    pending_google_queries_cron_interval_hours,
     pending_url_collections_cron_interval_hours,
-    run_pending_google_queries_cron_sync,
     run_pending_url_collections_cron_sync,
 )
 from app.services.SubmissionReminderCronService import run_submission_reminder_cron_sync
@@ -144,18 +141,8 @@ async def startup_event():
     )
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
 
-    google_query_cron_h = pending_google_queries_cron_interval_hours()
-    _cron_scheduler.add_job(
-        run_pending_google_queries_cron_sync,
-        IntervalTrigger(hours=google_query_cron_h),
-        id="pending_google_queries_cron",
-        # Run once on startup (after deploy/check-in), then every interval thereafter.
-        next_run_time=datetime.now(timezone.utc),
-    )
-    log.info(
-        "Pending GoogleQuery scraper cron registered (every %s h, first run now, all pending entries)",
-        google_query_cron_h,
-    )
+    # pending_google_queries_cron intentionally not registered — disabled on the server.
+    log.info("Pending GoogleQuery scraper cron disabled")
 
     url_collection_cron_h = pending_url_collections_cron_interval_hours()
     _cron_scheduler.add_job(
