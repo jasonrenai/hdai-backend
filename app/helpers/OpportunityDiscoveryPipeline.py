@@ -167,10 +167,18 @@ def _llm_json_object(text: str) -> Optional[Dict[str, Any]]:
 class OpportunityDiscoveryPipeline:
     """Runs the multi-hop scrape → classify → resolve → verify → submit flow."""
 
-    def __init__(self, rapidapi_scraper: RapidAPIScraper = None, delay_seconds: float = 0):
+    def __init__(
+        self,
+        rapidapi_scraper: RapidAPIScraper = None,
+        delay_seconds: float = 0,
+        target_audiences: Optional[List[str]] = None,
+    ):
         self.scraper = rapidapi_scraper or RapidAPIScraper(delay_seconds=delay_seconds)
-        self.extractor = SpeakingOpportunityExtractor()
-        self.enricher = EventDetailEnricherAgent(rapidapi_scraper=self.scraper)
+        self.extractor = SpeakingOpportunityExtractor(target_audiences=target_audiences)
+        self.enricher = EventDetailEnricherAgent(
+            rapidapi_scraper=self.scraper,
+            target_audiences=target_audiences,
+        )
         self.submission_resolver = OpportunitySubmissionResolver(rapidapi_scraper=self.scraper)
 
     def run(self, url: str, delay_seconds: float = 0) -> Optional[dict]:
@@ -572,7 +580,9 @@ class OpportunityDiscoveryPipeline:
         )
         needs_format = not (opp.get("speaking_format") or "").strip()
         needs_delivery = not (opp.get("delivery_mode") or "").strip()
-        needs_audiences = not isinstance(opp.get("target_audiences"), list)
+        needs_audiences = not (
+            isinstance(opp.get("target_audiences"), list) and len(opp.get("target_audiences") or []) > 0
+        )
         needs_location = not (opp.get("location") or "").strip()
         needs_name = not (opp.get("event_name") or opp.get("title") or "").strip()
         if not (needs_topics or needs_format or needs_delivery or needs_audiences or needs_location or needs_name):

@@ -16,11 +16,14 @@ from app.config.speaker_profile_chatbot import (
     TOPICS as ALLOWED_TOPICS,
     SPEAKING_FORMATS,
     DELIVERY_MODE,
-    TARGET_AUDIENCES,
 )
 from app.helpers.OpportunitySubmissionResolver import (
     normalize_submission_info,
     sync_submission_info_to_metadata,
+)
+from app.helpers.TargetAudienceCatalog import (
+    audience_catalog_maps,
+    resolve_target_audiences,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,10 +39,6 @@ _SPEAKING_FORMATS_STR = ", ".join(f'"{t}"' for t in SPEAKING_FORMATS)
 _DELIVERY_MODE_SET = set(DELIVERY_MODE)
 _DELIVERY_MODE_LOWER = {t.lower(): t for t in DELIVERY_MODE}
 _DELIVERY_MODE_STR = ", ".join(f'"{t}"' for t in DELIVERY_MODE)
-
-_TARGET_AUDIENCES_SET = set(TARGET_AUDIENCES)
-_TARGET_AUDIENCES_LOWER = {t.lower(): t for t in TARGET_AUDIENCES}
-_TARGET_AUDIENCES_STR = ", ".join(f'"{t}"' for t in TARGET_AUDIENCES)
 
 
 def _filter_single_to_allowed(value: str, allowed: List[str], allowed_lower: dict, default: str = "") -> str:
@@ -147,13 +146,6 @@ def _filter_delivery_mode(raw: str) -> str:
     return _filter_single_to_allowed(raw, DELIVERY_MODE, _DELIVERY_MODE_LOWER, default="")
 
 
-def _filter_target_audiences_to_allowed(raw_list: List[str]) -> List[str]:
-    """Constrain to TARGET_AUDIENCES only."""
-    return _filter_list_to_allowed(
-        raw_list or [], TARGET_AUDIENCES, _TARGET_AUDIENCES_SET, _TARGET_AUDIENCES_LOWER
-    )
-
-
 def _parse_date_to_iso(value: Any, require_day: bool = False) -> Optional[str]:
     """
     Parse a date string from LLM (various formats) to ISO date YYYY-MM-DD.
@@ -212,7 +204,55 @@ def _is_future_or_today(iso_date: Optional[str]) -> bool:
 class SpeakingOpportunityExtractor:
     """Extracts speaking opportunities from markdown content via LLM. Topics are constrained to speaker_profile_chatbot.TOPICS."""
 
-    SYSTEM_PROMPT = """You are an expert at identifying SPEAKING opportunities for professionals who want to speak at industry events, conferences, podcasts, or expert panels.
+    USER_PROMPT_TEMPLATE = """Extract speaking opportunities from the following website content.
+
+                    Focus only on opportunities where external professionals, experts, or thought leaders can apply or be invited to speak.
+
+                    Look for signals such as:
+                    - Call for speakers
+                    - Speaker submissions
+                    - Submit a talk or proposal
+                    - Apply to speak
+                    - Become a speaker
+                    - Panelist invitations
+                    - Workshop leader opportunities
+                    - Podcast or media guest invitations
+                    - Third-party speaker forms (Typeform, Google Forms, Jotform, Airtable, Microsoft Forms) linked from apply-to-speak CTAs
+
+                    Ignore:
+                    - Webinars or seminars meant only for attendees
+                    - Past events that are already completed
+                    - Events that clearly do not accept external speakers
+                    - Meetup.com (and similar) RSVP/attend pages that only list an already-chosen speaker with no apply-to-speak / call-for-speakers path
+
+                    Use only the information present in the provided content. Do not guess or hallucinate missing information.
+                    For topics, first use exact values from the allowed topic list. If the opportunity topic is not represented by that list, put the content-based topic labels in aipredictedTopics as a list.
+                    Also extract submissionInfo from this chunk: speaker application links, form links (including Typeform/Google Forms/etc.), submission emails, and explicit application deadlines. If an application path is present but no deadline is present, set submissionInfo.deadline to exactly "deadline not found".
+
+                    Website URL:
+                    {url}
+
+                    Website Content (Markdown Chunk):
+                    {content} 
+                    """
+
+    def __init__(
+        self,
+        chunk_size: int = None,
+        chunk_overlap: int = None,
+        target_audiences: Optional[List[str]] = None,
+    ):
+        self.chunk_size = chunk_size or int(os.getenv("LLM_CHUNK_SIZE", "6000"))
+        self.chunk_overlap = chunk_overlap or int(os.getenv("LLM_CHUNK_OVERLAP", "1200"))
+        (
+            self.target_audiences,
+            self._target_audiences_set,
+            self._target_audiences_lower,
+            self._target_audiences_str,
+        ) = audience_catalog_maps(target_audiences)
+
+    def _system_prompt(self) -> str:
+        return """You are an expert at identifying SPEAKING opportunities for professionals who want to speak at industry events, conferences, podcasts, or expert panels.
                     Only extract opportunities where an external expert has a realistic chance to speak.
 
                     Valid speaking opportunities include:
@@ -222,11 +262,12 @@ class SpeakingOpportunityExtractor:
                     - Workshops or masterclasses where external professionals are invited to lead sessions
                     - Industry events explicitly inviting speakers or thought leaders
                     - Podcasts, media interviews, or guest expert opportunities
-                    - Community or industry meetups that invite external speakers
+                    - Community or industry meetups that invite external speakers (must have an apply/CFP path — not attend-only RSVP pages)
 
                     Exclude:
                     - Webinars or seminars where users are only attendees
                     - Events that are strictly attend-only with no speaker participation
+                    - Meetup.com RSVP/attend pages that list an already-chosen speaker with no apply-to-speak path
                     - Past events that are already completed
                     - Internal company events not open to external speakers
 
@@ -243,18 +284,18 @@ class SpeakingOpportunityExtractor:
                     - end_date: Event end date in ISO format YYYY-MM-DD only when an explicit day is stated. For one-day events use the SAME date as start_date. null if not mentioned with day precision.
                     - speaking_format: You MUST choose exactly ONE from this list (use the exact string): """ + _SPEAKING_FORMATS_STR + """. Pick the one that best matches the opportunity.
                     - delivery_mode: You MUST choose exactly ONE from this list (use the exact string), or empty string if unclear: """ + _DELIVERY_MODE_STR + """
-                    - target_audiences: Array of audience types. You MUST choose ONLY from this exact list (use the exact strings): """ + _TARGET_AUDIENCES_STR + """. Empty array if none match.
+                    - target_audiences: Array of audience types. You MUST choose the closest match(es) ONLY from this exact list (use the exact strings): """ + self._target_audiences_str + """. Always pick at least one closest catalog value when the page implies who the event is for (e.g. developers/engineers → Technical Professionals when present). Do NOT return an empty array when an audience is implied.
                     - application_submission_deadline: Speaker / call-for-speakers application deadline in ISO format YYYY-MM-DD if explicitly stated on the page, otherwise null. Do not guess.
                     - application_submission_closed: boolean, true ONLY if the page explicitly states that applications are closed, the deadline has passed, or submissions are no longer accepted; otherwise false.
                     - submissionInfo: Object that MUST include exactly:
-                      - status: "found" if the chunk has a speaker application path, form, or submission email; "contact_found" if only a general contact email is present and no submission path is present; otherwise "not_found".
+                      - status: "found" if the chunk has a speaker application path, form (including Typeform/Google Forms/Jotform/Airtable/Microsoft Forms), or submission email; "contact_found" if only a general contact email is present and no submission path is present; otherwise "not_found".
                       - applicationLink: direct speaker application / call-for-speakers / apply page URL if present in the chunk, otherwise empty string.
-                      - formLink: direct form URL if present in the chunk, otherwise empty string.
+                      - formLink: direct form URL if present in the chunk (Typeform, Google Forms, etc. count), otherwise empty string.
                       - submissionEmail: email specifically for speaker submissions/proposals/applications if present, otherwise empty string.
                       - deadline: application/submission deadline in ISO YYYY-MM-DD if explicitly present; if a submission path is present but deadline is missing, use exactly "deadline not found".
                       - contactEmail: general contact email only when no submission path is present, otherwise empty string.
                       - reason: short evidence-based reason when status is "contact_found" or "not_found", otherwise empty string.
-                      - sourceUrl: URL where the submission/contact evidence appears, otherwise the Website URL.
+                      - sourceUrl: when formLink/applicationLink is found, set to that submission URL; otherwise the Website URL.
                     - metadata: Object that MUST include:
                     - "description": 3-4 sentences describing the opportunity and why it is a speaking opportunity.
                     - You may also include optional metadata such as contact_email, organizer_name, venue, submission_link, or notes if available.
@@ -266,40 +307,6 @@ class SpeakingOpportunityExtractor:
                     - Extract submissionInfo only from the provided Website URL and chunk content. Do not infer unseen apply/contact pages here.
                     - Only include events that are in the future.
                     - If no opportunities are found in this chunk, return []."""
-
-    USER_PROMPT_TEMPLATE = """Extract speaking opportunities from the following website content.
-
-                    Focus only on opportunities where external professionals, experts, or thought leaders can apply or be invited to speak.
-
-                    Look for signals such as:
-                    - Call for speakers
-                    - Speaker submissions
-                    - Submit a talk or proposal
-                    - Apply to speak
-                    - Become a speaker
-                    - Panelist invitations
-                    - Workshop leader opportunities
-                    - Podcast or media guest invitations
-
-                    Ignore:
-                    - Webinars or seminars meant only for attendees
-                    - Past events that are already completed
-                    - Events that clearly do not accept external speakers
-
-                    Use only the information present in the provided content. Do not guess or hallucinate missing information.
-                    For topics, first use exact values from the allowed topic list. If the opportunity topic is not represented by that list, put the content-based topic labels in aipredictedTopics as a list.
-                    Also extract submissionInfo from this chunk: speaker application links, form links, submission emails, and explicit application deadlines. If an application path is present but no deadline is present, set submissionInfo.deadline to exactly "deadline not found".
-
-                    Website URL:
-                    {url}
-
-                    Website Content (Markdown Chunk):
-                    {content} 
-                    """
-
-    def __init__(self, chunk_size: int = None, chunk_overlap: int = None):
-        self.chunk_size = chunk_size or int(os.getenv("LLM_CHUNK_SIZE", "6000"))
-        self.chunk_overlap = chunk_overlap or int(os.getenv("LLM_CHUNK_OVERLAP", "1200"))
 
     def _chunk_with_overlap(self, text: str, chunk_size: int, overlap: int) -> List[str]:
         """Split text into overlapping chunks to avoid losing context at boundaries."""
@@ -441,7 +448,13 @@ class SpeakingOpportunityExtractor:
             "end_date": end_iso,
             "speaking_format": _filter_speaking_format(raw_speaking),
             "delivery_mode": _filter_delivery_mode(raw_delivery),
-            "target_audiences": _filter_target_audiences_to_allowed([str(a).strip() for a in raw_audiences if a]),
+            "target_audiences": resolve_target_audiences(
+                [str(a).strip() for a in raw_audiences if a],
+                allowed=self.target_audiences,
+                page_snippet=(meta.get("description") or event_name or ""),
+                event_name=event_name,
+                force_ai_if_empty=True,
+            ),
             "submissionInfo": normalize_submission_info(
                 submission_source,
                 base_url=opp.get("link") or opp.get("url") or "",
@@ -485,7 +498,7 @@ class SpeakingOpportunityExtractor:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": self.SYSTEM_PROMPT},
+                {"role": "system", "content": self._system_prompt()},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.2,

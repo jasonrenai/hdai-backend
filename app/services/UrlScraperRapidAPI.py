@@ -27,6 +27,7 @@ from app.helpers.OpportunityDiscoveryPipeline import OpportunityDiscoveryPipelin
 from app.helpers.PineconeOpportunityStore import PineconeOpportunityStore
 from app.helpers.SerpHelper import SerpHelper
 from app.helpers.SpeakingOpportunityExtractor import _is_future_or_today, _parse_date_to_iso
+from app.helpers.TargetAudienceCatalog import load_target_audience_names_from_db
 from app.agents.EventDetailEnricherAgent import EventDetailEnricherAgent
 
 RAPIDAPI_DELAY_SECONDS = 5
@@ -81,7 +82,11 @@ def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[D
     return result
 
 
-def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[dict]:
+def _sync_scrape_extract_enrich(
+    url: str,
+    delay_seconds: float = 0,
+    target_audiences: Optional[list] = None,
+) -> Optional[dict]:
     """
     Synchronous multi-hop discovery pipeline. Runs in thread pool to avoid blocking event loop.
     Returns dict with keys: source_name, description, opportunities; or None on failure.
@@ -89,7 +94,10 @@ def _sync_scrape_extract_enrich(url: str, delay_seconds: float = 0) -> Optional[
     """
     if is_pdf_url(url):
         return None
-    pipeline = OpportunityDiscoveryPipeline(delay_seconds=delay_seconds)
+    pipeline = OpportunityDiscoveryPipeline(
+        delay_seconds=delay_seconds,
+        target_audiences=target_audiences,
+    )
     return pipeline.run(url, delay_seconds=delay_seconds)
 
 
@@ -180,8 +188,15 @@ class UrlScraperRapidAPIService:
                 logger.info("Skipping PDF URL url_collection_id=%s", url_collection_id)
                 await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
                 return 0
+            # Load audience catalog from Mongo before sync thread work
+            target_audiences = await load_target_audience_names_from_db()
             # Run blocking work (RapidAPI, OpenAI, enricher) in thread pool - prevents blocking event loop
-            parsed = await asyncio.to_thread(_sync_scrape_extract_enrich, url, delay_seconds)
+            parsed = await asyncio.to_thread(
+                _sync_scrape_extract_enrich,
+                url,
+                delay_seconds,
+                target_audiences,
+            )
             if parsed is None:
                 logger.error("Job %s scrape/extract failed", url_collection_id)
                 await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})

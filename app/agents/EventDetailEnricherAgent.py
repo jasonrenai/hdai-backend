@@ -16,7 +16,10 @@ from app.config.speaker_profile_chatbot import (
     TOPICS as ALLOWED_TOPICS,
     SPEAKING_FORMATS,
     DELIVERY_MODE,
-    TARGET_AUDIENCES,
+)
+from app.helpers.TargetAudienceCatalog import (
+    audience_catalog_maps,
+    resolve_target_audiences,
 )
 
 _ALLOWED_TOPICS_SET = set(ALLOWED_TOPICS)
@@ -27,9 +30,6 @@ _SPEAKING_FORMATS_LOWER = {t.lower(): t for t in SPEAKING_FORMATS}
 _SPEAKING_FORMATS_STR = ", ".join(f'"{t}"' for t in SPEAKING_FORMATS)
 _DELIVERY_MODE_LOWER = {t.lower(): t for t in DELIVERY_MODE}
 _DELIVERY_MODE_STR = ", ".join(f'"{t}"' for t in DELIVERY_MODE)
-_TARGET_AUDIENCES_SET = set(TARGET_AUDIENCES)
-_TARGET_AUDIENCES_LOWER = {t.lower(): t for t in TARGET_AUDIENCES}
-_TARGET_AUDIENCES_STR = ", ".join(f'"{t}"' for t in TARGET_AUDIENCES)
 
 
 def _filter_single_to_allowed(value: str, allowed: List[str], allowed_lower: dict, default: str = "") -> str:
@@ -74,12 +74,6 @@ def _filter_delivery_mode(raw: str) -> str:
     return _filter_single_to_allowed(raw, DELIVERY_MODE, _DELIVERY_MODE_LOWER, default="")
 
 
-def _filter_target_audiences_to_allowed(raw_list: List[str]) -> List[str]:
-    return _filter_list_to_allowed(
-        raw_list or [], TARGET_AUDIENCES, _TARGET_AUDIENCES_SET, _TARGET_AUDIENCES_LOWER
-    )
-
-
 def _filter_topics_to_allowed(raw_topics: List[str]) -> List[str]:
     """Keep only topics in ALLOWED_TOPICS (exact or case-insensitive). If none match, return first allowed topic."""
     if not raw_topics:
@@ -108,9 +102,24 @@ class EventDetailEnricherAgent:
     Agent that enriches opportunities with incomplete details by scraping
     each event URL via RapidAPI and extracting missing fields via LLM.
     Topics are constrained to speaker_profile_chatbot.TOPICS.
+    Target audiences come from the provided catalog (Mongo speakerTargetAudeince names).
     """
 
-    ENRICHER_SYSTEM_PROMPT = """You are an expert at extracting event details from webpage content.
+    def __init__(
+        self,
+        rapidapi_scraper: RapidAPIScraper = None,
+        target_audiences: Optional[List[str]] = None,
+    ):
+        self.rapidapi_scraper = rapidapi_scraper or RapidAPIScraper()
+        (
+            self.target_audiences,
+            self._target_audiences_set,
+            self._target_audiences_lower,
+            self._target_audiences_str,
+        ) = audience_catalog_maps(target_audiences)
+
+    def _enricher_system_prompt(self) -> str:
+        return """You are an expert at extracting event details from webpage content.
 Given scraped content from an event page (markdown format), extract structured event information.
 
 The content may include: event name, description, venue, location, date/time, topics, format, delivery mode, etc.
@@ -123,12 +132,13 @@ Extract and return a JSON object with EXACTLY these keys (no array, single objec
 - end_date: Event end date in ISO format YYYY-MM-DD. For one-day events use the SAME date as start_date. null if day precision is missing.
 - speaking_format: You MUST choose exactly ONE from this list (use the exact string): """ + _SPEAKING_FORMATS_STR + """
 - delivery_mode: You MUST choose exactly ONE from this list (use the exact string), or empty string if unclear: """ + _DELIVERY_MODE_STR + """
-- target_audiences: Array of audience types. You MUST choose ONLY from this exact list (use the exact strings): """ + _TARGET_AUDIENCES_STR + """. Empty array if none match.
+- target_audiences: Array of audience types. You MUST choose the closest match(es) ONLY from this exact list (use the exact strings): """ + self._target_audiences_str + """. Always pick at least one closest catalog value when the page implies who the event is for. Do NOT return an empty array when an audience is implied.
 - metadata: Object with description (1-2 sentences), venue name if mentioned, contact info if any. Include when present on the page: application_submission_deadline (ISO YYYY-MM-DD or omit), application_submission_closed (boolean, true only if explicitly closed / no longer accepting). Use {} for empty.
 
 Return ONLY valid JSON, no other text. Extract only what is explicitly present; use empty string, [], or null for missing fields. topics must always have at least one item from the allowed list."""
 
-    ENRICHER_USER_PROMPT_TEMPLATE = """Extract event details from this scraped page content.
+    def _enricher_user_prompt_template(self) -> str:
+        return """Extract event details from this scraped page content.
 
 Page name/title from scraper: {name}
 
@@ -139,15 +149,17 @@ Full content:
 {content}
 ---
 
-Return a single JSON object with keys: event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences, metadata. Use start_date and end_date in ISO format (YYYY-MM-DD) only when an explicit calendar day is present; use null if only month/year is known. For one-day events set end_date equal to start_date. Prefer empty/null over guessing. Use ONLY: topics from """ + _TOPICS_LIST_STR + """; speaking_format from """ + _SPEAKING_FORMATS_STR + """; delivery_mode from """ + _DELIVERY_MODE_STR + """; target_audiences from """ + _TARGET_AUDIENCES_STR + """."""
+Return a single JSON object with keys: event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences, metadata. Use start_date and end_date in ISO format (YYYY-MM-DD) only when an explicit calendar day is present; use null if only month/year is known. For one-day events set end_date equal to start_date. Prefer empty/null over guessing. Use ONLY: topics from """ + _TOPICS_LIST_STR + """; speaking_format from """ + _SPEAKING_FORMATS_STR + """; delivery_mode from """ + _DELIVERY_MODE_STR + """; target_audiences from """ + self._target_audiences_str + """."""
 
-    VERIFY_AND_REFRESH_SYSTEM_PROMPT = """You verify whether a scraped webpage hosts a real speaking opportunity for a specific event, then extract updated event details from that page.
+    def _verify_and_refresh_system_prompt(self) -> str:
+        return """You verify whether a scraped webpage hosts a real speaking opportunity for a specific event, then extract updated event details from that page.
 
 Decide hosts_speaking_opportunity=true only when the page content supports that an external professional can speak, apply to speak, submit a proposal/talk, join as a panelist/speaker, or otherwise participate as a speaker (call for speakers, speaker application, invite-to-speak, speaker signup, etc.).
 
 Decide hosts_speaking_opportunity=false when:
 - The page is unrelated to the claimed event
 - The page is attend-only (no speaker path)
+- Meetup.com (or similar) RSVP/attend pages that list an already-chosen speaker but have no apply-to-speak / call-for-speakers / speaker submission path
 - The page is a generic homepage/org site with no speaking opportunity for this event
 - The speaking opportunity is not evidenced on this page
 
@@ -161,7 +173,7 @@ Return ONLY valid JSON (no markdown) with EXACTLY these keys:
 - end_date: ISO YYYY-MM-DD when an explicit day is present, else null (same as start_date for one-day events)
 - speaking_format: Exactly ONE from """ + _SPEAKING_FORMATS_STR + """ when clear, else empty string
 - delivery_mode: Exactly ONE from """ + _DELIVERY_MODE_STR + """ when clear, else empty string
-- target_audiences: Array chosen ONLY from """ + _TARGET_AUDIENCES_STR + """. Empty array if none match.
+- target_audiences: Array of closest matches ONLY from """ + self._target_audiences_str + """. Always pick at least one when the page implies an audience; do not return empty when audience is implied.
 - metadata: Object with optional description and other page facts, or {}
 
 Do not invent facts. Prefer empty/null over guessing."""
@@ -184,9 +196,6 @@ Scraped opportunity URL content:
 First decide if this page hosts a speaking opportunity for this event (hosts_speaking_opportunity).
 If yes, extract/update event details from THIS page content.
 Return only the JSON object described in the system prompt."""
-
-    def __init__(self, rapidapi_scraper: RapidAPIScraper = None):
-        self.rapidapi_scraper = rapidapi_scraper or RapidAPIScraper()
 
     def _is_opportunity_incomplete(self, opp: Dict[str, Any]) -> bool:
         """Return True if opportunity needs enrichment (missing key details)."""
@@ -354,8 +363,25 @@ Return only the JSON object described in the system prompt."""
 
         raw_audiences = extracted.get("target_audiences")
         if isinstance(raw_audiences, list):
-            result["target_audiences"] = _filter_target_audiences_to_allowed(
-                [str(a).strip() for a in raw_audiences if a]
+            meta_desc = ""
+            if isinstance(extracted.get("metadata"), dict):
+                meta_desc = str((extracted.get("metadata") or {}).get("description") or "")
+            result["target_audiences"] = resolve_target_audiences(
+                [str(a).strip() for a in raw_audiences if a],
+                allowed=self.target_audiences,
+                page_snippet=meta_desc,
+                event_name=(extracted.get("event_name") or result.get("event_name") or ""),
+                force_ai_if_empty=True,
+            )
+        elif not (result.get("target_audiences") or []):
+            result["target_audiences"] = resolve_target_audiences(
+                [],
+                allowed=self.target_audiences,
+                page_snippet=str((result.get("metadata") or {}).get("description") or "")
+                if isinstance(result.get("metadata"), dict)
+                else "",
+                event_name=(result.get("event_name") or ""),
+                force_ai_if_empty=True,
             )
 
         if extracted.get("metadata") and isinstance(extracted["metadata"], dict):
@@ -387,10 +413,10 @@ Return only the JSON object described in the system prompt."""
             response = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": self.ENRICHER_SYSTEM_PROMPT},
+                    {"role": "system", "content": self._enricher_system_prompt()},
                     {
                         "role": "user",
-                        "content": self.ENRICHER_USER_PROMPT_TEMPLATE.format(
+                        "content": self._enricher_user_prompt_template().format(
                             name=name or "(not provided)",
                             description=description or "(not provided)",
                             content=content[:8000],
@@ -467,7 +493,7 @@ Return only the JSON object described in the system prompt."""
             response = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": self.VERIFY_AND_REFRESH_SYSTEM_PROMPT},
+                    {"role": "system", "content": self._verify_and_refresh_system_prompt()},
                     {
                         "role": "user",
                         "content": self.VERIFY_AND_REFRESH_USER_PROMPT_TEMPLATE.format(
@@ -569,10 +595,10 @@ Return only the JSON object described in the system prompt."""
             response = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": self.ENRICHER_SYSTEM_PROMPT},
+                    {"role": "system", "content": self._enricher_system_prompt()},
                     {
                         "role": "user",
-                        "content": self.ENRICHER_USER_PROMPT_TEMPLATE.format(
+                        "content": self._enricher_user_prompt_template().format(
                             name=name or "(not provided)",
                             description=description or "(not provided)",
                             content=content[:8000],
@@ -619,7 +645,13 @@ Return only the JSON object described in the system prompt."""
             merged["speaking_format"] = _filter_speaking_format((merged.get("speaking_format") or "").strip())
             merged["delivery_mode"] = _filter_delivery_mode((merged.get("delivery_mode") or "").strip())
             raw_audiences = merged.get("target_audiences") or []
-            merged["target_audiences"] = _filter_target_audiences_to_allowed([str(a).strip() for a in raw_audiences if a])
+            merged["target_audiences"] = resolve_target_audiences(
+                [str(a).strip() for a in raw_audiences if a],
+                allowed=self.target_audiences,
+                page_snippet=content[:2000],
+                event_name=(merged.get("event_name") or ""),
+                force_ai_if_empty=True,
+            )
             if og_url:
                 meta = merged.get("metadata")
                 if not isinstance(meta, dict):

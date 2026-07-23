@@ -11,7 +11,6 @@ Each clause returns None if the opportunity passes that check, or a human-readab
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -31,11 +30,6 @@ logger = logging.getLogger(__name__)
 QualificationClause = Callable[[Dict[str, Any], "OpportunityQualificationContext"], Optional[str]]
 """Returns None if this clause passes; otherwise a short reason for unqualification."""
 
-_EMAIL_RE = re.compile(
-    r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-    re.IGNORECASE,
-)
-
 _SOFT_404_PHRASES = (
     "page not found",
     "404 not found",
@@ -51,8 +45,12 @@ _SOFT_404_PHRASES = (
     "does not exist",
 )
 
+# Strong apply-to-speak signals only (do not use weak "speak at" / "speaking opportunity"
+# which match attend-only Meetup pages that already list a featured speaker).
 _APPLICATION_SIGNAL_PHRASES = (
     "apply to speak",
+    "apply to be a speaker",
+    "apply as a speaker",
     "speaker application",
     "call for speakers",
     "call for proposals",
@@ -63,15 +61,15 @@ _APPLICATION_SIGNAL_PHRASES = (
     "submit your talk",
     "submit a talk",
     "speaker interest",
-    "speaking opportunity",
-    "speak at",
-    "apply as a speaker",
     "speaker proposals",
     "speakers wanted",
+    "speaker survey",
     "cfp",
     "cfs@",  # call for speakers mailbox pattern fragment
     "speakers@",
 )
+
+_MEETUP_HOST_SUFFIXES = ("meetup.com",)
 
 
 def _is_pdf_url(url: str) -> bool:
@@ -92,15 +90,22 @@ def _urls_same_page(a: str, b: str) -> bool:
     return _normalize_url_key(a) == _normalize_url_key(b)
 
 
+def _is_meetup_host(url: str) -> bool:
+    host = (urlparse((url or "").strip()).netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return any(host == suffix or host.endswith("." + suffix) for suffix in _MEETUP_HOST_SUFFIXES)
+
+
 def landing_content_signals_application_path(text: str) -> bool:
-    """Heuristic: email, mailto, or common speaker-application phrasing in scraped markdown."""
+    """Heuristic: strong speaker-application phrasing or dedicated speakers@ / cfs@ mailbox."""
     if not text or not str(text).strip():
         return False
-    raw = str(text)
-    if _EMAIL_RE.search(raw):
+    low = str(text).lower()
+    # Dedicated submission mailboxes only — not any page email (Meetup pages often have contact emails).
+    if "speakers@" in low or "cfs@" in low or "cfp@" in low:
         return True
-    low = raw.lower()
-    if "mailto:" in low:
+    if "mailto:speakers@" in low or "mailto:cfs@" in low or "mailto:cfp@" in low:
         return True
     return any(phrase in low for phrase in _APPLICATION_SIGNAL_PHRASES)
 
@@ -431,6 +436,20 @@ def _application_deadline_iso(opp: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def clause_meetup_requires_submission_path(
+    opp: Dict[str, Any],
+    ctx: "OpportunityQualificationContext",
+) -> Optional[str]:
+    """Meetup.com attend-only events (listed speaker, RSVP, no apply path) are not qualified."""
+    link = (opp.get("link") or opp.get("url") or "").strip()
+    if not _is_meetup_host(link):
+        return None
+    raw = opp.get("submissionInfo")
+    if isinstance(raw, dict) and submission_info_has_submission_path(raw):
+        return None
+    return "Meetup event has no speaker application path (attend-only)."
+
+
 def clause_application_submission(
     opp: Dict[str, Any],
     ctx: "OpportunityQualificationContext",
@@ -505,7 +524,10 @@ def clause_application_submission(
     )
 
 
-DEFAULT_QUALIFICATION_CLAUSES: Sequence[QualificationClause] = (clause_application_submission,)
+DEFAULT_QUALIFICATION_CLAUSES: Sequence[QualificationClause] = (
+    clause_meetup_requires_submission_path,
+    clause_application_submission,
+)
 
 
 @dataclass
