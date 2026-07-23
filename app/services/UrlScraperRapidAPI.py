@@ -399,12 +399,26 @@ class UrlScraperRapidAPIService:
 
     async def process_all_pending(self) -> dict:
         """
-        Claim and process every pending UrlCollection (no limit). Used by the 72h scheduled cron.
-        Same pipeline as process_pending_batch: RapidAPI scrape -> LLM -> opportunities.
+        Drain all pending UrlCollections one at a time. Used by the 72h scheduled cron.
+
+        Claims a single job (pending -> running), scrapes it to completion, then claims the
+        next — so only one document is ``running`` at a time.
         """
-        return await self._process_claimed_pending(
-            await self.url_collection_model.claim_all_pending_jobs()
-        )
+        summary = {
+            "claimed": 0,
+            "completed": 0,
+            "failed": 0,
+            "skipped_invalid": 0,
+            "unexpected_status_after_run": 0,
+        }
+        while True:
+            claimed = await self.url_collection_model.claim_pending_jobs(limit=1)
+            if not claimed:
+                break
+            batch = await self._process_claimed_pending(claimed)
+            for k in summary:
+                summary[k] += batch.get(k, 0)
+        return summary
 
     async def process_pending_batch(self, limit: int = 10) -> dict:
         """

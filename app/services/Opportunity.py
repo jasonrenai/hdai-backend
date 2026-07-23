@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 from app.models.Opportunity import OpportunityModel
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.models.MatchedOpportunities import MatchedOpportunitiesModel
+from app.models.OpportunityActivity import OpportunityActivityModel
 from app.helpers.PineconeOpportunityStore import PineconeOpportunityStore, OpportunityTextBuilder
+from app.helpers.OpportunityQualifier import _application_deadline_iso
+from app.email.deadline_approaching_notification import parse_metadata_deadline_date
 from app.agents.OpportunitySpeakerMatchAgent import OpportunitySpeakerMatchAgent
 
 
@@ -32,6 +35,23 @@ def _is_future_opportunity(opp: dict) -> bool:
         return False
 
 
+def _submission_deadline_passed(opp: dict) -> bool:
+    """
+    True when a parseable submission deadline exists and is before today.
+    Missing / unparseable deadlines return False (treat as still open for matching).
+    """
+    deadline_iso = _application_deadline_iso(opp)
+    if deadline_iso:
+        try:
+            return date.fromisoformat(deadline_iso[:10]) < date.today()
+        except ValueError:
+            pass
+    meta_deadline = parse_metadata_deadline_date(opp)
+    if meta_deadline is not None:
+        return meta_deadline < date.today()
+    return False
+
+
 class OpportunityService:
     def __init__(
         self,
@@ -39,11 +59,13 @@ class OpportunityService:
         speaker_profile_model: SpeakerProfileModel = None,
         pinecone_store: PineconeOpportunityStore = None,
         matched_opportunities_model: MatchedOpportunitiesModel = None,
+        opportunity_activity_model: OpportunityActivityModel = None,
     ):
         self.model = opportunity_model or OpportunityModel()
         self.speaker_profile_model = speaker_profile_model or SpeakerProfileModel()
         self.pinecone_store = pinecone_store or PineconeOpportunityStore()
         self.matched_opportunities_model = matched_opportunities_model or MatchedOpportunitiesModel()
+        self.opportunity_activity_model = opportunity_activity_model or OpportunityActivityModel()
 
     async def list_opportunities(
         self,
@@ -169,6 +191,8 @@ class OpportunityService:
         """
         Run vector matching, then filter each opportunity with an AI agent (does it match the speaker?),
         and save only the agent-approved opportunity ids to matchedOpportunities.
+        Past submission-deadline matches are marked isExpired on opportunityActivity and excluded
+        from the saved match list and new-opportunity email.
         When matched_entry_id is provided (from match-by-speaker flow), updates that entry to status 'completed'.
 
         send_matched_email: None = send only for immediate new_opportunity frequency (weekly defers to cron);
@@ -197,9 +221,36 @@ class OpportunityService:
             is_match = await asyncio.to_thread(agent.is_match, profile, opp)
             if is_match:
                 filtered.append(opp)
-        opportunity_ids = [str(o.get("_id")) for o in filtered if o.get("_id") is not None]
+
+        active: List[dict] = []
+        expired: List[dict] = []
+        for opp in filtered:
+            if _submission_deadline_passed(opp):
+                expired.append(opp)
+            else:
+                active.append(opp)
+
+        for opp in expired:
+            oid = opp.get("_id")
+            if oid is None:
+                continue
+            try:
+                await self.opportunity_activity_model.upsert_fields(
+                    speaker_profile_id,
+                    str(oid),
+                    {"isExpired": True},
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to mark opportunityActivity expired speaker_id=%s opportunityId=%s: %s",
+                    speaker_profile_id,
+                    oid,
+                    e,
+                )
+
+        opportunity_ids = [str(o.get("_id")) for o in active if o.get("_id") is not None]
         await _finish(opportunity_ids)
-        if filtered and await self._should_send_matched_email_after_match(
+        if active and await self._should_send_matched_email_after_match(
             profile,
             send_matched_email=send_matched_email,
         ):
@@ -212,7 +263,7 @@ class OpportunityService:
                 )
                 await mailer.send_matched_opportunities_email(
                     speaker_profile_id,
-                    opportunity_documents=filtered,
+                    opportunity_documents=active,
                 )
             except Exception as e:
                 logger.warning("Matched opportunities notification email failed: %s", e)

@@ -76,7 +76,10 @@ class GoogleQueryModel:
         return claimed
 
     async def claim_all_pending_jobs(self) -> list[dict]:
-        """Claim every document with status \"pending\" (no cap). Used by scheduled cron."""
+        """
+        Deprecated for cron use — prefer claim_pending_jobs(limit=1) in a loop so only one
+        job is ``running`` at a time. Kept for callers that still need a bulk claim.
+        """
         claimed: list[dict] = []
         while True:
             doc = await self._claim_one_pending()
