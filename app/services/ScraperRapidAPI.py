@@ -37,7 +37,6 @@ class ScraperRapidAPIService:
             "status": "PENDING_SCRAPING",
             "error": None,
             "createdAt": datetime.utcnow(),
-            "updatedAt": None,
         }
         inserted_id = await self.model.create(doc)
         return inserted_id

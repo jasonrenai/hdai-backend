@@ -21,6 +21,7 @@ from app.config.recent_activity import (
     message_opportunities_added,
 )
 from app.models.UrlCollection import UrlCollectionModel
+from app.models.Scraper import ScraperModel
 from app.models.Opportunity import OpportunityModel, opportunity_dedupe_key
 from app.models.RecentActivity import RecentActivityModel
 from app.helpers.OpportunityDiscoveryPipeline import OpportunityDiscoveryPipeline, is_pdf_url
@@ -37,8 +38,12 @@ TEDX_CRON_TOP_N = 5
 logger = logging.getLogger(__name__)
 
 DESCRIPTION_MAX_LENGTH = 500
-# UrlCollection requires a non-empty description; use this when scrape returns none
+# UrlCollection / Scrapers require a non-empty description; use this when scrape returns none
 DESCRIPTION_FALLBACK = "Scraped page"
+
+# Job tracking collection for scrape status updates
+JOB_STORE_URL_COLLECTION = "url_collection"
+JOB_STORE_SCRAPERS = "scrapers"
 
 
 def filter_complete_opportunities(opportunities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -103,21 +108,69 @@ def _sync_scrape_extract_enrich(
 
 class UrlScraperRapidAPIService:
     """
-    Scrapes URLs via RapidAPI AI Content Scraper, extracts speaking opportunities via LLM,
-    saves url+createdAt+sourceName+description to UrlCollection, inserts opportunities into Opportunities collection.
+    Scrapes URLs via RapidAPI AI Content Scraper, extracts speaking opportunities via LLM.
+    - Direct API (/url-scraper): creates Scrapers entry (name, url, status=pending), then scrapes.
+    - Google query / cron: creates UrlCollection entries, then scrapes.
+    Inserts verified opportunities into Opportunities collection.
     """
 
     def __init__(self):
         self.url_collection_model = UrlCollectionModel()
+        self.scraper_model = ScraperModel()
         self.opportunity_model = OpportunityModel()
         self.enricher_agent = EventDetailEnricherAgent()
         self.recent_activity_model = RecentActivityModel()
 
+    async def _update_job_status(
+        self,
+        job_id: str,
+        update_data: dict,
+        *,
+        job_store: str = JOB_STORE_URL_COLLECTION,
+    ) -> None:
+        if job_store == JOB_STORE_SCRAPERS:
+            data = {k: v for k, v in update_data.items() if k != "updatedAt"}
+            await self.scraper_model.update_by_id(job_id, data)
+        else:
+            await self.url_collection_model.update_by_id(job_id, update_data)
+
+    async def create_scraper_job(
+        self,
+        url: str,
+        name: str,
+        user_id: str = None,
+    ) -> str:
+        """
+        Create a Scrapers collection entry for the direct URL scraper API.
+        Stores name, url, status=pending, createdAt (and userId when provided).
+        """
+        if is_pdf_url(url):
+            raise ValueError("PDF URLs are not scraped")
+        name_s = (name or "").strip()
+        if not name_s:
+            raise ValueError("name is required")
+        doc = {
+            "name": name_s,
+            "sourceName": name_s,  # keep compatible with older Scrapers schema consumers
+            "url": url,
+            "status": "pending",
+            "createdAt": datetime.utcnow(),
+        }
+        if user_id:
+            doc["userId"] = user_id
+        inserted_id = await self.scraper_model.create(doc)
+        logger.info(
+            "Scraper created scraper_id=%s name=%s url=%s",
+            inserted_id,
+            name_s[:80],
+            url[:80],
+        )
+        return inserted_id
+
     async def create_url_scrape_job(self, url: str, user_id: str = None, topics: Optional[list] = None) -> str:
         """
-        Save url and createdAt to UrlCollection. sourceName and description are updated after RapidAPI scrape.
-        topics is optional; when provided, stored on the document for reference (allowed values from speaker_profile_chatbot.TOPICS).
-        Raises ValueError if url ends with .pdf (PDFs are not scraped).
+        Save url and createdAt to UrlCollection (Google query / cron path).
+        sourceName and description are updated after RapidAPI scrape.
         """
         if is_pdf_url(url):
             raise ValueError("PDF URLs are not scraped")
@@ -125,6 +178,7 @@ class UrlScraperRapidAPIService:
             "url": url,
             "status": "pending",
             "createdAt": datetime.utcnow(),
+            "inputSource": "Google Query",
         }
         if user_id:
             doc["userId"] = user_id
@@ -137,6 +191,29 @@ class UrlScraperRapidAPIService:
     async def get_url_collection_by_id(self, url_collection_id: str, user_id: str = None):
         """Get a UrlCollection entry by ID."""
         return await self.url_collection_model.get_by_id(url_collection_id, user_id)
+
+    async def get_scraper_job_by_id(self, scraper_id: str, user_id: str = None):
+        """Get a Scrapers entry by ID (raw dict)."""
+        return await self.scraper_model.get_doc_by_id(scraper_id, user_id)
+
+    async def get_scrapers_list(self, page: int = 1, limit: int = 10) -> dict:
+        """Paginated Scrapers list (id, name, url, status, createdAt only)."""
+        page = max(1, int(page or 1))
+        limit = max(1, int(limit or 10))
+        skip = (page - 1) * limit
+        items = await self.scraper_model.get_list_summary(skip=skip, limit=limit)
+        total = await self.scraper_model.count_all()
+        return {
+            "scrapers": items,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "totalPages": (total + limit - 1) // limit if limit > 0 else 0,
+        }
+
+    async def delete_scraper_job(self, scraper_id: str) -> bool:
+        """Delete a Scrapers entry by id."""
+        return await self.scraper_model.delete_by_id(scraper_id)
 
     async def get_list(self, page: int = 1, limit: int = 10) -> dict:
         """Get list of UrlCollection entries (for get-all-scrapers) with page/limit pagination."""
@@ -175,11 +252,12 @@ class UrlScraperRapidAPIService:
 
     async def run_scrape_and_extract(
         self,
-        url_collection_id: str,
+        job_id: str,
         url: str,
         delay_seconds: float = 0,
         from_google_query: bool = False,
         google_search_query: str = "",
+        job_store: str = JOB_STORE_URL_COLLECTION,
     ) -> int:
         """
         Background task: scrape URL via RapidAPI, extract opportunities via LLM,
@@ -190,18 +268,25 @@ class UrlScraperRapidAPIService:
             Number of opportunity documents inserted for this URL (0 if none or on failure).
 
         Args:
-            url_collection_id: UrlCollection document ID
+            job_id: UrlCollection or Scrapers document ID (depending on job_store)
             url: URL to scrape (also used as source_url on each opportunity)
             delay_seconds: Optional delay before each RapidAPI call (e.g. 5 for cron). Default 0.
             from_google_query: If True, opportunities are tagged as found via Google query search; if False, from direct URL scraping.
             Per-URL recent-activity for scraper/opportunities is skipped when True; the caller aggregates one opportunities row.
             google_search_query: When from_google_query is True, the SERP query string (stored on source and included in vector search text).
+            job_store: "url_collection" (default) or "scrapers" — which collection to update status on.
         """
-        logger.info("Background job started url_collection_id=%s url=%s", url_collection_id, url[:80])
+        url_collection_id = job_id  # keep log/metadata key name stable for UrlCollection path
+        logger.info(
+            "Background job started job_id=%s job_store=%s url=%s",
+            job_id,
+            job_store,
+            url[:80],
+        )
         try:
             if is_pdf_url(url):
-                logger.info("Skipping PDF URL url_collection_id=%s", url_collection_id)
-                await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
+                logger.info("Skipping PDF URL job_id=%s", job_id)
+                await self._update_job_status(job_id, {"status": "failed"}, job_store=job_store)
                 return 0
             # Load audience catalog from Mongo before sync thread work
             target_audiences = await load_target_audience_names_from_db()
@@ -213,8 +298,8 @@ class UrlScraperRapidAPIService:
                 target_audiences,
             )
             if parsed is None:
-                logger.error("Job %s scrape/extract failed", url_collection_id)
-                await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
+                logger.error("Job %s scrape/extract failed", job_id)
+                await self._update_job_status(job_id, {"status": "failed"}, job_store=job_store)
                 return 0
 
             source_name = parsed["source_name"]
@@ -222,7 +307,7 @@ class UrlScraperRapidAPIService:
             opportunities = parsed["opportunities"]
             logger.info(
                 "[opp-pipeline] job=%s from_google_query=%s after_sync opportunities=%d url=%s",
-                url_collection_id,
+                job_id,
                 from_google_query,
                 len(opportunities or []),
                 url[:120],
@@ -232,7 +317,7 @@ class UrlScraperRapidAPIService:
             dropped = len(opportunities) - len(complete)
             logger.info(
                 "[opp-pipeline] job=%s complete_filter complete=%d incomplete_dropped=%d",
-                url_collection_id,
+                job_id,
                 len(complete),
                 dropped,
             )
@@ -241,11 +326,11 @@ class UrlScraperRapidAPIService:
                     "[opp-pipeline] job=%s dropped %d opportunities missing required fields "
                     "(link, event_name, location, topics or aipredictedTopics, start_date, end_date, "
                     "speaking_format, delivery_mode, target_audiences)",
-                    url_collection_id,
+                    job_id,
                     dropped,
                 )
 
-            # Unique topics from saved opportunities, for UrlCollection
+            # Unique topics from saved opportunities
             extracted_topics = sorted(
                 set(
                     str(t).strip()
@@ -255,16 +340,18 @@ class UrlScraperRapidAPIService:
                 )
             )
 
-            # Description is compulsory for UrlCollection; use fallback if empty
+            # Description is compulsory; use fallback if empty
             description_for_db = (description or "").strip() or DESCRIPTION_FALLBACK
 
-            # Async DB ops: update UrlCollection with sourceName, description, status, and extracted topics
-            await self.url_collection_model.update_by_id(url_collection_id, {
+            # Update tracking collection with scrape results
+            status_update = {
                 "sourceName": source_name,
                 "description": description_for_db,
                 "status": "completed",
                 "topics": extracted_topics,
-            })
+                "updatedAt": datetime.utcnow(),
+            }
+            await self._update_job_status(job_id, status_update, job_store=job_store)
 
             if not from_google_query:
                 await self.recent_activity_model.try_insert_activity(
@@ -275,7 +362,7 @@ class UrlScraperRapidAPIService:
             if not opportunities:
                 logger.info(
                     "[opp-pipeline] job=%s completed inserted=0 (none after extract/verify) url=%s",
-                    url_collection_id,
+                    job_id,
                     url[:120],
                 )
                 return 0
@@ -284,7 +371,10 @@ class UrlScraperRapidAPIService:
                 if "metadata" not in opp or not isinstance(opp["metadata"], dict):
                     opp["metadata"] = {}
                 opp["metadata"]["sourceUrl"] = url
-                opp["metadata"]["urlCollectionId"] = url_collection_id
+                if job_store == JOB_STORE_SCRAPERS:
+                    opp["metadata"]["scraperId"] = job_id
+                else:
+                    opp["metadata"]["urlCollectionId"] = url_collection_id
                 if not opp["metadata"].get("description") or not str(opp["metadata"].get("description", "")).strip():
                     opp["metadata"]["description"] = (description or opp.get("event_name") or "").strip() or ""
                 src: dict = {"google_query": from_google_query, "source_url": url}
@@ -372,8 +462,8 @@ class UrlScraperRapidAPIService:
                 )
                 return 0
         except Exception as e:
-            logger.exception("Job %s failed: %s", url_collection_id, e)
-            await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
+            logger.exception("Job %s failed: %s", job_id, e)
+            await self._update_job_status(job_id, {"status": "failed"}, job_store=job_store)
             return 0
 
     async def _run_tedx_cron_async(self) -> None:
@@ -414,7 +504,7 @@ class UrlScraperRapidAPIService:
 
     async def process_all_pending(self) -> dict:
         """
-        Drain all pending UrlCollections one at a time. Used by the 72h scheduled cron.
+        Drain all pending UrlCollections one at a time. Used by the UrlCollection cron.
 
         Claims a single job (pending -> running), scrapes it to completion, then claims the
         next — so only one document is ``running`` at a time.
@@ -430,7 +520,34 @@ class UrlScraperRapidAPIService:
             claimed = await self.url_collection_model.claim_pending_jobs(limit=1)
             if not claimed:
                 break
-            batch = await self._process_claimed_pending(claimed)
+            batch = await self._process_claimed_pending(
+                claimed,
+                job_store=JOB_STORE_URL_COLLECTION,
+            )
+            for k in summary:
+                summary[k] += batch.get(k, 0)
+        return summary
+
+    async def process_all_pending_scrapers(self) -> dict:
+        """
+        Drain all pending Scrapers (API url-scraper jobs) one at a time.
+        Used by the weekly pending Scrapers cron.
+        """
+        summary = {
+            "claimed": 0,
+            "completed": 0,
+            "failed": 0,
+            "skipped_invalid": 0,
+            "opportunities_inserted": 0,
+        }
+        while True:
+            claimed = await self.scraper_model.claim_pending_jobs(limit=1)
+            if not claimed:
+                break
+            batch = await self._process_claimed_pending(
+                claimed,
+                job_store=JOB_STORE_SCRAPERS,
+            )
             for k in summary:
                 summary[k] += batch.get(k, 0)
         return summary
@@ -441,10 +558,16 @@ class UrlScraperRapidAPIService:
         Jobs run sequentially with RAPIDAPI_DELAY_SECONDS between URLs.
         """
         return await self._process_claimed_pending(
-            await self.url_collection_model.claim_pending_jobs(limit=limit)
+            await self.url_collection_model.claim_pending_jobs(limit=limit),
+            job_store=JOB_STORE_URL_COLLECTION,
         )
 
-    async def _process_claimed_pending(self, claimed: list) -> dict:
+    async def _process_claimed_pending(
+        self,
+        claimed: list,
+        *,
+        job_store: str = JOB_STORE_URL_COLLECTION,
+    ) -> dict:
         summary = {
             "claimed": len(claimed),
             "completed": 0,
@@ -453,27 +576,29 @@ class UrlScraperRapidAPIService:
             "opportunities_inserted": 0,
         }
         for i, doc in enumerate(claimed):
-            url_collection_id = str(doc["_id"])
+            job_id = str(doc["_id"])
             url = (doc.get("url") or "").strip()
-            user_id = doc.get("userId")
-            if user_id is not None:
-                user_id = str(user_id)
             if not url:
-                await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
+                await self._update_job_status(job_id, {"status": "failed"}, job_store=job_store)
                 summary["skipped_invalid"] += 1
                 continue
             if is_pdf_url(url):
-                await self.url_collection_model.update_by_id(url_collection_id, {"status": "failed"})
+                await self._update_job_status(job_id, {"status": "failed"}, job_store=job_store)
                 summary["skipped_invalid"] += 1
                 continue
             if i > 0:
                 await asyncio.sleep(RAPIDAPI_DELAY_SECONDS)
             n = await self.run_scrape_and_extract(
-                url_collection_id,
+                job_id,
                 url,
                 delay_seconds=RAPIDAPI_DELAY_SECONDS,
+                from_google_query=False,
+                job_store=job_store,
             )
-            final = await self.url_collection_model.get_by_id(url_collection_id)
+            if job_store == JOB_STORE_SCRAPERS:
+                final = await self.scraper_model.get_doc_by_id(job_id)
+            else:
+                final = await self.url_collection_model.get_by_id(job_id)
             st = (final or {}).get("status")
             if st == "completed":
                 summary["completed"] += 1

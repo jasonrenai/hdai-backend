@@ -38,8 +38,10 @@ from app.services.PendingNotificationEmailCronService import run_pending_notific
 from app.services.PendingScraperCronService import (
     pending_google_queries_cron_interval_hours,
     pending_url_collections_cron_interval_hours,
+    pending_scrapers_cron_interval_hours,
     run_pending_google_queries_cron_sync,
     run_pending_url_collections_cron_sync,
+    run_pending_scrapers_cron_sync,
 )
 from app.services.SubmissionReminderCronService import run_submission_reminder_cron_sync
 from app.services.WeeklyNewOpportunityCronService import run_weekly_new_opportunity_cron_sync
@@ -173,6 +175,22 @@ async def startup_event():
         "Pending UrlCollection scraper cron registered (every %s h, all pending entries)",
         url_collection_cron_h,
     )
+
+    scrapers_cron_h = pending_scrapers_cron_interval_hours()
+    enable_scrapers_cron = (os.getenv("ENABLE_PENDING_SCRAPERS_CRON") or "true").strip().lower()
+    if enable_scrapers_cron in ("0", "false", "no", "off"):
+        log.info("Pending Scrapers cron disabled via ENABLE_PENDING_SCRAPERS_CRON")
+    else:
+        _cron_scheduler.add_job(
+            run_pending_scrapers_cron_sync,
+            IntervalTrigger(hours=scrapers_cron_h),
+            id="pending_scrapers_cron",
+            replace_existing=True,
+        )
+        log.info(
+            "Pending Scrapers cron registered (every %s h / weekly default, sequential claim-one-process-one)",
+            scrapers_cron_h,
+        )
 
     _cron_scheduler.add_job(
         run_weekly_new_opportunity_cron_sync,

@@ -47,7 +47,6 @@ class ScraperService:
             update_dict = data.model_dump(exclude_unset=True)
             if not update_dict:
                 return {"success": False, "data": None, "error": "No data provided for update"}
-            update_dict["updatedAt"] = datetime.utcnow()
             updated = await self.scraper_model.update(scraper_id, user_id, update_dict)
             if not updated:
                 return {"success": False, "data": None, "error": "Failed to update scraper"}

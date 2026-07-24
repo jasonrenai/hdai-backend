@@ -42,10 +42,10 @@ class OpportunitySchema(BaseModel):
 
 
 class UrlScrapeCreateSchema(BaseModel):
-    """Schema for creating a URL scrape job."""
+    """Schema for creating a URL scrape job (stored in Scrapers collection)."""
 
     url: str
-    topics: Optional[List[str]] = None  # Optional; allowed values from speaker_profile_chatbot.TOPICS
+    name: str  # Display/name for the scraper entry
 
 
 class GenerateOpportunityEmailContentSchema(BaseModel):
