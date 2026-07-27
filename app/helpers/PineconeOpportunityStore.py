@@ -78,8 +78,10 @@ class OpportunityTextBuilder:
 
     @staticmethod
     def from_speaker_profile(profile: dict) -> str:
-        """Build text from speaker profile: topics, speaking_formats, delivery_mode, target_audiences, talk_description.
-        Handles MongoDB shape: topics/target_audiences as list of {_id, name, slug}, delivery_mode as list or string.
+        """
+        Build search text aligned with opportunity embeddings:
+        topics, speaking_formats, delivery_mode, target_audiences.
+        (talk_description, key_takeaways, testimonial are excluded from vector search.)
         """
         parts = []
         topics = profile.get("topics") or []
@@ -96,27 +98,6 @@ class OpportunityTextBuilder:
         a_str = OpportunityTextBuilder._to_str(audiences)
         if a_str:
             parts.append(a_str)
-        td = profile.get("talk_description")
-        if isinstance(td, dict):
-            talk_desc = f"{td.get('title', '')} {td.get('overview', '')}".strip()
-        else:
-            talk_desc = (td or "").strip() if isinstance(td, str) else OpportunityTextBuilder._to_str(td)
-        if talk_desc:
-            parts.append(talk_desc)
-        kt = profile.get("key_takeaways")
-        if isinstance(kt, list):
-            kt_str = " ".join(OpportunityTextBuilder._item_text(x) for x in kt if x)
-            if kt_str.strip():
-                parts.append(kt_str)
-        elif isinstance(kt, str) and kt.strip():
-            parts.append(kt.strip())
-        tm = profile.get("testimonial")
-        if isinstance(tm, list):
-            tm_str = " ".join(OpportunityTextBuilder._item_text(x) for x in tm if x)
-            if tm_str.strip():
-                parts.append(tm_str)
-        elif isinstance(tm, str) and tm.strip():
-            parts.append(tm.strip())
         return " ".join(parts).strip() or ""
 
 

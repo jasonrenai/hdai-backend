@@ -351,3 +351,63 @@ class OpportunityModel:
             if sid in id_to_doc:
                 result.append(id_to_doc[sid])
         return result
+
+    async def find_matching_for_speaker(
+        self,
+        *,
+        topics: Sequence[str],
+        speaking_formats: Sequence[str],
+        delivery_modes: Sequence[str],
+        target_audiences: Sequence[str],
+    ) -> List[dict]:
+        """
+        Find opportunities that overlap speaker criteria:
+        - topics: at least one shared value (array)
+        - speaking_format: equals one of speaker speaking_formats (string)
+        - delivery_mode: equals one of speaker delivery modes (string)
+        - target_audiences: at least one shared value (array)
+
+        Deadline (submissionInfo.deadline as YYYY-MM-DD):
+        - include if deadline >= today
+        - include if deadline missing / empty / \"deadline not found\"
+        - exclude if parseable deadline is before today
+        """
+        topics = [t for t in topics if t]
+        speaking_formats = [f for f in speaking_formats if f]
+        delivery_modes = [d for d in delivery_modes if d]
+        target_audiences = [a for a in target_audiences if a]
+        if not (topics or speaking_formats or delivery_modes or target_audiences):
+            return []
+
+        and_clauses: list[dict] = []
+        if topics:
+            and_clauses.append({"topics": {"$in": list(topics)}})
+        if speaking_formats:
+            and_clauses.append({"speaking_format": {"$in": list(speaking_formats)}})
+        if delivery_modes:
+            and_clauses.append({"delivery_mode": {"$in": list(delivery_modes)}})
+        if target_audiences:
+            and_clauses.append({"target_audiences": {"$in": list(target_audiences)}})
+
+        today_str = date.today().isoformat()
+        and_clauses.append(
+            {
+                "$or": [
+                    {
+                        "$and": [
+                            {_DEADLINE_FIELD: _DEADLINE_ISO_PREFIX},
+                            {_DEADLINE_FIELD: {"$gte": today_str}},
+                        ]
+                    },
+                    {_DEADLINE_FIELD: _DEADLINE_NOT_FOUND},
+                    {_DEADLINE_FIELD: {"$exists": False}},
+                    {_DEADLINE_FIELD: None},
+                    {_DEADLINE_FIELD: ""},
+                    {"submissionInfo": {"$exists": False}},
+                    {"submissionInfo": None},
+                ]
+            }
+        )
+
+        cursor = self.collection.find({"$and": and_clauses}).sort([("createdAt", -1)])
+        return [doc async for doc in cursor]

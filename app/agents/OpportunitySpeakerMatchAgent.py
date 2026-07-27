@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def _summary_profile(profile: dict) -> str:
-    """Build a short text summary of speaker profile for the LLM."""
+    """Build LLM summary: topics, speaking formats, delivery mode, target audiences only."""
     parts = []
     topics = OpportunityTextBuilder._to_str(profile.get("topics") or [])
     if topics:
@@ -32,30 +32,17 @@ def _summary_profile(profile: dict) -> str:
     audiences = OpportunityTextBuilder._to_str(profile.get("target_audiences") or [])
     if audiences:
         parts.append(f"Target audiences: {audiences}")
-    td = profile.get("talk_description")
-    if isinstance(td, dict):
-        talk = f"{td.get('title', '')} {td.get('overview', '')}".strip()
-    else:
-        talk = (td or "").strip() if isinstance(td, str) else str(td or "").strip()
-    if talk:
-        parts.append(f"Talk description: {talk[:500]}")
-    kt = profile.get("key_takeaways")
-    if isinstance(kt, list) and kt:
-        parts.append(f"Key takeaways: {', '.join(str(x) for x in kt if x)[:400]}")
-    elif isinstance(kt, str) and kt.strip():
-        parts.append(f"Key takeaways: {kt.strip()[:400]}")
     return "\n".join(parts) if parts else ""
 
 
 def _summary_opportunity(opp: dict) -> str:
-    """Build a short text summary of opportunity for the LLM."""
+    """Build LLM summary: topics, speaking format, delivery mode, target audiences only."""
     parts = []
-    name = (opp.get("event_name") or "").strip()
-    if name:
-        parts.append(f"Event: {name}")
     topics = opp.get("topics") or []
     if isinstance(topics, list):
-        parts.append(f"Topics: {', '.join(str(t) for t in topics if t)}")
+        t_str = ", ".join(str(t) for t in topics if t)
+        if t_str:
+            parts.append(f"Topics: {t_str}")
     fmt = (opp.get("speaking_format") or "").strip()
     if fmt:
         parts.append(f"Speaking format: {fmt}")
@@ -64,27 +51,27 @@ def _summary_opportunity(opp: dict) -> str:
         parts.append(f"Delivery mode: {delivery}")
     audiences = opp.get("target_audiences") or []
     if isinstance(audiences, list):
-        parts.append(f"Target audiences: {', '.join(str(a) for a in audiences if a)}")
-    meta = opp.get("metadata") or {}
-    if isinstance(meta, dict) and meta.get("description"):
-        parts.append(f"Description: {str(meta['description'])[:400]}")
+        a_str = ", ".join(str(a) for a in audiences if a)
+        if a_str:
+            parts.append(f"Target audiences: {a_str}")
     return "\n".join(parts) if parts else ""
 
 
 class OpportunitySpeakerMatchAgent:
     """
-    Agent that uses an LLM to decide if an opportunity is a good match for a speaker profile.
-    Returns True only when the opportunity aligns with the speaker's topics, formats, delivery mode, and audiences.
+    Agent that uses an LLM to decide if an opportunity matches a speaker profile.
+    Returns True when at least one speaker topic overlaps with an opportunity topic.
     """
 
-    SYSTEM_PROMPT = """You are an expert at matching speaking opportunities to speaker profiles.
-Given a SPEAKER PROFILE and an OPPORTUNITY, decide if this opportunity is a good match for this speaker.
+    SYSTEM_PROMPT = """You are matching speaking opportunities to speaker profiles based on TOPICS ONLY.
 
-A good match means:
-- The opportunity's topics overlap with the speaker's topics or expertise.
-- The opportunity's speaking format (e.g. Keynote, Panel, Workshop) fits what the speaker offers.
-- The opportunity's delivery mode (Virtual, In-person, Hybrid) matches the speaker's preference.
-- The opportunity's target audience aligns with who the speaker wants to reach.
+Given a SPEAKER PROFILE and an OPPORTUNITY, compare their topic lists.
+
+Rules:
+- Return {"match": true} if at least ONE topic from the speaker overlaps with at least ONE topic on the opportunity.
+- Overlap includes exact matches, close synonyms, and clearly related subtopics (e.g. "Leadership" and "Executive Leadership").
+- Return {"match": false} only when NO speaker topic relates to ANY opportunity topic.
+- Ignore speaking format, delivery mode, and target audience for this decision — topics only.
 
 Reply with ONLY a JSON object with one key: "match" (boolean). Example: {"match": true} or {"match": false}.
 Do not include any other text or explanation."""
@@ -95,7 +82,7 @@ Do not include any other text or explanation."""
 OPPORTUNITY:
 {opportunity_summary}
 
-Is this opportunity a good match for this speaker? Reply with JSON only: {{"match": true}} or {{"match": false}}."""
+Does at least one speaker topic match or relate to at least one opportunity topic? Reply with JSON only: {{"match": true}} or {{"match": false}}."""
 
     def __init__(self, openai_client: OpenAI = None):
         self._client = openai_client

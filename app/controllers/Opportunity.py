@@ -94,8 +94,7 @@ async def match_opportunities_by_speaker(
         background_tasks.add_task(
             service.run_matching_and_save,
             speaker_profile_id,
-            None,  # match_agent
-            entry_id,
+            matched_entry_id=entry_id,
         )
         return Utils.create_response(
             {
