@@ -122,8 +122,8 @@ class OpportunityService:
     ) -> List[dict]:
         """
         Match opportunities in Mongo by speaker topics, speaking formats, delivery mode,
-        and target audiences. Includes open deadlines (YYYY-MM-DD >= today) and opportunities
-        with missing / \"deadline not found\" deadline.
+        and target audiences. Only includes isVerified=true. Includes open deadlines
+        (YYYY-MM-DD >= today) and opportunities with missing / \"deadline not found\" deadline.
         """
         profile = await self.speaker_profile_model.get_profile(speaker_profile_id)
         if not profile:

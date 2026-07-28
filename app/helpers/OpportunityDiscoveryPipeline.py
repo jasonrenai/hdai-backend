@@ -71,9 +71,9 @@ Return ONLY valid JSON with exactly these keys:
 - reason: short evidence-based explanation
 
 Definitions:
-- direct_opportunity: This page itself hosts a speaking opportunity, call for speakers, speaker application, CFP, or event page where an external professional can speak or apply to speak for ONE primary event/site.
+- direct_opportunity: This page itself hosts a speaking opportunity, call for speakers, speaker application, or event page where an external professional can speak or apply to speak for ONE primary event/site. Industry/professional talk proposals count even if labeled "CFP". Academic research Call for Papers / paper submission pages and sponsorship / sponsor / exhibitor pages are NOT direct_opportunity — use not_speaking (judge from page meaning, not isolated keywords).
 - blog_or_aggregator: A blog post, news article, listicle, guide, social post, or directory that lists or mentions speaking opportunities / events but is not the official opportunity page for those events.
-- not_speaking: No speaking opportunity signals (attend-only content, unrelated page, dead/empty page, etc.).
+- not_speaking: No speaking opportunity signals (attend-only content, unrelated page, dead/empty page, academic Call for Papers / research paper tracks, sponsorship opportunities, etc.).
 
 Do not invent facts."""
 

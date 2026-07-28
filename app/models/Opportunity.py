@@ -366,6 +366,7 @@ class OpportunityModel:
         - speaking_format: equals one of speaker speaking_formats (string)
         - delivery_mode: equals one of speaker delivery modes (string)
         - target_audiences: at least one shared value (array)
+        - isVerified: must be true (LLM-confirmed speaking opportunity)
 
         Deadline (submissionInfo.deadline as YYYY-MM-DD):
         - include if deadline >= today
@@ -379,7 +380,7 @@ class OpportunityModel:
         if not (topics or speaking_formats or delivery_modes or target_audiences):
             return []
 
-        and_clauses: list[dict] = []
+        and_clauses: list[dict] = [{"isVerified": True}]
         if topics:
             and_clauses.append({"topics": {"$in": list(topics)}})
         if speaking_formats:

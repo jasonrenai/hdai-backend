@@ -35,6 +35,8 @@ class OpportunitySchema(BaseModel):
     source: Optional[OpportunitySourceSchema] = None  # How this opportunity was found (google query vs URL)
     isQualified: Optional[bool] = None  # False: kept in Mongo but not embedded in vector DB
     reasonForUnqualify: Optional[str] = None  # Human-readable when isQualified is False
+    isVerified: Optional[bool] = None  # true=verified speaking opp; false=verified not speaking; missing=not verified yet
+    reasonForUnverify: Optional[str] = None  # Set when isVerified is False
     metadata: dict = Field(default_factory=dict)
 
     class Config:

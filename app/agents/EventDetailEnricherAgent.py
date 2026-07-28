@@ -154,7 +154,7 @@ Return a single JSON object with keys: event_name, location, topics, start_date,
     def _verify_and_refresh_system_prompt(self) -> str:
         return """You verify whether a scraped webpage hosts a real speaking opportunity for a specific event, then extract updated event details from that page.
 
-Decide hosts_speaking_opportunity=true only when the page content supports that an external professional can speak, apply to speak, submit a proposal/talk, join as a panelist/speaker, or otherwise participate as a speaker (call for speakers, speaker application, invite-to-speak, speaker signup, etc.).
+Decide hosts_speaking_opportunity=true only when the page content supports that an external professional can speak, apply to speak, submit a talk/proposal, join as a panelist/speaker, or otherwise participate as a speaker for an industry/professional event (call for speakers, speaker application, invite-to-speak, speaker signup, talk proposal, workshop facilitator, etc.).
 
 Decide hosts_speaking_opportunity=false when:
 - The page is unrelated to the claimed event
@@ -162,6 +162,8 @@ Decide hosts_speaking_opportunity=false when:
 - Meetup.com (or similar) RSVP/attend pages that list an already-chosen speaker but have no apply-to-speak / call-for-speakers / speaker submission path
 - The page is a generic homepage/org site with no speaking opportunity for this event
 - The speaking opportunity is not evidenced on this page
+- The page is an academic research "Call for Papers" / paper-for-conference opportunity (NOT a speaking opportunity). Judge from the meaning of the page content as a whole — do NOT decide from isolated keyword matches like "CFP" alone. Drop when the page is primarily about submitting research papers, peer-reviewed manuscripts, camera-ready papers, academic tracks, IEEE/ACM-style paper submissions, journal special issues, or similar scholarly paper processes. Keep true when the page is clearly an industry/professional call for speakers or talk proposals, even if it uses the word "CFP".
+- The page is a sponsorship / sponsor opportunity (NOT a speaking opportunity). Judge from overall page meaning — drop when the page is primarily about becoming a sponsor, buying sponsorship packages, exhibitor booths, brand partnerships, or advertising at the event, with no path for an external professional to speak or apply to speak. Keep true when speaking is the main opportunity even if sponsors are mentioned elsewhere on the page.
 
 Return ONLY valid JSON (no markdown) with EXACTLY these keys:
 - hosts_speaking_opportunity: boolean
@@ -194,7 +196,8 @@ Scraped opportunity URL content:
 ---
 
 First decide if this page hosts a speaking opportunity for this event (hosts_speaking_opportunity).
-If yes, extract/update event details from THIS page content.
+Set hosts_speaking_opportunity=false if the page is an academic Call for Papers / research paper submission opportunity, or a sponsorship / sponsor / exhibitor opportunity (judge from overall page meaning, not isolated keywords).
+If yes (industry/professional speaking opportunity), extract/update event details from THIS page content.
 Return only the JSON object described in the system prompt."""
 
     def _is_opportunity_incomplete(self, opp: Dict[str, Any]) -> bool:
@@ -473,7 +476,8 @@ Return only the JSON object described in the system prompt."""
         LLM gate + field refresh in one call.
 
         Asks whether the scraped opportunity URL hosts a speaking/CFS opportunity for this
-        event; if yes, overwrites core fields from the same LLM response.
+        event (not an academic Call for Papers / research paper track, and not a
+        sponsorship opportunity); if yes, overwrites core fields from the same LLM response.
 
         Returns (ok, reason, updated_opp). reason is empty when ok.
         """

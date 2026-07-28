@@ -224,6 +224,8 @@ class SpeakingOpportunityExtractor:
                     - Past events that are already completed
                     - Events that clearly do not accept external speakers
                     - Meetup.com (and similar) RSVP/attend pages that only list an already-chosen speaker with no apply-to-speak / call-for-speakers path
+                    - Academic research Call for Papers / paper-for-conference opportunities (peer-reviewed manuscripts, camera-ready papers, scholarly paper tracks). Judge from page meaning, not isolated words like "CFP". Keep industry call-for-speakers / talk proposals.
+                    - Sponsorship / sponsor / exhibitor / brand partnership opportunities with no apply-to-speak path. Judge from page meaning; keep pages whose main opportunity is speaking even if sponsors are mentioned.
 
                     Use only the information present in the provided content. Do not guess or hallucinate missing information.
                     For topics, first use exact values from the allowed topic list. If the opportunity topic is not represented by that list, put the content-based topic labels in aipredictedTopics as a list.
@@ -270,6 +272,8 @@ class SpeakingOpportunityExtractor:
                     - Meetup.com RSVP/attend pages that list an already-chosen speaker with no apply-to-speak path
                     - Past events that are already completed
                     - Internal company events not open to external speakers
+                    - Academic "Call for Papers" / research paper conference opportunities (peer review, camera-ready manuscripts, IEEE/ACM-style paper submissions, journal special issues). Decide from overall content meaning — do NOT exclude industry call-for-speakers just because the page says "CFP".
+                    - Sponsorship / sponsor / exhibitor / advertising package opportunities (no path for an external professional to speak). Decide from overall content meaning.
 
                     Given a CHUNK of website content (in markdown format), extract only FUTURE speaking opportunities.
 
