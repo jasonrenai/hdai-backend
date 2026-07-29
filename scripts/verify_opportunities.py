@@ -19,6 +19,7 @@ Run from project root (venv active):
   python scripts/verify_opportunities.py --all
   python scripts/verify_opportunities.py --ids 65abc...,66def...
   python scripts/verify_opportunities.py --include-verified --all
+  python scripts/verify_opportunities.py --ids id1,id2,id3 --set-twice-verified
 
 Requires .env: MONGODB_CONNECTION_STRING, DB_NAME, RAPIDAPI_KEY, OPENAI_API_KEY
 """
@@ -78,12 +79,17 @@ def _parse_args() -> argparse.Namespace:
         "--ids",
         type=str,
         default="",
-        help="Comma-separated opportunity ObjectIds to verify",
+        help="Comma-separated opportunity ObjectIds to verify (always re-checks these ids; still requires isQualified=true)",
     )
     p.add_argument(
         "--include-verified",
         action="store_true",
-        help="Also re-check docs that already have isVerified true or false (default: only missing)",
+        help="Also re-check docs that already have isVerified true or false (default: only missing). Implied when --ids is set.",
+    )
+    p.add_argument(
+        "--set-twice-verified",
+        action="store_true",
+        help="Also set isTwiceVerified=true on each updated doc (optional second-pass marker)",
     )
     p.add_argument(
         "--delay",
@@ -211,6 +217,7 @@ async def _process(
     dry_run: bool,
     summary: dict,
     batch_label: str = "",
+    set_twice_verified: bool = False,
 ) -> None:
     from bson import ObjectId
 
@@ -224,12 +231,13 @@ async def _process(
         label = f"{batch_label} item {i}/{total_in_batch}" if batch_label else f"item {i}/{total_in_batch}"
 
         logger.info(
-            "──── %s | id=%s | event=%s | isQualified=%s | isVerified(before)=%s ────",
+            "──── %s | id=%s | event=%s | isQualified=%s | isVerified(before)=%s | isTwiceVerified(before)=%s ────",
             label,
             oid_str,
             event_name[:80] or "(no name)",
             doc.get("isQualified"),
             doc.get("isVerified", "<missing>"),
+            doc.get("isTwiceVerified", "<missing>"),
         )
         logger.info("[%s] link=%s", oid_str, link[:160] or "(no link)")
 
@@ -254,26 +262,35 @@ async def _process(
             "verifiedAt": datetime.utcnow(),
             "reasonForUnverify": None if is_verified else (reason or "Not a speaking opportunity"),
         }
+        if set_twice_verified:
+            update["isTwiceVerified"] = True
 
         if dry_run:
             summary["dry_run_skipped_writes"] += 1
             logger.info(
-                "[%s] Step 3/3 DRY-RUN skip write | would set isVerified=%s reason=%s",
+                "[%s] Step 3/3 DRY-RUN skip write | would set isVerified=%s isTwiceVerified=%s reason=%s",
                 oid_str,
                 is_verified,
+                update.get("isTwiceVerified", "<unchanged>"),
                 (reason or "")[:160],
             )
             _log_summary(summary)
             continue
 
         try:
-            logger.info("[%s] Step 3/3 Mongo $set isVerified=%s", oid_str, is_verified)
+            logger.info(
+                "[%s] Step 3/3 Mongo $set isVerified=%s isTwiceVerified=%s",
+                oid_str,
+                is_verified,
+                update.get("isTwiceVerified", "<unchanged>"),
+            )
             result = await collection.update_one({"_id": ObjectId(oid_str)}, {"$set": update})
             summary["updated"] += 1
             logger.info(
-                "[%s] DONE isVerified=%s matched=%d modified=%d reason=%s",
+                "[%s] DONE isVerified=%s isTwiceVerified=%s matched=%d modified=%d reason=%s",
                 oid_str,
                 is_verified,
+                update.get("isTwiceVerified", doc.get("isTwiceVerified", "<missing>")),
                 result.matched_count,
                 result.modified_count,
                 (reason or "(speaking opportunity)")[:160],
@@ -302,20 +319,27 @@ async def main() -> None:
 
     logger.info("========== verify_opportunities START ==========")
     logger.info(
-        "Config: db=%s dry_run=%s all=%s limit=%s batch_size=%s delay=%.1fs include_verified=%s ids=%s",
+        "Config: db=%s dry_run=%s all=%s limit=%s batch_size=%s delay=%.1fs "
+        "include_verified=%s set_twice_verified=%s ids=%s",
         db_name,
         bool(args.dry_run),
         bool(args.all),
         args.limit,
         args.batch_size,
         float(args.delay),
-        bool(args.include_verified),
+        bool(args.include_verified) or bool(args.ids),
+        bool(args.set_twice_verified),
         bool(args.ids),
     )
-    logger.info(
-        "Filters: isQualified=true; isVerified %s",
-        "any (re-check)" if args.include_verified else "missing only (skip already verified true/false)",
-    )
+    if args.ids:
+        logger.info(
+            "Filters (--ids): isQualified=true; re-check listed ids regardless of isVerified"
+        )
+    else:
+        logger.info(
+            "Filters: isQualified=true; isVerified %s",
+            "any (re-check)" if args.include_verified else "missing only (skip already verified true/false)",
+        )
 
     MongoDB.connect(connection_string)
     logger.info("MongoDB connected")
@@ -334,11 +358,13 @@ async def main() -> None:
         "errors": 0,
         "dry_run_skipped_writes": 0,
         "dry_run": bool(args.dry_run),
+        "set_twice_verified": bool(args.set_twice_verified),
     }
 
     batch_size = max(1, int(args.batch_size))
     max_to_process: Optional[int] = None if args.all else max(1, int(args.limit))
     job_t0 = time.monotonic()
+    set_twice = bool(args.set_twice_verified)
 
     try:
         if args.ids:
@@ -356,17 +382,19 @@ async def main() -> None:
             cursor = collection.find({"_id": {"$in": oids}})
             docs = await cursor.to_list(length=len(oids))
             before = len(docs)
+            # Explicit ids: always re-verify; still skip unqualified/expired
             docs = [d for d in docs if d.get("isQualified") is True]
-            if not args.include_verified:
-                docs = [d for d in docs if d.get("isVerified") is None]
             skipped = before - len(docs)
             if skipped:
-                logger.info(
-                    "Skipped %d id(s) (need isQualified=true%s)",
-                    skipped,
-                    "" if args.include_verified else " and isVerified missing",
-                )
-            logger.info("Will process %d opportunity(ies) by id", len(docs))
+                logger.info("Skipped %d id(s) (need isQualified=true)", skipped)
+            not_found = len(oids) - before
+            if not_found > 0:
+                logger.warning("%d requested id(s) were not found in Mongo", not_found)
+            logger.info(
+                "Will process %d opportunity(ies) by id (set_twice_verified=%s)",
+                len(docs),
+                set_twice,
+            )
             if not docs:
                 logger.warning("Nothing to process after filters")
             else:
@@ -378,6 +406,7 @@ async def main() -> None:
                     dry_run=bool(args.dry_run),
                     summary=summary,
                     batch_label="ids",
+                    set_twice_verified=set_twice,
                 )
         else:
             query = _base_query(args)
@@ -436,6 +465,7 @@ async def main() -> None:
                     dry_run=bool(args.dry_run),
                     summary=summary,
                     batch_label=f"batch {batch_num}",
+                    set_twice_verified=set_twice,
                 )
                 processed += len(docs)
                 last_id = docs[-1].get("_id")

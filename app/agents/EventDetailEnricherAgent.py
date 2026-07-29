@@ -152,22 +152,37 @@ Full content:
 Return a single JSON object with keys: event_name, location, topics, start_date, end_date, speaking_format, delivery_mode, target_audiences, metadata. Use start_date and end_date in ISO format (YYYY-MM-DD) only when an explicit calendar day is present; use null if only month/year is known. For one-day events set end_date equal to start_date. Prefer empty/null over guessing. Use ONLY: topics from """ + _TOPICS_LIST_STR + """; speaking_format from """ + _SPEAKING_FORMATS_STR + """; delivery_mode from """ + _DELIVERY_MODE_STR + """; target_audiences from """ + self._target_audiences_str + """."""
 
     def _verify_and_refresh_system_prompt(self) -> str:
-        return """You verify whether a scraped webpage hosts a real speaking opportunity for a specific event, then extract updated event details from that page.
+        return """You verify whether a scraped webpage hosts a real OPEN speaking opportunity for a specific event, then extract updated event details from that page.
 
-Decide hosts_speaking_opportunity=true only when the page content supports that an external professional can speak, apply to speak, submit a talk/proposal, join as a panelist/speaker, or otherwise participate as a speaker for an industry/professional event (call for speakers, speaker application, invite-to-speak, speaker signup, talk proposal, workshop facilitator, etc.).
+STRICT RULE — hosts_speaking_opportunity=true ONLY when BOTH are true:
+1) An external professional (not already selected) can APPLY TO SPEAK as a speaker on THIS page: call for speakers, apply to speak, speaker application, speaker signup, invite to speak, become a speaker, panelist application, or workshop facilitator application where the person is invited as a SPEAKER.
+2) The page is an industry/professional speaker path (not academic research, not a generic presentation/abstract proposal track).
 
-Decide hosts_speaking_opportunity=false when:
-- The page is unrelated to the claimed event
-- The page is attend-only (no speaker path)
-- Meetup.com (or similar) RSVP/attend pages that list an already-chosen speaker but have no apply-to-speak / call-for-speakers / speaker submission path
-- The page is a generic homepage/org site with no speaking opportunity for this event
-- The speaking opportunity is not evidenced on this page
-- The page is an academic research "Call for Papers" / paper-for-conference opportunity (NOT a speaking opportunity). Judge from the meaning of the page content as a whole — do NOT decide from isolated keyword matches like "CFP" alone. Drop when the page is primarily about submitting research papers, peer-reviewed manuscripts, camera-ready papers, academic tracks, IEEE/ACM-style paper submissions, journal special issues, or similar scholarly paper processes. Keep true when the page is clearly an industry/professional call for speakers or talk proposals, even if it uses the word "CFP".
-- The page is a sponsorship / sponsor opportunity (NOT a speaking opportunity). Judge from overall page meaning — drop when the page is primarily about becoming a sponsor, buying sponsorship packages, exhibitor booths, brand partnerships, or advertising at the event, with no path for an external professional to speak or apply to speak. Keep true when speaking is the main opportunity even if sponsors are mentioned elsewhere on the page.
+A contact email, RSVP, tickets, agenda, "meet our speakers", or "ways to participate" alone is NEVER enough for true.
+
+ALWAYS set hosts_speaking_opportunity=false for these (even if an application form exists) — they are NOT speaking opportunities for our product:
+- Call for Abstract / Call for Abstracts (industry or academic)
+- Opportunity for Presentation / apply to present / present here / presentation opportunity
+- Presentation Proposal / call for proposals aimed at presentations (including URLs or titles like call-for-proposals, /present/, propselect presentation proposals)
+- Call for Papers / paper submission / camera-ready / peer-reviewed manuscripts
+- Session abstract portals, Cvent abstract systems, and similar abstract-submission flows
+
+Decide hosts_speaking_opportunity=false also when ANY of these apply (judge from overall page meaning, not isolated keywords):
+- Attend-only / RSVP / register / buy tickets / agenda / schedule / event homepage / org homepage with no open apply-to-speak path
+- Meetup.com (or similar) group home or event RSVP pages without an explicit apply-to-speak / call-for-speakers path
+- Eventbrite (or similar) ticket/registration pages with no open speaker application
+- LinkedIn company pages, social posts, or link shorteners that promote an event but do not host an apply-to-speak path
+- "Meet our speakers" / featured / invited / curated speaker lists with no open application
+- Sponsorship, exhibitor booths, partner packages, advertising, or "ways to participate" hubs that are mainly sponsor/exhibitor/partner tracks
+- Exhibition / trade-show registration that is not an open apply-to-speak path
+- The page is unrelated to the claimed event, or speaking is not evidenced on THIS page
+- Only a general info@ / contact email with no speaker submission path
+
+Keep true ONLY for clear industry/professional OPEN speaker paths such as: call for speakers, apply to speak, speaker application forms, become a speaker — where the person applies to be a SPEAKER (not merely to submit a presentation, abstract, or paper). If the page is mainly "present" / "presentation proposal" / "call for abstracts", return false even if it sounds related to speaking.
 
 Return ONLY valid JSON (no markdown) with EXACTLY these keys:
 - hosts_speaking_opportunity: boolean
-- reason: short evidence-based explanation
+- reason: short evidence-based explanation (cite what open apply-to-speak path exists, or why it fails)
 - event_name: Full event name from the page when present, else empty string
 - location: City/country or "Virtual" when present, else empty string
 - topics: Array chosen ONLY from this list (exact strings): """ + _TOPICS_LIST_STR + """. Empty array if unclear.
@@ -178,7 +193,7 @@ Return ONLY valid JSON (no markdown) with EXACTLY these keys:
 - target_audiences: Array of closest matches ONLY from """ + self._target_audiences_str + """. Always pick at least one when the page implies an audience; do not return empty when audience is implied.
 - metadata: Object with optional description and other page facts, or {}
 
-Do not invent facts. Prefer empty/null over guessing."""
+Do not invent facts. Prefer empty/null over guessing. When unsure, return hosts_speaking_opportunity=false."""
 
     VERIFY_AND_REFRESH_USER_PROMPT_TEMPLATE = """Candidate opportunity discovered from another source page:
 - Claimed event_name: {event_name}
@@ -195,9 +210,10 @@ Scraped opportunity URL content:
 {content}
 ---
 
-First decide if this page hosts a speaking opportunity for this event (hosts_speaking_opportunity).
-Set hosts_speaking_opportunity=false if the page is an academic Call for Papers / research paper submission opportunity, or a sponsorship / sponsor / exhibitor opportunity (judge from overall page meaning, not isolated keywords).
-If yes (industry/professional speaking opportunity), extract/update event details from THIS page content.
+Decide hosts_speaking_opportunity using the system rules.
+Set true ONLY for a clear OPEN apply-to-speak / call-for-speakers path (person applies to be a SPEAKER).
+ALWAYS set false for: Call for Abstract(s), Opportunity for Presentation / apply to present / present pages, Presentation Proposal / call-for-proposals for presentations, Call for Papers, abstract portals, Meetup/Eventbrite attend-RSVP-ticket pages, LinkedIn/social promos, agenda/homepages without apply-to-speak, sponsor/exhibitor hubs, featured-speaker-only pages, or contact-email-only pages.
+If true, extract/update event details from THIS page content.
 Return only the JSON object described in the system prompt."""
 
     def _is_opportunity_incomplete(self, opp: Dict[str, Any]) -> bool:
@@ -475,9 +491,11 @@ Return only the JSON object described in the system prompt."""
         """
         LLM gate + field refresh in one call.
 
-        Asks whether the scraped opportunity URL hosts a speaking/CFS opportunity for this
-        event (not an academic Call for Papers / research paper track, and not a
-        sponsorship opportunity); if yes, overwrites core fields from the same LLM response.
+        Asks whether the scraped opportunity URL hosts an OPEN speaking/CFS opportunity
+        for this event (apply-to-speak required). False for attend/RSVP/tickets, LinkedIn
+        promos, sponsor/exhibitor hubs, academic papers/abstracts, featured-speaker-only
+        pages, and contact-email-only pages. If yes, overwrites core fields from the same
+        LLM response.
 
         Returns (ok, reason, updated_opp). reason is empty when ok.
         """

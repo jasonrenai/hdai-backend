@@ -37,6 +37,7 @@ class OpportunitySchema(BaseModel):
     reasonForUnqualify: Optional[str] = None  # Human-readable when isQualified is False
     isVerified: Optional[bool] = None  # true=verified speaking opp; false=verified not speaking; missing=not verified yet
     reasonForUnverify: Optional[str] = None  # Set when isVerified is False
+    isTwiceVerified: Optional[bool] = None  # Optional: true when re-verified in a second pass
     metadata: dict = Field(default_factory=dict)
 
     class Config:
