@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -36,9 +35,7 @@ from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
 from app.services.PendingNotificationEmailCronService import run_pending_notification_email_cron_sync
 from app.services.PendingScraperCronService import (
-    pending_google_queries_cron_interval_hours,
     pending_url_collections_cron_interval_hours,
-    pending_scrapers_cron_interval_hours,
     run_pending_google_queries_cron_sync,
     run_pending_url_collections_cron_sync,
     run_pending_scrapers_cron_sync,
@@ -146,23 +143,19 @@ async def startup_event():
     )
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
 
-    google_query_cron_h = pending_google_queries_cron_interval_hours()
     enable_gq_cron = (os.getenv("ENABLE_PENDING_GOOGLE_QUERY_CRON") or "true").strip().lower()
     if enable_gq_cron in ("0", "false", "no", "off"):
         log.info("Pending GoogleQuery scraper cron disabled via ENABLE_PENDING_GOOGLE_QUERY_CRON")
     else:
         _cron_scheduler.add_job(
             run_pending_google_queries_cron_sync,
-            IntervalTrigger(hours=google_query_cron_h),
+            CronTrigger(day_of_week="mon", hour=16, minute=0, timezone="Asia/Kolkata"),
             id="pending_google_queries_cron",
             replace_existing=True,
-            # Run once on startup (after deploy/check-in), then every interval thereafter.
-            next_run_time=datetime.now(timezone.utc),
         )
         log.info(
             "Pending GoogleQuery scraper cron registered "
-            "(every %s h, first run now, sequential claim-one-process-one)",
-            google_query_cron_h,
+            "(every Mon 16:00 Asia/Kolkata, sequential claim-one-process-one)",
         )
 
     url_collection_cron_h = pending_url_collections_cron_interval_hours()
@@ -176,20 +169,19 @@ async def startup_event():
         url_collection_cron_h,
     )
 
-    scrapers_cron_h = pending_scrapers_cron_interval_hours()
     enable_scrapers_cron = (os.getenv("ENABLE_PENDING_SCRAPERS_CRON") or "true").strip().lower()
     if enable_scrapers_cron in ("0", "false", "no", "off"):
         log.info("Pending Scrapers cron disabled via ENABLE_PENDING_SCRAPERS_CRON")
     else:
         _cron_scheduler.add_job(
             run_pending_scrapers_cron_sync,
-            IntervalTrigger(hours=scrapers_cron_h),
+            CronTrigger(day_of_week="mon", hour=16, minute=0, timezone="Asia/Kolkata"),
             id="pending_scrapers_cron",
             replace_existing=True,
         )
         log.info(
-            "Pending Scrapers cron registered (every %s h / weekly default, sequential claim-one-process-one)",
-            scrapers_cron_h,
+            "Pending Scrapers cron registered "
+            "(every Mon 16:00 Asia/Kolkata, sequential claim-one-process-one)",
         )
 
     _cron_scheduler.add_job(
