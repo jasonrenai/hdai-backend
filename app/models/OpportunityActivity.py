@@ -129,6 +129,37 @@ class OpportunityActivityModel:
             out.append(doc)
         return out
 
+    @staticmethod
+    def _open_wishlist_query() -> dict[str, Any]:
+        return {
+            "isWishlist": True,
+            "isApplied": False,
+            "isExpired": False,
+            "isArchived": {"$ne": True},
+        }
+
+    async def find_speaker_ids_with_open_wishlist(self, *, limit: int = 100) -> List[str]:
+        """Distinct speakers who have liked, not-applied, not-expired, not-archived rows."""
+        ids = await self.collection.distinct("speaker_id", self._open_wishlist_query())
+        out = [str(i).strip() for i in ids if str(i or "").strip()]
+        cap = max(1, int(limit))
+        return out[:cap]
+
+    async def find_open_wishlist_for_speakers(self, speaker_ids: List[str]) -> List[dict]:
+        if not speaker_ids:
+            return []
+        q = {
+            **self._open_wishlist_query(),
+            "speaker_id": {"$in": [str(s) for s in speaker_ids if str(s).strip()]},
+        }
+        cursor = self.collection.find(q)
+        out: List[dict] = []
+        async for doc in cursor:
+            if doc.get("_id") is not None:
+                doc["_id"] = str(doc["_id"])
+            out.append(doc)
+        return out
+
     async def mark_last_deadline_approaching_sent(
         self,
         speaker_id: str,
@@ -138,4 +169,17 @@ class OpportunityActivityModel:
             {"speaker_id": str(speaker_id), "opportunityId": str(opportunity_id)},
             {"$set": {"lastDeadlineApproachingSentAt": datetime.utcnow()}},
             upsert=False,
+        )
+
+    async def mark_last_deadline_approaching_sent_many(
+        self,
+        speaker_id: str,
+        opportunity_ids: List[str],
+    ) -> None:
+        ids = [str(v).strip() for v in opportunity_ids if str(v).strip()]
+        if not speaker_id or not ids:
+            return
+        await self.collection.update_many(
+            {"speaker_id": str(speaker_id), "opportunityId": {"$in": ids}},
+            {"$set": {"lastDeadlineApproachingSentAt": datetime.utcnow()}},
         )

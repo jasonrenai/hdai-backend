@@ -304,7 +304,10 @@ class SpeakerProfileUpdateSchema(BaseModel):
     address_country: Optional[str] = None
     geography_preferences: Optional[List[str]] = Field(
         default=None,
-        description="Preferred speaking geographies or regions",
+        description=(
+            "Preferred speaking geographies. Known values: "
+            "'International – Virtual only', 'International – In-Person only'."
+        ),
     )
     phone_country_code: Optional[str] = None
     phone_number: Optional[str] = None
@@ -380,7 +383,10 @@ class SpeakerProfileCreateFormSchema(BaseModel):
     address_country: Optional[str] = None
     geography_preferences: Optional[List[str]] = Field(
         default=None,
-        description="Preferred speaking geographies or regions",
+        description=(
+            "Preferred speaking geographies. Known values: "
+            "'International – Virtual only', 'International – In-Person only'."
+        ),
     )
     phone_country_code: Optional[str] = None
     phone_number: Optional[str] = None

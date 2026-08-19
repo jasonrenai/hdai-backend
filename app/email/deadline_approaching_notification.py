@@ -7,8 +7,14 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from app.email.opportunity_urls import opportunity_action_url, opportunity_app_url
 from app.email.pitch_ready_notification import _format_event_date
 from app.email.submission_reminder_notification import build_submission_apply_url
+
+DEADLINE_APPROACHING_INTRO = (
+    "These are speaking opportunities you liked. Some of them have deadlines coming up."
+)
+DEADLINE_APPROACHING_STATUS_LABEL = "Liked · deadline soon"
 
 # Metadata often stores deadline as plain string "2026-05-14" (YYYY-MM-DD); allow that anywhere in the string.
 _ISO_DATE_IN_METADATA = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
@@ -129,19 +135,56 @@ def days_remaining_label_for_approaching(opportunity: dict, *, now: datetime | N
     return str(max(0, (d - today).days))
 
 
+def _deadline_approaching_row(
+    opportunity: dict[str, Any],
+    *,
+    speaker_profile_id: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    opportunity_id = str(opportunity.get("_id") or "").strip()
+    return {
+        "title": (opportunity.get("event_name") or opportunity.get("title") or "").strip(),
+        "date": _format_event_date(opportunity),
+        "location": (opportunity.get("location") or "").strip(),
+        "deadline": application_submission_deadline_display(opportunity),
+        "days_remaining": days_remaining_label_for_approaching(opportunity, now=now),
+        "is_liked": True,
+        "is_expiring": True,
+        "status_label": DEADLINE_APPROACHING_STATUS_LABEL,
+        "url": opportunity_action_url(opportunity),
+        "opportunity_url": opportunity_app_url(speaker_profile_id, opportunity_id),
+        "submission_url": build_submission_apply_url(opportunity),
+    }
+
+
 def build_deadline_approaching_template_model(
     *,
     profile: dict[str, Any],
-    opportunity: dict[str, Any],
-) -> dict[str, str]:
+    opportunities: list[dict[str, Any]],
+    speaker_profile_id: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Digest of liked opportunities whose deadlines are approaching.
+    ``opportunities`` is the Postmark list; scalar event_* fields copy the first
+    row so the current single-item template still has values until it is updated.
+    """
+    speaker_id = (speaker_profile_id or str(profile.get("_id") or "")).strip()
+    rows = [
+        _deadline_approaching_row(opp, speaker_profile_id=speaker_id, now=now)
+        for opp in opportunities
+        if opp
+    ]
+    first = rows[0] if rows else {}
     user_name = (profile.get("full_name") or "").strip() or "there"
-    event_name = (opportunity.get("event_name") or opportunity.get("title") or "").strip()
     return {
         "user_name": user_name,
-        "event_name": event_name,
-        "event_date": _format_event_date(opportunity),
-        "event_location": (opportunity.get("location") or "").strip(),
-        "deadline_date": application_submission_deadline_display(opportunity),
-        "days_remaining": days_remaining_label_for_approaching(opportunity),
-        "submission_url": build_submission_apply_url(opportunity),
+        "intro": DEADLINE_APPROACHING_INTRO,
+        "opportunities": rows,
+        "event_name": first.get("title") or "",
+        "event_date": first.get("date") or "",
+        "event_location": first.get("location") or "",
+        "deadline_date": first.get("deadline") or "",
+        "days_remaining": first.get("days_remaining") or "",
+        "submission_url": first.get("submission_url") or "",
     }

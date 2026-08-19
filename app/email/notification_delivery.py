@@ -93,6 +93,26 @@ def is_deadline_notification_send_day(
     return today == notify_day
 
 
+def is_deadline_in_lead_window(
+    *,
+    deadline: date,
+    frequency: str,
+    slug: Literal["submission_reminder", "deadline_approaching"] = "deadline_approaching",
+    today: Optional[date] = None,
+) -> bool:
+    """
+    True when the deadline is today or within ``days_before`` calendar days.
+    Used for the liked-opportunity digest (all near-expiring items in one email).
+    """
+    today = today or datetime.utcnow().date()
+    if today > deadline:
+        return False
+    days_before = days_before_deadline_for_frequency(frequency, slug)
+    if days_before is None:
+        return False
+    return (deadline - today).days <= days_before
+
+
 def is_before_notification_due(
     *,
     frequency: str,

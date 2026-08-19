@@ -98,6 +98,28 @@ class OpportunityEmailStatusModel:
             upsert=True,
         )
 
+    async def mark_deadline_sent_many(self, speaker_id: str, opportunity_ids: List[str]) -> None:
+        ids = [str(v).strip() for v in opportunity_ids if str(v).strip()]
+        if not speaker_id or not ids:
+            return
+        now = datetime.utcnow()
+        for opportunity_id in ids:
+            await self.collection.update_one(
+                {"speaker_id": str(speaker_id), "opportunity_id": opportunity_id},
+                {
+                    "$set": {
+                        "deadline_email_sent": True,
+                        "updatedAt": now,
+                    },
+                    "$setOnInsert": {
+                        "matched_email_sent": False,
+                        "submission_email_sent": False,
+                        "createdAt": now,
+                    },
+                },
+                upsert=True,
+            )
+
     async def mark_matched_sent_many(self, speaker_id: str, opportunity_ids: List[str]) -> None:
         """Set matched_email_sent=true for each speaker+opportunity (upsert)."""
         if not speaker_id or not opportunity_ids:

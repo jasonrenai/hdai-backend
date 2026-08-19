@@ -364,7 +364,7 @@ class OpportunityModel:
         Find opportunities that overlap speaker criteria:
         - topics: at least one shared value (array)
         - speaking_format: equals one of speaker speaking_formats (string)
-        - delivery_mode: equals one of speaker delivery modes (string)
+        - delivery_mode: equals one of speaker delivery modes (string; caller may pass case variants)
         - target_audiences: at least one shared value (array)
         - isVerified: must be true (LLM-confirmed speaking opportunity)
 

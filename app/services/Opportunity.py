@@ -10,6 +10,11 @@ from app.models.SpeakerProfile import SpeakerProfileModel
 from app.models.MatchedOpportunities import MatchedOpportunitiesModel
 from app.models.OpportunityActivity import OpportunityActivityModel
 from app.helpers.PineconeOpportunityStore import OpportunityTextBuilder
+from app.helpers.GeographyPreferenceMatch import (
+    delivery_mode_query_values,
+    filter_opportunities_by_geography,
+    geography_prefs_from_profile,
+)
 
 
 def _profile_string_list(value) -> list[str]:
@@ -122,8 +127,9 @@ class OpportunityService:
     ) -> List[dict]:
         """
         Match opportunities in Mongo by speaker topics, speaking formats, delivery mode,
-        and target audiences. Only includes isVerified=true. Includes open deadlines
-        (YYYY-MM-DD >= today) and opportunities with missing / \"deadline not found\" deadline.
+        target audiences, and geography_preferences (International – Virtual only /
+        International – In-Person only). Only includes isVerified=true. Includes open
+        deadlines (YYYY-MM-DD >= today) and opportunities with missing / \"deadline not found\" deadline.
         """
         profile = await self.speaker_profile_model.get_profile(speaker_profile_id)
         if not profile:
@@ -133,12 +139,18 @@ class OpportunityService:
         speaking_formats = _profile_string_list(profile.get("speaking_formats"))
         delivery_modes = _profile_string_list(profile.get("delivery_mode"))
         target_audiences = _profile_string_list(profile.get("target_audiences"))
+        geography_preferences = geography_prefs_from_profile(profile)
 
         opportunities = await self.model.find_matching_for_speaker(
             topics=topics,
             speaking_formats=speaking_formats,
-            delivery_modes=delivery_modes,
+            delivery_modes=delivery_mode_query_values(delivery_modes),
             target_audiences=target_audiences,
+        )
+        opportunities = filter_opportunities_by_geography(
+            opportunities,
+            geography_preferences=geography_preferences,
+            delivery_modes=delivery_modes,
         )
         for opp in opportunities:
             if opp.get("_id") is not None:
@@ -228,6 +240,8 @@ class OpportunityService:
         """
         Get matched opportunities stored for this speaker (from matchedOpportunities collection).
         Returns (list of full opportunity documents, status) where status is 'processing' or 'completed'.
+        Re-applies geography / virtual-only delivery filters so a profile update is reflected
+        without waiting for a rematch.
         """
         doc = await self.matched_opportunities_model.get_by_speaker_id(speaker_profile_id)
         if not doc:
@@ -237,6 +251,13 @@ class OpportunityService:
         if not opportunity_ids:
             return [], status
         opportunities = await self.model.get_by_ids(opportunity_ids)
+        profile = await self.speaker_profile_model.get_profile(speaker_profile_id)
+        if profile:
+            opportunities = filter_opportunities_by_geography(
+                opportunities,
+                geography_preferences=geography_prefs_from_profile(profile),
+                delivery_modes=_profile_string_list(profile.get("delivery_mode")),
+            )
         for opp in opportunities:
             if opp.get("_id") is not None:
                 opp["_id"] = str(opp["_id"])

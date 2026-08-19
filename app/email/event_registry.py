@@ -14,6 +14,21 @@ def _default_new_opportunity_template_model() -> dict:
     return {"user_name": "", "opportunities": []}
 
 
+def _default_deadline_approaching_template_model() -> dict:
+    """Liked-opportunity digest: user_name + intro + opportunities[]."""
+    return {
+        "user_name": "",
+        "intro": "",
+        "opportunities": [],
+        "event_name": "",
+        "event_date": "",
+        "event_location": "",
+        "deadline_date": "",
+        "days_remaining": "",
+        "submission_url": "",
+    }
+
+
 def _default_billing_template_model() -> dict:
     """Postmark Billing_questions — nested invoice_pdf_url for {{invoice_pdf_url.invoice_pdf_url}}."""
     return {
@@ -73,7 +88,7 @@ EMAIL_EVENT_REGISTRY = {
     EmailEventType.ALERT_DEADLINE_APPROACHING: EmailEventConfig(
         event_type=EmailEventType.ALERT_DEADLINE_APPROACHING,
         sender=SenderType.ALERTS,
-        default_template_model=empty_template_model(EmailEventType.ALERT_DEADLINE_APPROACHING),
+        default_template_model=_default_deadline_approaching_template_model(),
     ),
     EmailEventType.SUPPORT_CUSTOMER_SUPPORT: EmailEventConfig(
         event_type=EmailEventType.SUPPORT_CUSTOMER_SUPPORT,
