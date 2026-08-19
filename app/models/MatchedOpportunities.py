@@ -90,3 +90,13 @@ class MatchedOpportunitiesModel:
         if doc and "_id" in doc:
             doc["_id"] = str(doc["_id"])
         return doc
+
+    async def list_all(self) -> List[dict]:
+        """All matchedOpportunities docs (speaker_id + opportunity ids). Used by expiry cron."""
+        cursor = self.collection.find({}, {"speaker_id": 1, "opportunities": 1, "status": 1})
+        out: List[dict] = []
+        async for doc in cursor:
+            if doc.get("_id") is not None:
+                doc["_id"] = str(doc["_id"])
+            out.append(doc)
+        return out

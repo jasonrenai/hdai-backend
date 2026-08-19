@@ -33,6 +33,7 @@ from app.middleware.Cors import add_cors_middleware
 from app.middleware.GlobalErrorHandling import GlobalErrorHandlingMiddleware
 from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
+from app.services.OpportunityExpiryCronService import run_opportunity_expiry_cron_sync
 from app.services.PendingNotificationEmailCronService import run_pending_notification_email_cron_sync
 from app.services.PendingScraperCronService import (
     pending_url_collections_cron_interval_hours,
@@ -142,6 +143,16 @@ async def startup_event():
         id="deadline_approaching_cron",
     )
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
+
+    # Marks opportunityActivity.isExpired for a speaker's matched opps when the deadline has passed.
+    # Does not change opportunity documents. Once per day.
+    # For local testing, use IntervalTrigger(minutes=1) instead of hours=24.
+    _cron_scheduler.add_job(
+        run_opportunity_expiry_cron_sync,
+        IntervalTrigger(hours=24),
+        id="opportunity_expiry_cron",
+    )
+    log.info("Opportunity expiry cron registered (every 24 h)")
 
     enable_gq_cron = (os.getenv("ENABLE_PENDING_GOOGLE_QUERY_CRON") or "true").strip().lower()
     if enable_gq_cron in ("0", "false", "no", "off"):
