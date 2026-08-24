@@ -27,6 +27,24 @@ class OpportunityActivityModel:
             doc["_id"] = str(doc["_id"])
         return doc
 
+    async def get_many_for_speaker(
+        self, speaker_id: str, opportunity_ids: List[str]
+    ) -> List[dict]:
+        if not speaker_id or not opportunity_ids:
+            return []
+        ids = [str(i).strip() for i in opportunity_ids if str(i).strip()]
+        if not ids:
+            return []
+        cursor = self.collection.find(
+            {"speaker_id": str(speaker_id), "opportunityId": {"$in": ids}}
+        )
+        out: List[dict] = []
+        async for doc in cursor:
+            if doc.get("_id") is not None:
+                doc["_id"] = str(doc["_id"])
+            out.append(doc)
+        return out
+
     async def upsert_fields(
         self,
         speaker_id: str,

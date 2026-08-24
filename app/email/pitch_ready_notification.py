@@ -13,6 +13,7 @@ from app.models.EmailContent import EmailContentModel
 from app.models.Opportunity import OpportunityModel
 from app.models.OpportunityActivity import OpportunityActivityModel
 from app.services.NotificationDeliveryService import NotificationDeliveryService
+from app.services.OpportunityActivity import pitch_ready_email_skip_reason
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,18 @@ async def try_send_or_schedule_pitch_ready_email(
             return
 
         user_name = (profile.get("full_name") or "").strip()
+        activity_model = OpportunityActivityModel()
+        activity = await activity_model.get_one(speaker_profile_id, opportunity_id)
+        skip_reason = pitch_ready_email_skip_reason(activity)
+        if skip_reason:
+            logger.info(
+                "Pitch-ready email skipped: %s speaker_profile_id=%s opportunity_id=%s",
+                skip_reason,
+                speaker_profile_id,
+                opportunity_id,
+            )
+            return
+
         sent = send_pitch_ready_email(
             user_name=user_name,
             opportunity=opportunity,
@@ -216,7 +229,7 @@ async def send_unsent_pitch_ready_emails_for_profile(
             continue
 
         activity = await act_model.get_one(speaker_profile_id, opportunity_id)
-        if activity and activity.get("isArchived"):
+        if pitch_ready_email_skip_reason(activity):
             continue
 
         opportunity = await opp_model.get_by_id(opportunity_id)

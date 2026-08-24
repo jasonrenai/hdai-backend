@@ -18,6 +18,10 @@ from app.models.OpportunityActivity import OpportunityActivityModel
 from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
 from app.models.PendingNotificationEmail import PendingNotificationEmailModel
 from app.schemas.NotificationSettings import NotificationSlug
+from app.services.OpportunityActivity import (
+    new_opportunity_email_skip_reason,
+    pitch_ready_email_skip_reason,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -175,8 +179,9 @@ class NotificationDeliveryService:
                 return "already_sent"
             for oid in opportunity_ids:
                 activity = await self.activity_model.get_one(speaker_id, str(oid))
-                if activity and activity.get("isArchived"):
-                    return "archived"
+                reason = new_opportunity_email_skip_reason(activity)
+                if reason:
+                    return reason
             return None
 
         if slug == "pitch_ready":
@@ -184,8 +189,9 @@ class NotificationDeliveryService:
             if not opportunity_id:
                 return "missing_opportunity_id"
             activity = await self.activity_model.get_one(speaker_id, opportunity_id)
-            if activity and activity.get("isArchived"):
-                return "archived"
+            reason = pitch_ready_email_skip_reason(activity)
+            if reason:
+                return reason
             if await self.pending_model.has_sent_for_pitch(speaker_id, opportunity_id):
                 return "already_sent"
             return None

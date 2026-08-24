@@ -292,7 +292,8 @@ async def get_matched_opportunities_by_speaker(
 ):
     """
     Get matched opportunities for a speaker from the matchedOpportunities collection.
-    Returns full opportunity documents whose ids are in the saved opportunities array for this speaker.
+    Returns full opportunity documents (including nested activity flags) whose ids are
+    in the saved opportunities array for this speaker.
     """
     try:
         opportunities, status = await service.get_matched_opportunities_by_speaker_id(
@@ -339,7 +340,9 @@ async def patch_opportunity_activity(
     service=Depends(get_opportunity_activity_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """Create or update opportunity activity flags (only fields sent are changed). Send outcomes: null to clear stored outcomes."""
+    """Create or update opportunity activity flags (only fields sent are changed).
+    Setting like / applied / secured / archived / expired to true clears the other flags.
+    Expired is terminal: later flag changes are ignored. Send outcomes: null to clear notes."""
     try:
         result = await service.update_activity(
             speaker_id=body.speaker_id,

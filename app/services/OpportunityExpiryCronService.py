@@ -1,6 +1,7 @@
 """Cron: mark opportunityActivity.isExpired for a speaker's matched opps whose deadline has passed.
 
 Does not change opportunity documents or matchedOpportunities id lists — activity flags only.
+Skips rows already applied or accepted. Expired is exclusive (other flags cleared).
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from app.email.deadline_approaching_notification import parse_metadata_deadline_
 from app.models.MatchedOpportunities import MatchedOpportunitiesModel
 from app.models.Opportunity import OpportunityModel
 from app.models.OpportunityActivity import OpportunityActivityModel
+from app.services.OpportunityActivity import EXCLUSIVE_EXPIRED_FIELDS
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,8 @@ class OpportunityExpiryCronService:
             "missing_speaker": 0,
             "no_opportunity_ids": 0,
             "already_expired": 0,
+            "already_applied": 0,
+            "already_accepted": 0,
             "deadline_still_open": 0,
             "no_parseable_deadline": 0,
             "opportunity_not_found": 0,
@@ -105,6 +109,14 @@ class OpportunityExpiryCronService:
                         skipped += 1
                         skip_reasons["already_expired"] += 1
                         continue
+                    if existing and bool(existing.get("isAccepted")):
+                        skipped += 1
+                        skip_reasons["already_accepted"] += 1
+                        continue
+                    if existing and bool(existing.get("isApplied")):
+                        skipped += 1
+                        skip_reasons["already_applied"] += 1
+                        continue
 
                     meta = parse_metadata_deadline_date(opp)
                     sub = _submission_deadline_date(opp)
@@ -121,7 +133,7 @@ class OpportunityExpiryCronService:
                     await self.activity_model.upsert_fields(
                         speaker_id,
                         opportunity_id,
-                        {"isExpired": True},
+                        dict(EXCLUSIVE_EXPIRED_FIELDS),
                     )
                     marked += 1
             except Exception:

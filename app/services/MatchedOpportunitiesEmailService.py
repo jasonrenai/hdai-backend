@@ -5,13 +5,14 @@ from typing import List, Optional
 
 from app.email.enums import EmailEventType
 from app.email.helpers import speaker_profile_notification_email
-from app.models.OpportunityActivity import OpportunityActivityModel
-from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
 from app.email.opportunity_urls import opportunity_action_url, opportunity_app_url
 from app.email.pitch_ready_notification import _deadline_from_metadata, _format_event_date
+from app.models.OpportunityActivity import OpportunityActivityModel
+from app.models.OpportunityEmailStatus import OpportunityEmailStatusModel
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.services.NotificationDeliveryService import NotificationDeliveryService
 from app.services.Opportunity import OpportunityService
+from app.services.OpportunityActivity import new_opportunity_email_skip_reason
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +50,16 @@ class MatchedOpportunitiesEmailService:
             notification_delivery_service or NotificationDeliveryService()
         )
 
-    async def _is_archived_for_speaker(self, speaker_profile_id: str, opportunity: dict) -> bool:
+    async def _should_skip_matched_email(
+        self, speaker_profile_id: str, opportunity: dict
+    ) -> bool:
         opportunity_id = str(opportunity.get("_id") or "").strip()
         if not opportunity_id:
             return True
-        activity = await self.opportunity_activity_model.get_one(speaker_profile_id, opportunity_id)
-        return bool(activity and activity.get("isArchived"))
+        activity = await self.opportunity_activity_model.get_one(
+            speaker_profile_id, opportunity_id
+        )
+        return new_opportunity_email_skip_reason(activity) is not None
 
     async def send_matched_opportunities_email(
         self,
@@ -98,7 +103,7 @@ class MatchedOpportunitiesEmailService:
 
         eligible_opportunities: List[dict] = []
         for opp in opportunities:
-            if not await self._is_archived_for_speaker(speaker_profile_id, opp):
+            if not await self._should_skip_matched_email(speaker_profile_id, opp):
                 eligible_opportunities.append(opp)
         if not eligible_opportunities:
             return False

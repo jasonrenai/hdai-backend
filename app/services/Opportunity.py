@@ -9,6 +9,7 @@ from app.models.Opportunity import OpportunityModel, deadline_time_filter_query
 from app.models.SpeakerProfile import SpeakerProfileModel
 from app.models.MatchedOpportunities import MatchedOpportunitiesModel
 from app.models.OpportunityActivity import OpportunityActivityModel
+from app.services.OpportunityActivity import OpportunityActivityService
 from app.helpers.PineconeOpportunityStore import OpportunityTextBuilder
 from app.helpers.GeographyPreferenceMatch import (
     delivery_mode_query_values,
@@ -239,7 +240,8 @@ class OpportunityService:
     ) -> tuple[List[dict], str]:
         """
         Get matched opportunities stored for this speaker (from matchedOpportunities collection).
-        Returns (list of full opportunity documents, status) where status is 'processing' or 'completed'.
+        Returns (list of full opportunity documents with nested activity, status)
+        where status is 'processing' or 'completed'.
         Re-applies geography / virtual-only delivery filters so a profile update is reflected
         without waiting for a rematch.
         """
@@ -261,4 +263,23 @@ class OpportunityService:
         for opp in opportunities:
             if opp.get("_id") is not None:
                 opp["_id"] = str(opp["_id"])
+        await self._attach_activity(speaker_profile_id, opportunities)
         return opportunities, status
+
+    async def _attach_activity(
+        self, speaker_profile_id: str, opportunities: List[dict]
+    ) -> None:
+        """Nest per-opportunity activity flags (defaults when no activity doc exists)."""
+        if not opportunities:
+            return
+        activity_service = OpportunityActivityService(self.opportunity_activity_model)
+        opp_ids = [str(o.get("_id")) for o in opportunities if o.get("_id")]
+        activity_docs = await self.opportunity_activity_model.get_many_for_speaker(
+            speaker_profile_id, opp_ids
+        )
+        by_opp_id = {str(d.get("opportunityId")): d for d in activity_docs}
+        for opp in opportunities:
+            oid = str(opp.get("_id") or "")
+            opp["activity"] = activity_service.public_activity(
+                speaker_profile_id, oid, by_opp_id.get(oid)
+            )
