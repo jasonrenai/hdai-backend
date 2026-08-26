@@ -1,7 +1,11 @@
-"""Cron: mark opportunityActivity.isExpired for a speaker's matched opps whose deadline has passed.
+"""Cron: mark opportunityActivity.isExpired for a speaker's matched opps that are past.
 
 Does not change opportunity documents or matchedOpportunities id lists — activity flags only.
 Skips rows already applied or accepted. Expired is exclusive (other flags cleared).
+
+Expire if ANY parseable date is before today (UTC), in this field order:
+metadata.application_submission_deadline, metadata.submission_deadline, metadata.deadline,
+submissionInfo.deadline (skip \"deadline not found\"), end_date, start_date.
 """
 
 from __future__ import annotations
@@ -10,7 +14,7 @@ import logging
 from datetime import date, datetime
 from typing import Any
 
-from app.email.deadline_approaching_notification import parse_metadata_deadline_date
+from app.email.deadline_approaching_notification import _iso_date_from_metadata_value
 from app.models.MatchedOpportunities import MatchedOpportunitiesModel
 from app.models.Opportunity import OpportunityModel
 from app.models.OpportunityActivity import OpportunityActivityModel
@@ -19,29 +23,45 @@ from app.services.OpportunityActivity import EXCLUSIVE_EXPIRED_FIELDS
 logger = logging.getLogger(__name__)
 
 
-def _submission_deadline_date(opportunity: dict) -> date | None:
-    sub = opportunity.get("submissionInfo")
-    if not isinstance(sub, dict):
-        return None
-    raw = str(sub.get("deadline") or "").strip()
-    if not raw or raw.lower() == "deadline not found":
+def _to_date(raw: Any) -> date | None:
+    ymd = _iso_date_from_metadata_value(raw)
+    if not ymd:
         return None
     try:
-        return datetime.strptime(raw[:10], "%Y-%m-%d").date()
+        return datetime.strptime(ymd, "%Y-%m-%d").date()
     except ValueError:
         return None
 
 
-def opportunity_deadline_is_past(opportunity: dict, *, today: date) -> bool:
-    """True when any parseable deadline (metadata or submissionInfo) is before today."""
+def opportunity_expiry_dates(opportunity: dict) -> list[date]:
+    """Collect parseable dates used for expiry (duplicates kept only once)."""
     dates: list[date] = []
-    meta = parse_metadata_deadline_date(opportunity)
-    if meta:
-        dates.append(meta)
-    sub = _submission_deadline_date(opportunity)
-    if sub:
-        dates.append(sub)
-    return any(d < today for d in dates)
+    seen: set[date] = set()
+
+    def _add(raw: Any) -> None:
+        d = _to_date(raw)
+        if d is None or d in seen:
+            return
+        seen.add(d)
+        dates.append(d)
+
+    meta = opportunity.get("metadata") if isinstance(opportunity.get("metadata"), dict) else {}
+    for key in ("application_submission_deadline", "submission_deadline", "deadline"):
+        _add(meta.get(key))
+
+    sub = opportunity.get("submissionInfo") if isinstance(opportunity.get("submissionInfo"), dict) else {}
+    raw_deadline = str(sub.get("deadline") or "").strip()
+    if raw_deadline.lower() != "deadline not found":
+        _add(raw_deadline)
+
+    _add(opportunity.get("end_date"))
+    _add(opportunity.get("start_date"))
+    return dates
+
+
+def opportunity_deadline_is_past(opportunity: dict, *, today: date) -> bool:
+    """True when any parseable expiry date is before today."""
+    return any(d < today for d in opportunity_expiry_dates(opportunity))
 
 
 class OpportunityExpiryCronService:
@@ -118,9 +138,7 @@ class OpportunityExpiryCronService:
                         skip_reasons["already_applied"] += 1
                         continue
 
-                    meta = parse_metadata_deadline_date(opp)
-                    sub = _submission_deadline_date(opp)
-                    if meta is None and sub is None:
+                    if not opportunity_expiry_dates(opp):
                         skipped += 1
                         skip_reasons["no_parseable_deadline"] += 1
                         continue
