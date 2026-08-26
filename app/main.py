@@ -144,14 +144,14 @@ async def startup_event():
     )
     log.info("Deadline approaching cron registered (%s)", deadline_interval_desc)
 
-    # Marks opportunityActivity.isExpired. Three times daily, 6 hours apart.
+    # Marks opportunityActivity.isExpired. Every 6 hours.
     # For local testing, use IntervalTrigger(minutes=1).
     _cron_scheduler.add_job(
         run_opportunity_expiry_cron_sync,
-        CronTrigger(hour="0,6,12", minute=0, timezone="UTC"),
+        CronTrigger(hour="0,6,12,18", minute=0, timezone="UTC"),
         id="opportunity_expiry_cron",
     )
-    log.info("Opportunity expiry cron registered (00:00, 06:00, 12:00 UTC)")
+    log.info("Opportunity expiry cron registered (00:00, 06:00, 12:00, 18:00 UTC)")
 
     enable_gq_cron = (os.getenv("ENABLE_PENDING_GOOGLE_QUERY_CRON") or "true").strip().lower()
     if enable_gq_cron in ("0", "false", "no", "off"):
