@@ -80,7 +80,8 @@ class GenerateOpportunityApplicationContentSchema(BaseModel):
 
 
 class OpportunityActivityUpdateSchema(BaseModel):
-    """Partial update for opportunity activity (wishlist / applied / accepted / expired / archived / outcomes)."""
+    """Partial update for opportunity activity flags.
+    Wishlist / applied / accepted / archived are independent; expired is terminal."""
 
     opportunityId: str
     speaker_id: str

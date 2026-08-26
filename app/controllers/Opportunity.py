@@ -341,8 +341,8 @@ async def patch_opportunity_activity(
     jwt_payload: dict = Depends(jwt_validator),
 ):
     """Create or update opportunity activity flags (only fields sent are changed).
-    Setting like / applied / secured / archived / expired to true clears the other flags.
-    Expired is terminal: later flag changes are ignored. Send outcomes: null to clear notes."""
+    Like / applied / secured / archived are independent (liked can stay with applied or secured).
+    Expired is terminal and clears the other lifecycle flags. Send outcomes: null to clear notes."""
     try:
         result = await service.update_activity(
             speaker_id=body.speaker_id,

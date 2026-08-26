@@ -2,14 +2,7 @@ from typing import Any, Optional
 
 from app.models.OpportunityActivity import OpportunityActivityModel
 
-_ACTIVITY_TRUE_PRIORITY = (
-    "isExpired",
-    "isArchived",
-    "isAccepted",
-    "isApplied",
-    "isWishlist",
-)
-
+# Expire is terminal: clears like / applied / secured / archived.
 EXCLUSIVE_EXPIRED_FIELDS = {
     "isExpired": True,
     "isWishlist": False,
@@ -56,24 +49,6 @@ def pitch_ready_email_skip_reason(activity: Optional[dict]) -> Optional[str]:
     if activity.get("isExpired"):
         return "expired"
     return None
-
-
-def exclusive_activity_set_fields(flag_updates: dict[str, bool]) -> dict[str, bool]:
-    """If any flag is set true, keep only that winner; otherwise apply the requested falses."""
-    winner = None
-    for key in _ACTIVITY_TRUE_PRIORITY:
-        if flag_updates.get(key) is True:
-            winner = key
-            break
-    if winner is None:
-        return flag_updates
-    return {
-        "isWishlist": winner == "isWishlist",
-        "isApplied": winner == "isApplied",
-        "isAccepted": winner == "isAccepted",
-        "isExpired": winner == "isExpired",
-        "isArchived": winner == "isArchived",
-    }
 
 
 class OpportunityActivityService:
@@ -136,6 +111,15 @@ class OpportunityActivityService:
         outcomes: Optional[str] = None,
         outcomes_provided: bool = False,
     ) -> dict:
+        """
+        Partial update: only fields sent are changed.
+
+        isWishlist / isApplied / isAccepted / isArchived are independent so liked can
+        stay true with applied or secured. Unlike only flips isWishlist.
+
+        isExpired is terminal: setting it true (or any change while already expired)
+        clears the other lifecycle flags.
+        """
         self._validate_ids(speaker_id, opportunity_id)
         existing = await self.model.get_one(speaker_id, opportunity_id)
         existing_expired = bool(existing and existing.get("isExpired"))
@@ -159,8 +143,10 @@ class OpportunityActivityService:
         if existing_expired:
             if flag_updates or outcomes_provided:
                 set_fields.update(dict(EXCLUSIVE_EXPIRED_FIELDS))
+        elif flag_updates.get("isExpired") is True:
+            set_fields.update(dict(EXCLUSIVE_EXPIRED_FIELDS))
         elif flag_updates:
-            set_fields.update(exclusive_activity_set_fields(flag_updates))
+            set_fields.update(flag_updates)
 
         if not set_fields:
             return self.public_activity(speaker_id, opportunity_id, existing)
