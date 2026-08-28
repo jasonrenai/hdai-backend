@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
@@ -277,9 +277,13 @@ def verify_opportunity_on_official_site(
         return False, reason
     opp["start_date"] = start_iso
     opp["end_date"] = end_iso
+    # Persist speaking-opportunity gate so match-by-speaker (isVerified=true) does not miss these.
+    opp["isVerified"] = True
+    opp["verifiedAt"] = datetime.utcnow()
+    opp["reasonForUnverify"] = None
 
     logger.info(
-        "[opp-pipeline] official_verify PASS event=%s link=%s updated_name=%s location=%s dates=%s..%s",
+        "[opp-pipeline] official_verify PASS event=%s link=%s updated_name=%s location=%s dates=%s..%s isVerified=true",
         event_name[:80],
         link[:120],
         (opp.get("event_name") or "")[:80],

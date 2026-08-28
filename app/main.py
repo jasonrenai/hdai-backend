@@ -34,6 +34,10 @@ from app.middleware.GlobalErrorHandling import GlobalErrorHandlingMiddleware
 from app.middleware.JWTVerification import jwt_validator
 from app.services.DeadlineApproachingCronService import run_deadline_approaching_cron_sync
 from app.services.OpportunityExpiryCronService import run_opportunity_expiry_cron_sync
+from app.services.OpportunityVerifyCronService import (
+    opportunity_verify_cron_interval_hours,
+    run_opportunity_verify_cron_sync,
+)
 from app.services.PendingNotificationEmailCronService import run_pending_notification_email_cron_sync
 from app.services.PendingScraperCronService import (
     pending_url_collections_cron_interval_hours,
@@ -62,6 +66,7 @@ for name in (
     "app.services.UrlScraperRapidAPI",
     "app.services.GoogleQueryScraper",
     "app.services.PendingScraperCronService",
+    "app.services.OpportunityVerifyCronService",
 ):
     logging.getLogger(name).setLevel(logging.INFO)
 
@@ -202,6 +207,24 @@ async def startup_event():
     log.info(
         "Weekly notification cron registered (new_opportunity + pitch_ready, mon 09:00 UTC)",
     )
+
+    # Catch-up: stamp isVerified for qualified opps that missed the scrape-time gate.
+    # New scrapes set isVerified in OpportunityQualifier; this drains the backlog.
+    enable_verify_cron = (os.getenv("ENABLE_OPPORTUNITY_VERIFY_CRON") or "true").strip().lower()
+    if enable_verify_cron in ("0", "false", "no", "off"):
+        log.info("Opportunity verify cron disabled via ENABLE_OPPORTUNITY_VERIFY_CRON")
+    else:
+        verify_cron_h = opportunity_verify_cron_interval_hours()
+        _cron_scheduler.add_job(
+            run_opportunity_verify_cron_sync,
+            IntervalTrigger(hours=verify_cron_h),
+            id="opportunity_verify_cron",
+            replace_existing=True,
+        )
+        log.info(
+            "Opportunity verify cron registered (every %s h, batch of never-verified qualified)",
+            verify_cron_h,
+        )
 
     _cron_scheduler.start()
     log.info("Background scheduler started")
