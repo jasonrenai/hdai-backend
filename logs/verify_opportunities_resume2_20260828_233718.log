@@ -1,0 +1,12 @@
+2026-08-28 23:37:19,263 INFO verify_opportunities ========== verify_opportunities START ==========
+2026-08-28 23:37:19,264 INFO verify_opportunities Config: db=dev dry_run=False all=True limit=50 batch_size=20 delay=5.0s include_verified=False set_twice_verified=False ids=False
+2026-08-28 23:37:19,264 INFO verify_opportunities Filters: isQualified=true; isVerified missing only (skip already verified true/false)
+2026-08-28 23:37:19,274 INFO verify_opportunities MongoDB connected
+2026-08-28 23:37:19,274 INFO verify_opportunities RapidAPI scraper + EventDetailEnricherAgent ready
+2026-08-28 23:37:20,027 INFO verify_opportunities Mongo match count for filters=119 | will process all matches
+2026-08-28 23:37:20,027 INFO verify_opportunities Fetching batch size=20 from Mongo…
+2026-08-28 23:37:20,138 INFO verify_opportunities ======== BATCH 1 | 20 doc(s) | first_id=6a85b9ca5823585f67a9d827 | last_id=6a85b9ca5823585f67a9d83a ========
+2026-08-28 23:37:20,138 INFO verify_opportunities ──── batch 1 item 1/20 | id=6a85b9ca5823585f67a9d827 | event=International Conference on B2B Marketing | isQualified=True | isVerified(before)=<missing> | isTwiceVerified(before)=<missing> ────
+2026-08-28 23:37:20,138 INFO verify_opportunities [6a85b9ca5823585f67a9d827] link=https://waset.org/b2b-marketing-conference-in-january-2027-in-maldives
+2026-08-28 23:37:20,139 INFO verify_opportunities [6a85b9ca5823585f67a9d827] Step 1/3 SCRAPE start event=International Conference on B2B Marketing url=https://waset.org/b2b-marketing-conference-in-january-2027-in-maldives
+2026-08-28 23:37:20,139 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://waset.org/b2b-marketing-conference-in-january-2027-in-maldives

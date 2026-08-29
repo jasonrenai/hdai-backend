@@ -1,0 +1,12 @@
+2026-08-29 12:21:07,816 INFO app.services.GoogleQueryScraper GoogleQuery background job started google_query_id=6a60fc1412de5cb877cf8b62 query=("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker 
+2026-08-29 12:21:09,573 INFO app.helpers.SerpHelper RapidAPI web search query='("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker ' start=0 num=10 returned 10 urls
+2026-08-29 12:21:11,400 INFO app.helpers.SerpHelper RapidAPI web search query='("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker ' start=10 num=10 returned 10 urls
+2026-08-29 12:21:11,402 INFO app.helpers.SerpHelper RapidAPI web search multi-page query='("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker ' total_requested=20 returned 20 urls
+2026-08-29 12:21:11,455 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 pre_scrape_skip=3 already_known_urls (of 20 serp)
+2026-08-29 12:21:11,455 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 skip_existing_url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:21:11,455 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 skip_existing_url=https://appliedaiconf.com/speakers
+2026-08-29 12:21:11,455 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 skip_existing_url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:21:11,678 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a92815f01686d18fd3f1bda url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:21:11,730 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a92815f01686d18fd3f1bda job_store=url_collection url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:21:11,809 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:21:11,809 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home

@@ -1,0 +1,458 @@
+2026-08-29 12:06:35,041 INFO app.services.GoogleQueryScraper GoogleQuery background job started google_query_id=6a60fc1412de5cb877cf8b60 query=("artificial intelligence" OR "generative AI" OR "machine learning" OR "AI conference") AND ("call for speakers" OR "app
+2026-08-29 12:06:37,489 INFO app.helpers.SerpHelper RapidAPI web search query='("artificial intelligence" OR "generative AI" OR "machine learning" OR "AI conference") AND ("call for speakers" OR "app' start=0 num=10 returned 10 urls
+2026-08-29 12:06:44,294 INFO app.helpers.SerpHelper RapidAPI web search query='("artificial intelligence" OR "generative AI" OR "machine learning" OR "AI conference") AND ("call for speakers" OR "app' start=10 num=10 returned 10 urls
+2026-08-29 12:06:44,296 INFO app.helpers.SerpHelper RapidAPI web search multi-page query='("artificial intelligence" OR "generative AI" OR "machine learning" OR "AI conference") AND ("call for speakers" OR "app' total_requested=20 returned 20 urls
+2026-08-29 12:06:44,371 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 pre_scrape_skip=5 already_known_urls (of 20 serp)
+2026-08-29 12:06:44,371 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 skip_existing_url=https://ai4.io/application-speaker/
+2026-08-29 12:06:44,371 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 skip_existing_url=https://en.aifestival.it/call/speaker/
+2026-08-29 12:06:44,371 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 skip_existing_url=https://sessionize.com/aidevworld-2027/
+2026-08-29 12:06:44,371 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 skip_existing_url=https://aiexpo.us/call-for-speakers
+2026-08-29 12:06:44,371 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 skip_existing_url=https://en.wemakefuture.it/call/speaker/
+2026-08-29 12:06:44,512 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927dfcbc2d830398dd48e2 url=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:06:44,564 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927dfcbc2d830398dd48e2 job_store=url_collection url=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:06:44,621 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:06:44,621 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:07:03,170 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://odsc.ai/east/call-for-speakers/ content_length=13068
+2026-08-29 12:07:07,989 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:08,010 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear call for speakers for the ODSC AI East 2026 event, detailing submission guidelines, deadlines, and types of presentations accepted. url=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:07:08,018 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=13068 model=gpt-4o-mini
+2026-08-29 12:07:08,018 INFO app.helpers.SpeakingOpportunityExtractor Processing 3 chunks for opportunity extraction
+2026-08-29 12:07:13,856 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:16,906 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:20,414 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:20,417 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=4 after_dedup=0
+2026-08-29 12:07:24,315 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:24,316 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=Call for Speakers ODSC AI East 2026 link=https://odsc.ai/east/call-for-speakers/ reason=past_date Event start/end date is in the past (start=2026-04-28, end=2026-04-30).
+2026-08-29 12:07:24,316 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] DROP event=ODSC AI East 2026 link=https://odsc.ai/east/call-for-speakers/ reason=Event start/end date is in the past (start=2026-04-28, end=2026-04-30).
+2026-08-29 12:07:24,317 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/1 source=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:07:24,317 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=1 url=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:07:24,317 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://odsc.ai/east/call-for-speakers/ page_type=direct_opportunity
+2026-08-29 12:07:24,317 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927dfcbc2d830398dd48e2 from_google_query=True after_sync opportunities=0 url=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:07:24,317 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927dfcbc2d830398dd48e2 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:07:24,379 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927dfcbc2d830398dd48e2 completed inserted=0 (none after extract/verify) url=https://odsc.ai/east/call-for-speakers/
+2026-08-29 12:07:24,379 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=1/15 inserted=0 url=https://odsc.ai/east/call-for-speakers/ url_collection_id=6a927dfcbc2d830398dd48e2
+2026-08-29 12:07:29,460 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927e29bc2d830398dd48e3 url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:29,536 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927e29bc2d830398dd48e3 job_store=url_collection url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:29,590 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:07:29,591 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:35,482 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx content_length=3148
+2026-08-29 12:07:36,832 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:36,834 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page explicitly invites professionals to apply to speak at TDWI's events, providing links for abstract submissions and detailing the types of speaking oppor url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:36,848 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=3148 model=gpt-4o-mini
+2026-08-29 12:07:36,848 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:07:41,795 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:41,797 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=2 after_dedup=0
+2026-08-29 12:07:43,722 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:43,723 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://tdwi.org/
+2026-08-29 12:07:49,969 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://tdwi.org/ content_length=24734
+2026-08-29 12:07:52,031 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:07:52,032 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=Call for Speakers | TDWI link=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx reason=Exact event start date (day precision) not found on opportunity page.
+2026-08-29 12:07:52,032 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] DROP event=Call for Speakers | TDWI link=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx reason=Exact event start date (day precision) not found on opportunity page.
+2026-08-29 12:07:52,032 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/1 source=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:52,032 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=1 url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:52,032 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx page_type=direct_opportunity
+2026-08-29 12:07:52,033 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e29bc2d830398dd48e3 from_google_query=True after_sync opportunities=0 url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:52,034 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e29bc2d830398dd48e3 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:07:52,087 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e29bc2d830398dd48e3 completed inserted=0 (none after extract/verify) url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx
+2026-08-29 12:07:52,088 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=2/15 inserted=0 url=https://tdwi.org/pages/about-tdwi/call-for-speakers.aspx url_collection_id=6a927e29bc2d830398dd48e3
+2026-08-29 12:07:57,271 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927e45bc2d830398dd48e4 url=https://aidevsummit.co/speakers/apply-to-speak/
+2026-08-29 12:07:57,323 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927e45bc2d830398dd48e4 job_store=url_collection url=https://aidevsummit.co/speakers/apply-to-speak/
+2026-08-29 12:07:57,375 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:07:57,376 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://aidevsummit.co/speakers/apply-to-speak/
+2026-08-29 12:08:04,124 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://aidevsummit.co/speakers/apply-to-speak/ content_length=1491
+2026-08-29 12:08:05,457 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:05,459 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=not_speaking reason=The Call for Speakers has closed, and the page indicates that submissions are only being considered on a very limited basis. url=https://aidevsummit.co/speakers/apply-to-speak/
+2026-08-29 12:08:05,459 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] drop not_speaking url=https://aidevsummit.co/speakers/apply-to-speak/
+2026-08-29 12:08:05,459 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e45bc2d830398dd48e4 from_google_query=True after_sync opportunities=0 url=https://aidevsummit.co/speakers/apply-to-speak/
+2026-08-29 12:08:05,459 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e45bc2d830398dd48e4 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:08:05,555 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e45bc2d830398dd48e4 completed inserted=0 (none after extract/verify) url=https://aidevsummit.co/speakers/apply-to-speak/
+2026-08-29 12:08:05,555 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=3/15 inserted=0 url=https://aidevsummit.co/speakers/apply-to-speak/ url_collection_id=6a927e45bc2d830398dd48e4
+2026-08-29 12:08:10,639 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927e52bc2d830398dd48e5 url=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:10,698 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927e52bc2d830398dd48e5 job_store=url_collection url=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:10,771 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:08:10,771 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:17,196 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://machinelearningweek.com/call-for-speakers/ content_length=9776
+2026-08-29 12:08:18,964 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:18,965 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear call for speakers to submit proposals for the HYBRID AI 2026 event, including submission instructions and deadlines. url=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:18,975 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=9775 model=gpt-4o-mini
+2026-08-29 12:08:18,975 INFO app.helpers.SpeakingOpportunityExtractor Processing 3 chunks for opportunity extraction
+2026-08-29 12:08:21,590 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:23,997 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:24,991 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:24,992 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=2 after_dedup=0
+2026-08-29 12:08:27,577 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:27,578 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=Call for Speakers - Machine Learning Week US link=https://machinelearningweek.com/call-for-speakers/ reason=past_date Event start/end date is in the past (start=2026-05-05, end=2026-05-06).
+2026-08-29 12:08:27,578 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] DROP event=HYBRID AI 2026 link=https://machinelearningweek.com/call-for-speakers/ reason=Event start/end date is in the past (start=2026-05-05, end=2026-05-06).
+2026-08-29 12:08:27,578 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/1 source=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:27,578 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=1 url=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:27,578 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://machinelearningweek.com/call-for-speakers/ page_type=direct_opportunity
+2026-08-29 12:08:27,578 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e52bc2d830398dd48e5 from_google_query=True after_sync opportunities=0 url=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:27,578 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e52bc2d830398dd48e5 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:08:27,680 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e52bc2d830398dd48e5 completed inserted=0 (none after extract/verify) url=https://machinelearningweek.com/call-for-speakers/
+2026-08-29 12:08:27,681 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=4/15 inserted=0 url=https://machinelearningweek.com/call-for-speakers/ url_collection_id=6a927e52bc2d830398dd48e5
+2026-08-29 12:08:32,735 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927e68bc2d830398dd48e6 url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:08:32,789 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927e68bc2d830398dd48e6 job_store=url_collection url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:08:33,087 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:08:33,088 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:08:39,219 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.humanx.co/us/become-a-speaker content_length=627
+2026-08-29 12:08:40,430 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:40,432 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear path to apply to become a speaker at the HumanX event, indicating it is a direct opportunity for external professionals. url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:08:40,442 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=627 model=gpt-4o-mini
+2026-08-29 12:08:40,442 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:08:44,679 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:44,720 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=1 after_dedup=0
+2026-08-29 12:08:46,682 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:46,682 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify PASS event=HumanX | Become a Speaker | Las Vegas | March 7-10, 2027 link=https://www.humanx.co/us/become-a-speaker updated_name=HumanX location=Las Vegas dates=2027-03-07..2027-03-10 isVerified=true
+2026-08-29 12:08:46,682 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] KEEP event=HumanX link=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:08:46,682 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=1/1 source=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:08:46,682 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=1 dropped=0 url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:08:48,352 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:49,698 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:08:49,739 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.humanx.co/2027/speakers
+2026-08-29 12:08:58,472 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.humanx.co/2027/speakers content_length=177255
+2026-08-29 12:08:58,476 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.humanx.co/us/get-involved
+2026-08-29 12:09:04,706 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.humanx.co/us/get-involved content_length=12423
+2026-08-29 12:09:06,479 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:06,480 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_qualify total=1 qualified=1 unqualified=0 url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:09:06,480 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=1 opportunities url=https://www.humanx.co/us/become-a-speaker page_type=direct_opportunity
+2026-08-29 12:09:06,481 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e68bc2d830398dd48e6 from_google_query=True after_sync opportunities=1 url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:09:06,481 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e68bc2d830398dd48e6 complete_filter complete=1 incomplete_dropped=0
+2026-08-29 12:09:06,624 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e68bc2d830398dd48e6 dedupe to_insert=1 skipped_already_in_db=0 skipped_batch_dup=0
+2026-08-29 12:09:06,681 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e68bc2d830398dd48e6 completed inserted=1 into Opportunities url=https://www.humanx.co/us/become-a-speaker
+2026-08-29 12:09:10,375 INFO httpx HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-29 12:09:13,707 INFO app.services.UrlScraperRapidAPI Job 6a927e68bc2d830398dd48e6: Pinecone upserted 1 qualified vector(s); 0 not qualified (Mongo only)
+2026-08-29 12:09:13,709 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=5/15 inserted=1 url=https://www.humanx.co/us/become-a-speaker url_collection_id=6a927e68bc2d830398dd48e6
+2026-08-29 12:09:18,771 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927e96bc2d830398dd48e8 url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:18,836 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927e96bc2d830398dd48e8 job_store=url_collection url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:18,906 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:09:18,906 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:24,963 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.sectionai.com/events/apply-to-speak content_length=14463
+2026-08-29 12:09:26,147 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:26,221 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page explicitly invites external professionals to apply to speak at their events, indicating a clear apply-to-speak path for potential speakers. url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:26,231 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=14463 model=gpt-4o-mini
+2026-08-29 12:09:26,231 INFO app.helpers.SpeakingOpportunityExtractor Processing 4 chunks for opportunity extraction
+2026-08-29 12:09:32,428 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:36,886 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:39,832 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:40,646 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:40,648 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=6 after_dedup=2
+2026-08-29 12:09:40,652 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.sectionai.com/ai/the-ai-roi-conference
+2026-08-29 12:09:46,326 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.sectionai.com/ai/the-ai-roi-conference content_length=2353
+2026-08-29 12:09:48,175 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:48,177 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=The AI:ROI Conference link=https://www.sectionai.com/ai/the-ai-roi-conference reason=The page does not provide an open apply-to-speak path; it features a list of confirmed speakers without a call for speakers or application process.
+2026-08-29 12:09:48,177 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/2] DROP event=The AI:ROI Conference link=https://www.sectionai.com/ai/the-ai-roi-conference reason=The page does not provide an open apply-to-speak path; it features a list of confirmed speakers without a call for speakers or application process.
+2026-08-29 12:09:48,177 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit
+2026-08-29 12:09:54,120 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit content_length=1006
+2026-08-29 12:09:56,322 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:09:56,323 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=The agentic enterprise strategy summit link=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit reason=The page does not provide an open apply-to-speak path; it only mentions speakers and registration without a call for speakers.
+2026-08-29 12:09:56,323 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [2/2] DROP event=The agentic enterprise strategy summit link=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit reason=The page does not provide an open apply-to-speak path; it only mentions speakers and registration without a call for speakers.
+2026-08-29 12:09:56,323 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/2 source=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:56,323 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=2 url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:56,323 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://www.sectionai.com/events/apply-to-speak page_type=direct_opportunity
+2026-08-29 12:09:56,324 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e96bc2d830398dd48e8 from_google_query=True after_sync opportunities=0 url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:56,324 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e96bc2d830398dd48e8 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:09:56,378 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927e96bc2d830398dd48e8 completed inserted=0 (none after extract/verify) url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:09:56,378 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=6/15 inserted=0 url=https://www.sectionai.com/events/apply-to-speak url_collection_id=6a927e96bc2d830398dd48e8
+2026-08-29 12:10:01,435 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927ec1bc2d830398dd48e9 url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:01,489 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927ec1bc2d830398dd48e9 job_store=url_collection url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:01,546 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:10:01,546 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:08,201 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/ content_length=1735
+2026-08-29 12:10:09,648 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:10:09,651 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=This page provides a clear application path for individuals to submit proposals to speak at The AI Summit New York, indicating it is a direct opportunity for sp url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:09,662 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=1735 model=gpt-4o-mini
+2026-08-29 12:10:09,662 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:10:16,402 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:10:16,404 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=3 after_dedup=1
+2026-08-29 12:10:16,405 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://reg.theaisummit.com/new-york-submit-speaker
+2026-08-29 12:10:33,511 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://reg.theaisummit.com/new-york-submit-speaker content_length=15785
+2026-08-29 12:10:35,795 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:10:35,796 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify PASS event=The AI Summit New York link=https://reg.theaisummit.com/new-york-submit-speaker updated_name=The AI Summit New York location=NYC dates=2026-12-09..2026-12-10 isVerified=true
+2026-08-29 12:10:35,796 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] KEEP event=The AI Summit New York link=https://reg.theaisummit.com/new-york-submit-speaker
+2026-08-29 12:10:35,796 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=1/1 source=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:35,796 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=1 dropped=0 url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:37,232 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:10:37,234 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_qualify total=1 qualified=1 unqualified=0 url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:37,234 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=1 opportunities url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/ page_type=direct_opportunity
+2026-08-29 12:10:37,235 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ec1bc2d830398dd48e9 from_google_query=True after_sync opportunities=1 url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:37,235 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ec1bc2d830398dd48e9 complete_filter complete=1 incomplete_dropped=0
+2026-08-29 12:10:37,369 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ec1bc2d830398dd48e9 dedupe to_insert=1 skipped_already_in_db=0 skipped_batch_dup=0
+2026-08-29 12:10:37,423 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ec1bc2d830398dd48e9 completed inserted=1 into Opportunities url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:10:39,357 INFO httpx HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-29 12:10:40,852 INFO app.services.UrlScraperRapidAPI Job 6a927ec1bc2d830398dd48e9: Pinecone upserted 1 qualified vector(s); 0 not qualified (Mongo only)
+2026-08-29 12:10:40,854 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=7/15 inserted=1 url=https://newyork.theaisummit.com/conference-speakers/submit-speaker/ url_collection_id=6a927ec1bc2d830398dd48e9
+2026-08-29 12:10:45,920 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927eedbc2d830398dd48eb url=https://appliedaiconf.com/speakers
+2026-08-29 12:10:45,978 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927eedbc2d830398dd48eb job_store=url_collection url=https://appliedaiconf.com/speakers
+2026-08-29 12:10:46,139 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:10:46,140 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://appliedaiconf.com/speakers
+2026-08-29 12:11:00,082 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://appliedaiconf.com/speakers content_length=2384
+2026-08-29 12:11:01,346 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:11:01,348 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear call for speakers with an application process for the Applied AI Conference 2026, inviting external professionals to submit proposals  url=https://appliedaiconf.com/speakers
+2026-08-29 12:11:01,359 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=2384 model=gpt-4o-mini
+2026-08-29 12:11:01,359 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:11:04,274 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:11:04,276 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=1 after_dedup=0
+2026-08-29 12:11:06,722 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:11:06,724 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://appliedaiconf.com/
+2026-08-29 12:11:16,570 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://appliedaiconf.com/ content_length=2566
+2026-08-29 12:11:18,290 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:11:18,291 INFO app.helpers.OpportunityQualifier [opp-pipeline] date_home filled start=2026-11-02 end=2026-11-02 home=https://appliedaiconf.com/ for link=https://appliedaiconf.com/speakers
+2026-08-29 12:11:18,291 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify PASS event=Call for Speakers | Applied AI Conference 2026 link=https://appliedaiconf.com/speakers updated_name=Applied AI 2026 Fall Conference location=Virtual dates=2026-11-02..2026-11-02 isVerified=true
+2026-08-29 12:11:18,291 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] KEEP event=Applied AI 2026 Fall Conference link=https://appliedaiconf.com/speakers
+2026-08-29 12:11:18,291 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=1/1 source=https://appliedaiconf.com/speakers
+2026-08-29 12:11:18,291 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=1 dropped=0 url=https://appliedaiconf.com/speakers
+2026-08-29 12:11:19,649 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:11:19,650 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://appliedaiconf.com/speakers
+2026-08-29 12:11:31,759 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://appliedaiconf.com/speakers content_length=2384
+2026-08-29 12:11:31,761 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://appliedaiconf.com/
+2026-08-29 12:11:41,352 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://appliedaiconf.com/ content_length=2566
+2026-08-29 12:11:42,913 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:11:42,915 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_qualify total=1 qualified=0 unqualified=1 url=https://appliedaiconf.com/speakers
+2026-08-29 12:11:42,915 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=1 opportunities url=https://appliedaiconf.com/speakers page_type=direct_opportunity
+2026-08-29 12:11:42,916 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927eedbc2d830398dd48eb from_google_query=True after_sync opportunities=1 url=https://appliedaiconf.com/speakers
+2026-08-29 12:11:42,916 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927eedbc2d830398dd48eb complete_filter complete=1 incomplete_dropped=0
+2026-08-29 12:11:43,023 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927eedbc2d830398dd48eb dedupe to_insert=1 skipped_already_in_db=0 skipped_batch_dup=0
+2026-08-29 12:11:43,077 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927eedbc2d830398dd48eb completed inserted=1 into Opportunities url=https://appliedaiconf.com/speakers
+2026-08-29 12:11:43,078 INFO app.services.UrlScraperRapidAPI Job 6a927eedbc2d830398dd48eb: Pinecone upserted 0 qualified vector(s); 1 not qualified (Mongo only)
+2026-08-29 12:11:43,078 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=8/15 inserted=1 url=https://appliedaiconf.com/speakers url_collection_id=6a927eedbc2d830398dd48eb
+2026-08-29 12:11:48,153 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927f2cbc2d830398dd48ed url=https://aiconference.com/speakers/
+2026-08-29 12:11:48,204 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927f2cbc2d830398dd48ed job_store=url_collection url=https://aiconference.com/speakers/
+2026-08-29 12:11:48,255 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:11:48,255 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://aiconference.com/speakers/
+2026-08-29 12:11:55,485 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://aiconference.com/speakers/ content_length=16000
+2026-08-29 12:11:56,859 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:11:56,860 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=not_speaking reason=The page lists confirmed speakers for The AI Conference 2026 but does not provide a call for speakers or an application process for new speakers. url=https://aiconference.com/speakers/
+2026-08-29 12:11:56,860 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] drop not_speaking url=https://aiconference.com/speakers/
+2026-08-29 12:11:56,861 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f2cbc2d830398dd48ed from_google_query=True after_sync opportunities=0 url=https://aiconference.com/speakers/
+2026-08-29 12:11:56,861 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f2cbc2d830398dd48ed complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:11:56,938 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f2cbc2d830398dd48ed completed inserted=0 (none after extract/verify) url=https://aiconference.com/speakers/
+2026-08-29 12:11:56,938 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=9/15 inserted=0 url=https://aiconference.com/speakers/ url_collection_id=6a927f2cbc2d830398dd48ed
+2026-08-29 12:12:01,996 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927f39bc2d830398dd48ee url=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:02,049 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927f39bc2d830398dd48ee job_store=url_collection url=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:02,120 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:12:02,120 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:09,986 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://ai2030.org/apply-to-be-a-speaker/ content_length=5819
+2026-08-29 12:12:11,583 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:12:11,588 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a speaker application form for multiple AI 2030 initiatives, allowing external professionals to apply to be speakers. url=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:11,592 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=5819 model=gpt-4o-mini
+2026-08-29 12:12:11,592 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:12:23,864 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:12:23,866 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=6 after_dedup=0
+2026-08-29 12:12:25,841 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:12:25,842 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=Apply To Be A Speaker - AI 2030 link=https://ai2030.org/apply-to-be-a-speaker/ reason=past_date Event start/end date is in the past (start=2025-09-24, end=2025-09-24).
+2026-08-29 12:12:25,842 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] DROP event=AI 2030 Summit link=https://ai2030.org/apply-to-be-a-speaker/ reason=Event start/end date is in the past (start=2025-09-24, end=2025-09-24).
+2026-08-29 12:12:25,842 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/1 source=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:25,842 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=1 url=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:25,842 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://ai2030.org/apply-to-be-a-speaker/ page_type=direct_opportunity
+2026-08-29 12:12:25,843 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f39bc2d830398dd48ee from_google_query=True after_sync opportunities=0 url=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:25,843 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f39bc2d830398dd48ee complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:12:25,896 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f39bc2d830398dd48ee completed inserted=0 (none after extract/verify) url=https://ai2030.org/apply-to-be-a-speaker/
+2026-08-29 12:12:25,896 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=10/15 inserted=0 url=https://ai2030.org/apply-to-be-a-speaker/ url_collection_id=6a927f39bc2d830398dd48ee
+2026-08-29 12:12:31,023 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927f56bc2d830398dd48ef url=https://www.agentconference.com/call-for-proposals
+2026-08-29 12:12:31,077 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927f56bc2d830398dd48ef job_store=url_collection url=https://www.agentconference.com/call-for-proposals
+2026-08-29 12:12:31,137 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:12:31,138 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.agentconference.com/call-for-proposals
+2026-08-29 12:12:37,243 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.agentconference.com/call-for-proposals content_length=669
+2026-08-29 12:12:38,737 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:12:38,739 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=not_speaking reason=This page is a Call for Proposals announcement, indicating that submissions are not currently open, and it does not provide a direct application path for speake url=https://www.agentconference.com/call-for-proposals
+2026-08-29 12:12:38,739 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] drop not_speaking url=https://www.agentconference.com/call-for-proposals
+2026-08-29 12:12:38,740 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f56bc2d830398dd48ef from_google_query=True after_sync opportunities=0 url=https://www.agentconference.com/call-for-proposals
+2026-08-29 12:12:38,740 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f56bc2d830398dd48ef complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:12:38,793 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f56bc2d830398dd48ef completed inserted=0 (none after extract/verify) url=https://www.agentconference.com/call-for-proposals
+2026-08-29 12:12:38,793 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=11/15 inserted=0 url=https://www.agentconference.com/call-for-proposals url_collection_id=6a927f56bc2d830398dd48ef
+2026-08-29 12:12:43,903 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927f63bc2d830398dd48f0 url=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:12:43,955 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927f63bc2d830398dd48f0 job_store=url_collection url=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:12:44,017 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:12:44,017 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:12:58,397 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://copilot.summitna.com/call-for-speakers/ content_length=3791
+2026-08-29 12:12:59,701 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:12:59,702 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear call for speakers for the AI Copilot Summit, allowing external professionals to submit proposals to speak at the event. url=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:12:59,710 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=3791 model=gpt-4o-mini
+2026-08-29 12:12:59,711 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:13:02,409 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:13:02,410 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=1 after_dedup=0
+2026-08-29 12:13:04,955 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:13:04,957 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=Call for Speakers - AI Copilot Summit link=https://copilot.summitna.com/call-for-speakers/ reason=past_date Event start/end date is in the past (start=2026-03-17, end=2026-03-19).
+2026-08-29 12:13:04,957 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] DROP event=AI Agent & Copilot Summit NA link=https://copilot.summitna.com/call-for-speakers/ reason=Event start/end date is in the past (start=2026-03-17, end=2026-03-19).
+2026-08-29 12:13:04,957 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/1 source=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:13:04,957 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=1 url=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:13:04,957 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://copilot.summitna.com/call-for-speakers/ page_type=direct_opportunity
+2026-08-29 12:13:04,958 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f63bc2d830398dd48f0 from_google_query=True after_sync opportunities=0 url=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:13:04,958 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f63bc2d830398dd48f0 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:13:05,010 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f63bc2d830398dd48f0 completed inserted=0 (none after extract/verify) url=https://copilot.summitna.com/call-for-speakers/
+2026-08-29 12:13:05,010 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=12/15 inserted=0 url=https://copilot.summitna.com/call-for-speakers/ url_collection_id=6a927f63bc2d830398dd48f0
+2026-08-29 12:13:10,068 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927f7ebc2d830398dd48f1 url=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:10,123 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927f7ebc2d830398dd48f1 job_store=url_collection url=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:10,176 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:13:10,176 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:17,327 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://possibleevent.com/speaker-opportunities/ content_length=3308
+2026-08-29 12:13:18,631 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:13:18,633 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear application process for individuals to apply to speak at POSSIBLE 2027, indicating it is a direct opportunity for speakers. url=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:18,640 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=3307 model=gpt-4o-mini
+2026-08-29 12:13:18,640 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:13:22,407 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:13:22,408 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=1 after_dedup=0
+2026-08-29 12:13:24,561 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:13:24,571 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=Speak at POSSIBLE 2027 | Apply to Become a Speaker link=https://possibleevent.com/speaker-opportunities/ reason=past_date Event start/end date is in the past (start=2026-08-04, end=2026-12-11).
+2026-08-29 12:13:24,572 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] DROP event=POSSIBLE 2027 link=https://possibleevent.com/speaker-opportunities/ reason=Event start/end date is in the past (start=2026-08-04, end=2026-12-11).
+2026-08-29 12:13:24,572 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/1 source=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:24,572 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=1 url=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:24,572 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://possibleevent.com/speaker-opportunities/ page_type=direct_opportunity
+2026-08-29 12:13:24,572 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f7ebc2d830398dd48f1 from_google_query=True after_sync opportunities=0 url=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:24,572 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f7ebc2d830398dd48f1 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:13:24,623 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f7ebc2d830398dd48f1 completed inserted=0 (none after extract/verify) url=https://possibleevent.com/speaker-opportunities/
+2026-08-29 12:13:24,623 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=13/15 inserted=0 url=https://possibleevent.com/speaker-opportunities/ url_collection_id=6a927f7ebc2d830398dd48f1
+2026-08-29 12:13:29,719 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927f91bc2d830398dd48f2 url=https://www.aidataanalytics.network/events-generativeaisummit
+2026-08-29 12:13:29,776 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927f91bc2d830398dd48f2 job_store=url_collection url=https://www.aidataanalytics.network/events-generativeaisummit
+2026-08-29 12:13:29,846 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:13:29,846 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.aidataanalytics.network/events-generativeaisummit
+2026-08-29 12:13:40,009 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.aidataanalytics.network/events-generativeaisummit content_length=26617
+2026-08-29 12:13:41,456 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:13:41,458 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=not_speaking reason=The page provides information about the Generative AI Summit and its speakers but does not offer an apply-to-speak or call-for-speakers opportunity. url=https://www.aidataanalytics.network/events-generativeaisummit
+2026-08-29 12:13:41,458 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] drop not_speaking url=https://www.aidataanalytics.network/events-generativeaisummit
+2026-08-29 12:13:41,459 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f91bc2d830398dd48f2 from_google_query=True after_sync opportunities=0 url=https://www.aidataanalytics.network/events-generativeaisummit
+2026-08-29 12:13:41,459 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f91bc2d830398dd48f2 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:13:41,513 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927f91bc2d830398dd48f2 completed inserted=0 (none after extract/verify) url=https://www.aidataanalytics.network/events-generativeaisummit
+2026-08-29 12:13:41,513 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=14/15 inserted=0 url=https://www.aidataanalytics.network/events-generativeaisummit url_collection_id=6a927f91bc2d830398dd48f2
+2026-08-29 12:13:46,567 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927fa2bc2d830398dd48f3 url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:13:46,619 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927fa2bc2d830398dd48f3 job_store=url_collection url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:13:46,672 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:13:46,674 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:13:55,342 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak content_length=1899
+2026-08-29 12:13:57,140 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:13:57,163 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear apply-to-speak path for the AI for Marketers Summit, detailing submission requirements and benefits for speakers. url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:13:57,174 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=1898 model=gpt-4o-mini
+2026-08-29 12:13:57,174 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:14:00,452 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:14:00,475 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=1 after_dedup=0
+2026-08-29 12:14:02,974 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:14:02,976 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://artificialintelligencesummit.com/
+2026-08-29 12:14:17,306 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://artificialintelligencesummit.com/ content_length=9983
+2026-08-29 12:14:19,447 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:14:19,450 INFO app.helpers.OpportunityQualifier [opp-pipeline] date_home filled start=2026-11-17 end=2026-11-19 home=https://artificialintelligencesummit.com/ for link=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:19,450 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify PASS event=AI for Marketers Summit | Apply to Speak link=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak updated_name=AI for Marketers Summit location= dates=2026-11-17..2026-11-19 isVerified=true
+2026-08-29 12:14:19,450 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] KEEP event=AI for Marketers Summit link=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:19,450 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=1/1 source=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:19,450 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=1 dropped=0 url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:21,151 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:14:22,480 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:14:22,483 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:30,693 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak content_length=1899
+2026-08-29 12:14:30,695 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://artificialintelligencesummit.com/nov-2026/speakers/nov-2026/contact/cont...
+2026-08-29 12:14:52,943 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://artificialintelligencesummit.com/nov-2026/speakers/nov-2026/contact/cont content_length=11482
+2026-08-29 12:14:54,622 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:14:54,672 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_qualify total=1 qualified=1 unqualified=0 url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:54,672 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=1 opportunities url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak page_type=direct_opportunity
+2026-08-29 12:14:54,673 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927fa2bc2d830398dd48f3 from_google_query=True after_sync opportunities=1 url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:54,673 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927fa2bc2d830398dd48f3 complete_filter complete=1 incomplete_dropped=0
+2026-08-29 12:14:54,775 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927fa2bc2d830398dd48f3 dedupe to_insert=1 skipped_already_in_db=0 skipped_batch_dup=0
+2026-08-29 12:14:54,827 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927fa2bc2d830398dd48f3 completed inserted=1 into Opportunities url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:14:55,809 INFO httpx HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-29 12:14:57,339 INFO app.services.UrlScraperRapidAPI Job 6a927fa2bc2d830398dd48f3: Pinecone upserted 1 qualified vector(s); 0 not qualified (Mongo only)
+2026-08-29 12:14:57,340 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b60 url_index=15/15 inserted=1 url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak url_collection_id=6a927fa2bc2d830398dd48f3
+2026-08-29 12:14:57,548 INFO app.services.GoogleQueryScraper [opp-pipeline] GoogleQuery job completed google_query_id=6a60fc1412de5cb877cf8b60 serp=20 scraped=15 skipped_existing=5 total_opportunities_inserted=4
+2026-08-29 12:14:57,598 INFO app.services.GoogleQueryScraper GoogleQuery background job started google_query_id=6a60fc1412de5cb877cf8b62 query=("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker 
+2026-08-29 12:14:59,851 INFO app.helpers.SerpHelper RapidAPI web search query='("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker ' start=0 num=10 returned 10 urls
+2026-08-29 12:15:04,603 INFO app.helpers.SerpHelper RapidAPI web search query='("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker ' start=10 num=10 returned 10 urls
+2026-08-29 12:15:04,605 INFO app.helpers.SerpHelper RapidAPI web search multi-page query='("AI summit" OR "enterprise AI" OR "AI world" OR "applied AI") AND ("call for speakers" OR "apply to speak" OR "speaker ' total_requested=20 returned 20 urls
+2026-08-29 12:15:04,670 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 pre_scrape_skip=2 already_known_urls (of 20 serp)
+2026-08-29 12:15:04,670 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 skip_existing_url=https://appliedaiconf.com/speakers
+2026-08-29 12:15:04,670 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 skip_existing_url=https://artificialintelligencesummit.com/nov-2026/speakers/apply-to-speak
+2026-08-29 12:15:04,811 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a927ff0bc2d830398dd48f7 url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:04,864 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a927ff0bc2d830398dd48f7 job_store=url_collection url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:04,945 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:15:04,946 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:10,613 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://london.theaisummit.com/conference-speakers/submit-speaker/ content_length=4855
+2026-08-29 12:15:11,857 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:15:11,858 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear path for external professionals to submit speaker proposals for The AI Summit London, indicating it is a direct opportunity for speaki url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:11,868 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=4855 model=gpt-4o-mini
+2026-08-29 12:15:11,868 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:15:20,963 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:15:20,965 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=4 after_dedup=1
+2026-08-29 12:15:23,206 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:15:23,207 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify PASS event=The AI Summit New York link=https://london.theaisummit.com/conference-speakers/submit-speaker/ updated_name=The AI Summit New York location=NYC dates=2026-12-09..2026-12-10 isVerified=true
+2026-08-29 12:15:23,207 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] KEEP event=The AI Summit New York link=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:23,207 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=1/1 source=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:23,207 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=1 dropped=0 url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:24,804 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:15:24,806 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://reg.theaisummit.com/london-submit-speaker
+2026-08-29 12:15:31,934 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://reg.theaisummit.com/london-submit-speaker content_length=12461
+2026-08-29 12:15:31,936 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:37,601 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://london.theaisummit.com/conference-speakers/submit-speaker/ content_length=4855
+2026-08-29 12:15:39,513 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:15:39,516 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_qualify total=1 qualified=1 unqualified=0 url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:39,516 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=1 opportunities url=https://london.theaisummit.com/conference-speakers/submit-speaker/ page_type=direct_opportunity
+2026-08-29 12:15:39,517 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ff0bc2d830398dd48f7 from_google_query=True after_sync opportunities=1 url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:39,517 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ff0bc2d830398dd48f7 complete_filter complete=1 incomplete_dropped=0
+2026-08-29 12:15:39,698 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ff0bc2d830398dd48f7 dedupe to_insert=1 skipped_already_in_db=0 skipped_batch_dup=0
+2026-08-29 12:15:39,751 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a927ff0bc2d830398dd48f7 completed inserted=1 into Opportunities url=https://london.theaisummit.com/conference-speakers/submit-speaker/
+2026-08-29 12:15:40,348 INFO httpx HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-29 12:15:42,040 INFO app.services.UrlScraperRapidAPI Job 6a927ff0bc2d830398dd48f7: Pinecone upserted 1 qualified vector(s); 0 not qualified (Mongo only)
+2026-08-29 12:15:42,042 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 url_index=1/18 inserted=1 url=https://london.theaisummit.com/conference-speakers/submit-speaker/ url_collection_id=6a927ff0bc2d830398dd48f7
+2026-08-29 12:15:47,096 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a92801bbc2d830398dd48f9 url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:15:47,151 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a92801bbc2d830398dd48f9 job_store=url_collection url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:15:47,201 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:15:47,202 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:15:55,456 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home content_length=560
+2026-08-29 12:15:56,863 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:15:56,864 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page is titled 'Call for Speakers' and indicates an open application path for individuals to apply to speak at the Oracle AI World 2026 event. url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:15:56,874 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=560 model=gpt-4o-mini
+2026-08-29 12:15:56,874 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:15:59,685 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:15:59,701 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=1 after_dedup=1
+2026-08-29 12:15:59,702 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.oracle.com/ai-world/
+2026-08-29 12:16:05,364 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.oracle.com/ai-world/ content_length=6938
+2026-08-29 12:16:07,400 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:07,401 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=Oracle AI World 2026 link=https://www.oracle.com/ai-world/ reason=The page does not provide an open apply-to-speak path; it focuses on registration and featured speakers without a call for speakers.
+2026-08-29 12:16:07,401 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/1] DROP event=Oracle AI World 2026 link=https://www.oracle.com/ai-world/ reason=The page does not provide an open apply-to-speak path; it focuses on registration and featured speakers without a call for speakers.
+2026-08-29 12:16:07,401 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/1 source=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:16:07,401 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=1 url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:16:07,401 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home page_type=direct_opportunity
+2026-08-29 12:16:07,401 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a92801bbc2d830398dd48f9 from_google_query=True after_sync opportunities=0 url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:16:07,401 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a92801bbc2d830398dd48f9 complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:16:07,459 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a92801bbc2d830398dd48f9 completed inserted=0 (none after extract/verify) url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home
+2026-08-29 12:16:07,459 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 url_index=2/18 inserted=0 url=https://reg.rf.oracle.com/flow/oracle/oaiw26/cfshome/page/home url_collection_id=6a92801bbc2d830398dd48f9
+2026-08-29 12:16:12,532 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a928034bc2d830398dd48fa url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:12,586 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a928034bc2d830398dd48fa job_store=url_collection url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:12,654 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:16:12,654 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:18,524 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.sectionai.com/events/apply-to-speak content_length=14463
+2026-08-29 12:16:19,750 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:19,751 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page explicitly invites external professionals to apply to speak at various AI events, indicating a clear apply-to-speak path for potential speakers. url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:19,760 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=14463 model=gpt-4o-mini
+2026-08-29 12:16:19,760 INFO app.helpers.SpeakingOpportunityExtractor Processing 4 chunks for opportunity extraction
+2026-08-29 12:16:25,972 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:30,159 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:32,951 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:33,667 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:33,679 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=6 after_dedup=2
+2026-08-29 12:16:33,681 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.sectionai.com/ai/the-ai-roi-conference
+2026-08-29 12:16:39,819 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.sectionai.com/ai/the-ai-roi-conference content_length=2353
+2026-08-29 12:16:41,723 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:41,724 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=The AI:ROI Conference link=https://www.sectionai.com/ai/the-ai-roi-conference reason=The page does not provide an open apply-to-speak path; it only lists speakers and describes the audience.
+2026-08-29 12:16:41,724 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [1/2] DROP event=The AI:ROI Conference link=https://www.sectionai.com/ai/the-ai-roi-conference reason=The page does not provide an open apply-to-speak path; it only lists speakers and describes the audience.
+2026-08-29 12:16:41,724 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit
+2026-08-29 12:16:47,389 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit content_length=1006
+2026-08-29 12:16:49,547 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:16:49,549 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify FAIL event=The agentic enterprise strategy summit link=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit reason=The page does not provide an open apply-to-speak path; it only mentions speakers and registration without a call for speakers.
+2026-08-29 12:16:49,549 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify [2/2] DROP event=The agentic enterprise strategy summit link=https://www.sectionai.com/events/the-agentic-enterprise-strategy-summit reason=The page does not provide an open apply-to-speak path; it only mentions speakers and registration without a call for speakers.
+2026-08-29 12:16:49,549 INFO app.helpers.OpportunityQualifier [opp-pipeline] official_verify summary kept=0/2 source=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:49,549 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] after_official_verify kept=0 dropped=2 url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:49,549 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] sync_done returning=0 opportunities url=https://www.sectionai.com/events/apply-to-speak page_type=direct_opportunity
+2026-08-29 12:16:49,550 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a928034bc2d830398dd48fa from_google_query=True after_sync opportunities=0 url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:49,550 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a928034bc2d830398dd48fa complete_filter complete=0 incomplete_dropped=0
+2026-08-29 12:16:49,609 INFO app.services.UrlScraperRapidAPI [opp-pipeline] job=6a928034bc2d830398dd48fa completed inserted=0 (none after extract/verify) url=https://www.sectionai.com/events/apply-to-speak
+2026-08-29 12:16:49,609 INFO app.services.GoogleQueryScraper [opp-pipeline] google_query_id=6a60fc1412de5cb877cf8b62 url_index=3/18 inserted=0 url=https://www.sectionai.com/events/apply-to-speak url_collection_id=6a928034bc2d830398dd48fa
+2026-08-29 12:16:54,678 INFO app.services.UrlScraperRapidAPI UrlCollection created url_collection_id=6a92805ebc2d830398dd48fb url=https://summit.runwayml.com/speaker-apply
+2026-08-29 12:16:54,730 INFO app.services.UrlScraperRapidAPI Background job started job_id=6a92805ebc2d830398dd48fb job_store=url_collection url=https://summit.runwayml.com/speaker-apply
+2026-08-29 12:16:54,778 INFO app.helpers.TargetAudienceCatalog Loaded 26 target audiences from speakerTargetAudeince
+2026-08-29 12:16:54,779 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://summit.runwayml.com/speaker-apply
+2026-08-29 12:17:00,255 INFO app.helpers.RapidAPIScraper RapidAPI scrape success url=https://summit.runwayml.com/speaker-apply content_length=766
+2026-08-29 12:17:01,606 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:17:01,607 INFO app.helpers.OpportunityDiscoveryPipeline [opp-pipeline] classify page_type=direct_opportunity reason=The page provides a clear application process for individuals to apply to speak at the Runway AI Summit, indicating it is a direct opportunity for speakers. url=https://summit.runwayml.com/speaker-apply
+2026-08-29 12:17:01,612 INFO app.helpers.SpeakingOpportunityExtractor Starting LLM speaking opportunity extraction content_len=766 model=gpt-4o-mini
+2026-08-29 12:17:01,612 INFO app.helpers.SpeakingOpportunityExtractor Processing 1 chunks for opportunity extraction
+2026-08-29 12:17:03,951 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:17:03,953 INFO app.helpers.SpeakingOpportunityExtractor LLM extraction complete: raw=1 after_dedup=0
+2026-08-29 12:17:05,733 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-29 12:17:05,738 INFO app.helpers.RapidAPIScraper Starting RapidAPI scrape for url=https://summit.runwayml.com/

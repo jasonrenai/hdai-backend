@@ -1,0 +1,132 @@
+{
+  "applied_at": "2026-08-29T06:36:24.888603Z",
+  "actions": [
+    {
+      "action": "rewrite",
+      "category": "ai",
+      "kind": "boolean",
+      "id": "6a60fc1412de5cb877cf8b60",
+      "query": "(\"artificial intelligence\" OR \"generative AI\" OR \"machine learning\" OR \"AI conference\") AND (\"call for speakers\" OR \"apply to speak\" OR \"speaker application\" OR \"submit a talk\") (2026 OR 2027)"
+    },
+    {
+      "action": "rewrite",
+      "category": "ai",
+      "kind": "boolean",
+      "id": "6a60fc1412de5cb877cf8b62",
+      "query": "(\"AI summit\" OR \"enterprise AI\" OR \"AI world\" OR \"applied AI\") AND (\"call for speakers\" OR \"apply to speak\" OR \"speaker application\" OR \"submit a talk\") (2026 OR 2027)"
+    },
+    {
+      "action": "insert",
+      "category": "ai",
+      "kind": "soft",
+      "id": "6a927de64386a1e4abca9894",
+      "query": "call for speakers AI conference"
+    },
+    {
+      "action": "insert",
+      "category": "ai",
+      "kind": "soft",
+      "id": "6a927de64386a1e4abca9895",
+      "query": "upcoming call for speakers artificial intelligence"
+    },
+    {
+      "action": "insert",
+      "category": "ai",
+      "kind": "soft",
+      "id": "6a927de64386a1e4abca9896",
+      "query": "apply to speak AI summit"
+    },
+    {
+      "action": "insert",
+      "category": "ai",
+      "kind": "soft",
+      "id": "6a927de64386a1e4abca9897",
+      "query": "AI conference looking for speakers"
+    },
+    {
+      "action": "rewrite",
+      "category": "marketing",
+      "kind": "boolean",
+      "id": "6a60fc1412de5cb877cf8b92",
+      "query": "(\"digital marketing\" OR \"marketing strategy\" OR \"martech\" OR \"brand strategy\") AND (\"call for speakers\" OR \"apply to speak\" OR \"speaker application\" OR \"submit a talk\" OR \"CFP\" OR \"CFS\") (2026 OR 2027)"
+    },
+    {
+      "action": "rewrite",
+      "category": "marketing",
+      "kind": "boolean",
+      "id": "6a60fc1412de5cb877cf8b93",
+      "query": "(\"content marketing\" OR \"growth marketing\" OR \"advertising\" OR \"CMO\") AND (\"call for speakers\" OR \"apply to speak\" OR \"speaker application\" OR \"submit a talk\") (2026 OR 2027)"
+    },
+    {
+      "action": "insert",
+      "category": "marketing",
+      "kind": "soft",
+      "id": "6a927de74386a1e4abca9898",
+      "query": "call for speakers digital marketing"
+    },
+    {
+      "action": "insert",
+      "category": "marketing",
+      "kind": "soft",
+      "id": "6a927de74386a1e4abca9899",
+      "query": "upcoming call for speakers marketing conference"
+    },
+    {
+      "action": "insert",
+      "category": "marketing",
+      "kind": "soft",
+      "id": "6a927de74386a1e4abca989a",
+      "query": "apply to speak martech conference"
+    },
+    {
+      "action": "insert",
+      "category": "marketing",
+      "kind": "soft",
+      "id": "6a927de74386a1e4abca989b",
+      "query": "digital marketing conference looking for speakers"
+    },
+    {
+      "action": "rewrite",
+      "category": "ai_marketing",
+      "kind": "boolean",
+      "id": "6a60fc1412de5cb877cf8b95",
+      "query": "(\"AI marketing\" OR \"marketing AI\" OR \"AI for marketing\" OR \"AI in marketing\") AND (\"call for speakers\" OR \"apply to speak\" OR \"speaker application\" OR \"submit a talk\") (2026 OR 2027)"
+    },
+    {
+      "action": "rewrite",
+      "category": "ai_marketing",
+      "kind": "boolean",
+      "id": "6a60fc1412de5cb877cf8b94",
+      "query": "(\"marketing AI\" OR \"AI marketing summit\" OR \"AI for marketers\") AND (\"call for speakers\" OR \"apply to speak\" OR \"speaker application\" OR \"submit a talk\") (2026 OR 2027)"
+    },
+    {
+      "action": "insert",
+      "category": "ai_marketing",
+      "kind": "soft",
+      "id": "6a927de84386a1e4abca989c",
+      "query": "call for speakers AI marketing"
+    },
+    {
+      "action": "insert",
+      "category": "ai_marketing",
+      "kind": "soft",
+      "id": "6a927de84386a1e4abca989d",
+      "query": "upcoming call for speakers AI marketing"
+    },
+    {
+      "action": "insert",
+      "category": "ai_marketing",
+      "kind": "soft",
+      "id": "6a927de84386a1e4abca989e",
+      "query": "apply to speak AI marketing conference"
+    },
+    {
+      "action": "insert",
+      "category": "ai_marketing",
+      "kind": "soft",
+      "id": "6a927de84386a1e4abca989f",
+      "query": "open call for speakers marketing AI"
+    }
+  ],
+  "pending_expected": 18
+}

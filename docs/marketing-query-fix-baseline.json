@@ -1,0 +1,1376 @@
+{
+  "captured_at": "2026-08-29T06:36:14.901741Z",
+  "db_name": "dev",
+  "domains": {
+    "2026.allthingsai.org": {
+      "in_serp": false,
+      "in_url_collections": true,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 1,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [
+        {
+          "url_collection_id": "6a1526bd8e59070b3b40accd",
+          "url": "https://2026.allthingsai.org/register",
+          "status": "completed"
+        }
+      ],
+      "opportunities": []
+    },
+    "ai4.io": {
+      "in_serp": true,
+      "in_url_collections": true,
+      "in_opportunities": true,
+      "serp_hit_count": 1,
+      "url_collection_count": 12,
+      "opportunity_count": 1,
+      "serp_hits": [
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b62",
+          "query": "(\"AI\" OR \"GenAI\" OR \"artificial intelligence\") AND (\"CFP\" OR \"CFS\" OR \"apply to speak\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://ai4.io/application-speaker/"
+          ]
+        }
+      ],
+      "url_collections": [
+        {
+          "url_collection_id": "69c649b42875dad6c5331934",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c64b300730d5c3035c17b5",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c66436096220e8fbb192f9",
+          "url": "https://ai4.io/speakers/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce2e1b33da2f77f7684382",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce3a8aadba2d38bdb22fe9",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce4511840774a33ea50fed",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a109fec7e1707b5a092ae2d",
+          "url": "https://ai4.io/speakers/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1178a3326850c7bec4a078",
+          "url": "https://ai4.io/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a14b7498e59070b3b40a9cf",
+          "url": "https://ai4.io/speakers/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a6082912285ffb3c709f2a7",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60861e2285ffb3c709f2d3",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a6102ea149296bcf7457c85",
+          "url": "https://ai4.io/application-speaker/",
+          "status": "completed"
+        }
+      ],
+      "opportunities": [
+        {
+          "opportunity_id": "6a610360149296bcf7457c86",
+          "event_name": "Ai4 2026",
+          "link": "https://ai4.io/application-speaker/",
+          "createdAt": "2026-07-22T17:52:32.070000Z",
+          "isQualified": true
+        }
+      ]
+    },
+    "ana.foleon.com": {
+      "in_serp": false,
+      "in_url_collections": false,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 0,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [],
+      "opportunities": []
+    },
+    "events.cmoalliance.com": {
+      "in_serp": false,
+      "in_url_collections": false,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 0,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [],
+      "opportunities": []
+    },
+    "events.reutersevents.com": {
+      "in_serp": false,
+      "in_url_collections": true,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 18,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [
+        {
+          "url_collection_id": "69c6581fc2ae324c6a32798a",
+          "url": "https://events.reutersevents.com/CX/east?utm_source=cmswire.com",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c668d4096220e8fbb1934a",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c8036d6dabc35a4faa16b1",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ca00dc441cca3c740c94ab",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce3c19adba2d38bdb22ff1",
+          "url": "https://events.reutersevents.com/customer-service/customer-service-san-diego",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a106348ea69545a9de8bd13",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a107ee77ef47609a49902af",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a10b167eb51b756c3744dce",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a115ac56bc43b43923b9c38",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a146dc38e59070b3b40a76d",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a14769f8e59070b3b40a7ca",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1490f38e59070b3b40a8d5",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a14bef78e59070b3b40a9f3",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a14dc398e59070b3b40aacc",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1505658e59070b3b40abdb",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1530588e59070b3b40acf5",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a606c7d6bb480192826c6f8",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a7087a55dd212af9fff74fb",
+          "url": "https://events.reutersevents.com/marketing/csx",
+          "status": "completed"
+        }
+      ],
+      "opportunities": []
+    },
+    "reg.theaisummit.com": {
+      "in_serp": false,
+      "in_url_collections": false,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 0,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [],
+      "opportunities": []
+    },
+    "theaisummit.com": {
+      "in_serp": true,
+      "in_url_collections": true,
+      "in_opportunities": true,
+      "serp_hit_count": 1,
+      "url_collection_count": 7,
+      "opportunity_count": 1,
+      "serp_hits": [
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b60",
+          "query": "(\"AI\" OR \"artificial intelligence\" OR \"machine learning\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"San Francisco\" OR \"Austin\" OR \"New York\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://newyork.theaisummit.com/"
+          ]
+        }
+      ],
+      "url_collections": [
+        {
+          "url_collection_id": "69ca046d2e520666f536cc60",
+          "url": "https://newyork.theaisummit.com/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a104725dbb6286f4e515875",
+          "url": "https://london.theaisummit.com/conference-speakers/submit-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1087f67ef47609a499033f",
+          "url": "https://london.theaisummit.com/conference-speakers/submit-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1474fd8e59070b3b40a7ac",
+          "url": "https://london.theaisummit.com/conference-speakers/submit-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a14ff438e59070b3b40abbd",
+          "url": "https://newyork.theaisummit.com/about/faqs/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a6101d8149296bcf7457c77",
+          "url": "https://london.theaisummit.com/conference-speakers/submit-speaker/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a616c5778f8eb31eb8d4209",
+          "url": "https://newyork.theaisummit.com/",
+          "status": "completed"
+        }
+      ],
+      "opportunities": [
+        {
+          "opportunity_id": "6a616c9278f8eb31eb8d420b",
+          "event_name": "The AI Summit New York",
+          "link": "https://newyork.theaisummit.com/",
+          "createdAt": "2026-07-23T01:21:22.236000Z",
+          "isQualified": true
+        }
+      ]
+    },
+    "sessionize.com": {
+      "in_serp": true,
+      "in_url_collections": true,
+      "in_opportunities": true,
+      "serp_hit_count": 24,
+      "url_collection_count": 558,
+      "opportunity_count": 75,
+      "serp_hits": [
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b5a",
+          "query": "\"UX\" AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/ux-yall-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b5e",
+          "query": "site:sessionize.com (\"UX\" OR \"UI\" OR \"product design\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/ux-yall-2026/",
+            "https://sessionize.com/web-summer-camp-2026/",
+            "https://sessionize.com/stir-trek-2026/",
+            "https://sessionize.com/rails-world-2026/",
+            "https://sessionize.com/fluttercon-india-2026/",
+            "https://sessionize.com/techbash-2026/",
+            "https://sessionize.com/reversim-summit-2026/",
+            "https://sessionize.com/jspring26/",
+            "https://sessionize.com/droidcon-india-2026/",
+            "https://sessionize.com/dac-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b60",
+          "query": "(\"AI\" OR \"artificial intelligence\" OR \"machine learning\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"San Francisco\" OR \"Austin\" OR \"New York\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/ai-devsummit-new-york-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b65",
+          "query": "(\"customer experience\" OR \"CX\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"Chicago\" OR \"Las Vegas\" OR \"Orlando\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/vslive_LasVegas26/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b69",
+          "query": "site:sessionize.com (\"customer experience\" OR \"CX\" OR \"customer success\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/planview-connect-2027/",
+            "https://sessionize.com/fabcon26workshops/",
+            "https://sessionize.com/global-fabric-day-2026-egypt/",
+            "https://sessionize.com/partner-vibe/",
+            "https://bazelcon-2026.sessionize.com/speaker/7bb85272-5f02-40de-be1c-b2ac9a288574",
+            "https://sessionize.com/planview-connect-2026/",
+            "https://sessionize.com/association-for-software-testing-cast/",
+            "https://sessionize.com/dynamicscon-regional-texas-2026/",
+            "https://kubecon-cloudnativecon-north-america-2026.sessionize.com/speaker/651aacf6-f0b3-4403-98bd-4ff8ed7445cb",
+            "https://sessionize.com/india-cloud-security-summit-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b6b",
+          "query": "(\"corporate communications\" OR \"PR\" OR \"public relations\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"New York\" OR \"Washington\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/bsides-seattle-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b6f",
+          "query": "site:sessionize.com (\"communications\" OR \"PR\" OR \"public relations\" OR \"internal comms\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/eduweb-summit-2026/",
+            "https://sessionize.com/sos2026/",
+            "https://sessionize.com/cybermarketingcon-2026/",
+            "https://sessionize.com/pytorch-conference-north-america-2026-posters/",
+            "https://sessionize.com/php-tek-2027/",
+            "https://sessionize.com/collabdays-madrid-2026/",
+            "https://sessionize.com/socon-2026/",
+            "https://sessionize.com/one-summit-2026/",
+            "https://sessionize.com/ustravels-esto2026/",
+            "https://sessionize.com/hitcon-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b71",
+          "query": "(\"entrepreneurship\" OR \"startup\" OR \"founders\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"Austin\" OR \"Silicon Valley\" OR \"Miami\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/cybermarketingcon-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b72",
+          "query": "(\"venture capital\" OR \"scaling\" OR \"business innovation\") AND \"call for papers\" AND (Canada OR Toronto OR Vancouver OR Mexico) (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/airflow-summit-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b75",
+          "query": "site:sessionize.com (\"entrepreneurship\" OR \"startup\" OR \"founder\" OR \"SaaS\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/rails-world-2026/",
+            "https://sessionize.com/pybay2026/",
+            "https://sessionize.com/himanshu-goil/",
+            "https://sessionize.com/chelsea-mandello/",
+            "https://sessionize.com/the-commit-your-code-conference-2025-c/",
+            "https://sessionize.com/dataglobalhub-gdai-2026/",
+            "https://sessionize.com/ai7101/",
+            "https://sessionize.com/droidcon-india-2026/",
+            "https://bsides-seattle-2026.sessionize.com/speaker/f33ea11e-0e2f-41ca-a7e3-3c5ad6b19f68",
+            "https://sessionize.com/cybermarketingcon-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b77",
+          "query": "(\"EdTech\" OR \"educational technology\" OR \"higher education\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"Austin\" OR \"Denver\" OR \"Chicago\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/tech-tactics-fall-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b7b",
+          "query": "(\"e-commerce\" OR \"ecommerce\" OR \"retail tech\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"New York\" OR \"Las Vegas\" OR \"Chicago\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/partner-vibe/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b7d",
+          "query": "(\"executive leadership\" OR \"C-suite\" OR \"corporate governance\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"New York\" OR \"Chicago\" OR \"Washington\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/vibe/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b81",
+          "query": "site:sessionize.com (\"leadership\" OR \"executive\" OR \"C-suite\" OR \"management\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/2026-acsa-leadership-summit/",
+            "https://sessionize.com/2026-acsa-women-in-school-leadership-for1511/",
+            "https://sessionize.com/2026-govit-leadership-summit-symposium/",
+            "https://sessionize.com/ai-devsummit-developerweek-management-2026/",
+            "https://sessionize.com/workplace-ninjas-2027-us/",
+            "https://sessionize.com/reversim-summit-2026/",
+            "https://sessionize.com/planview-connect-2027/",
+            "https://sessionize.com/lead-innovation-day-leadership-edition/",
+            "https://sessionize.com/swampup-2026/",
+            "https://sessionize.com/azure-spring-clean-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b83",
+          "query": "(\"financial services\" OR \"fintech\" OR \"banking\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"New York\" OR \"Charlotte\" OR \"San Francisco\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/aienyc2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b87",
+          "query": "site:sessionize.com (\"fintech\" OR \"finance\" OR \"banking\" OR \"blockchain\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/UN-Blockchain-Week/",
+            "https://sessionize.com/open-source-in-finance-forum-london-2026/",
+            "https://sessionize.com/convergence2026/",
+            "https://sessionize.com/valusignal-2026/",
+            "https://sessionize.com/hdax26/",
+            "https://sessionize.com/rails-world-2026/",
+            "https://sessionize.com/dynamicscon-regional-texas-2026/",
+            "https://sessionize.com/owasp-global-appsec-us-2026-cfp-SF/",
+            "https://sessionize.com/code-blue-2026/",
+            "https://sessionize.com/dynamics-365-ai-erp-summit-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b90",
+          "query": "site:sessionize.com (\"HR\" OR \"human resources\" OR \"talent\" OR \"people ops\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/developerweek-new-york-2026/",
+            "https://sessionize.com/hroug-2026/",
+            "https://sessionize.com/2026-acsa-leadership-summit/",
+            "https://sessionize.com/open-source-in-finance-forum-london-2026/",
+            "https://sessionize.com/ai-native-workplace-2026/",
+            "https://sessionize.com/workplace-ninjas-2027-us/",
+            "https://sessionize.com/hayadata-2026/",
+            "https://sessionize.com/agilempath/",
+            "https://sessionize.com/web-summer-camp-2026/",
+            "https://sessionize.com/aws-community-day-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b94",
+          "query": "(\"digital marketing\" OR \"growth hacking\" OR \"marketing strategy\") AND (\"CFP\" OR \"CFS\" OR \"apply to speak\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/cybermarketingcon-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b96",
+          "query": "site:sessionize.com (\"marketing\" OR \"digital marketing\" OR \"martech\" OR \"growth\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/cybermarketingcon-2026/",
+            "https://sessionize.com/reversim-summit-2026/",
+            "https://sessionize.com/pmr-pre-day/",
+            "https://sessionize.com/directions-emea-2026/",
+            "https://sessionize.com/codemotion-milan-26/",
+            "https://sessionize.com/power-conference-2026/",
+            "https://sessionize.com/ustravels-esto2026/",
+            "https://sessionize.com/droidcon-india-2026/",
+            "https://sessionize.com/podcast-movement-2026/",
+            "https://sessionize.com/aico-dc-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b98",
+          "query": "(\"nonprofit\" OR \"non-profit\" OR \"NGO\" OR \"philanthropy\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"Washington\" OR \"Chicago\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/bsidessf2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b9b",
+          "query": "site:sessionize.com (\"nonprofit\" OR \"non-profit\" OR \"charity\" OR \"social impact\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/the-commit-your-code-conference-2025-c/",
+            "https://sessionize.com/dc-stateofthestack-2026/",
+            "https://sessionize.com/tech-tactics-fall-2026/",
+            "https://sessionize.com/thunderplains-2026/",
+            "https://sessionize.com/open-conf-2026/",
+            "https://sessionize.com/bsidessf2026/",
+            "https://sessionize.com/drupal-govcon-2026/",
+            "https://sessionize.com/data-tlv-2026/",
+            "https://sessionize.com/kcd-sofia-2026/",
+            "https://sessionize.com/net-day-switzerland-2026/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b9d",
+          "query": "(\"women in tech\" OR \"women in technology\" OR \"WIT\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"San Francisco\" OR \"Austin\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/workplace-ninjas-2027-us/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b9f",
+          "query": "(\"women in tech\" OR \"female leaders\" OR \"diversity and inclusion\") AND (\"CFP\" OR \"CFS\" OR \"apply to speak\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/dutch-women-in-tech-call-for-sessions/"
+          ]
+        },
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8ba1",
+          "query": "site:sessionize.com (\"women in tech\" OR \"women in technology\" OR \"diversity in tech\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://sessionize.com/dutch-women-in-tech-call-for-sessions/",
+            "https://sessionize.com/extend-women-in-tech-podcast/",
+            "https://sessionize.com/south-florida-women-in-tech/",
+            "https://sessionize.com/global-security-tour-2026-microsoft-ke7411/",
+            "https://sessionize.com/microsoft-solutions-women-in-tech-speakers/",
+            "https://sessionize.com/women-in-m365/",
+            "https://sessionize.com/aichalaafia/",
+            "https://sessionize.com/workplace-ninjas-2027-us/",
+            "https://sessionize.com/mixit-2026/",
+            "https://sessionize.com/international-womens-day-kigali-2026/"
+          ]
+        }
+      ],
+      "url_collections": [
+        {
+          "url_collection_id": "69c640a02667e78a9a74f6ab",
+          "url": "https://sessionize.com/dataglobalhub-gdai-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c640ae2875dad6c53318ee",
+          "url": "https://sessionize.com/wearedevelopers-world-congress-2026-europe/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c6429e2875dad6c5331913",
+          "url": "https://sessionize.com/wearedevelopers-conference-2026-india/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c64c8bceae9c937613cc9b",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c6597ac2ae324c6a3279a3",
+          "url": "https://sessionize.com/kcdc-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c669a6096220e8fbb19352",
+          "url": "https://sessionize.com/dataglobalhub-gdai-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69c814259ef10bdf95437314",
+          "url": "https://sessionize.com/developerweek-new-york-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ca0451441cca3c740c94bb",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ca090ecac749df3119f66e",
+          "url": "https://sessionize.com/developerweek-new-york-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce326aadba2d38bdb22fa9",
+          "url": "https://sessionize.com/dataglobalhub-gdai-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce3305adba2d38bdb22faf",
+          "url": "https://sessionize.com/wearedevelopers-world-congress-2026-europe/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce38d5adba2d38bdb22fcc",
+          "url": "https://sessionize.com/women-in-technology-2026-ahmedabad/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "69ce3911adba2d38bdb22fd0",
+          "url": "https://sessionize.com/wearedevelopers-world-congress-2026-europe/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a104667844384c71c68c3ef",
+          "url": "https://sessionize.com/developerweek-new-york-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a10466c844384c71c68c3f0",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1057579b13592357764739",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a10832c7ef47609a49902ef",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1086b17ef47609a4990327",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a10873c7ef47609a4990331",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a115a146bc43b43923b9c2e",
+          "url": "https://sessionize.com/dataglobalhub-gdai-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a14323aa52d825bdb7627eb",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a143d0d4f48e142078c65ce",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1446444f48e142078c6621",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1447e1083f86edfd04a243",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a145d518e59070b3b40a6bd",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1469158e59070b3b40a733",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a146dac8e59070b3b40a76b",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1479c78e59070b3b40a7dd",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a607dfa2285ffb3c709f25f",
+          "url": "https://sessionize.com/developerweek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60812c2285ffb3c709f291",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a6081a32285ffb3c709f299",
+          "url": "https://sessionize.com/ai-horizons-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f223e484c1f67f05a549",
+          "url": "https://sessionize.com/ux-yall-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f92eabe06d2a39e7f683",
+          "url": "https://sessionize.com/web-summer-camp-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f942abe06d2a39e7f684",
+          "url": "https://sessionize.com/droidcon-orlando-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f94fabe06d2a39e7f685",
+          "url": "https://sessionize.com/stir-trek-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f95babe06d2a39e7f686",
+          "url": "https://sessionize.com/techbash-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f969abe06d2a39e7f687",
+          "url": "https://sessionize.com/la-product-conf-paris-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f976abe06d2a39e7f688",
+          "url": "https://sessionize.com/rails-world-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f983abe06d2a39e7f689",
+          "url": "https://sessionize.com/jspring26/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f98fabe06d2a39e7f68a",
+          "url": "https://sessionize.com/renderatl-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f99cabe06d2a39e7f68b",
+          "url": "https://sessionize.com/reversim-summit-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f9b8abe06d2a39e7f68d",
+          "url": "https://sessionize.com/mitechcon-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f9c4abe06d2a39e7f68e",
+          "url": "https://sessionize.com/umbraco-uk-conference-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f9e0abe06d2a39e7f690",
+          "url": "https://sessionize.com/dac-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60f9ecabe06d2a39e7f691",
+          "url": "https://sessionize.com/reactjsday-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60fa10abe06d2a39e7f693",
+          "url": "https://sessionize.com/flupa-ux-days-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60fa1cabe06d2a39e7f694",
+          "url": "https://sessionize.com/hellostavanger-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60fa29abe06d2a39e7f695",
+          "url": "https://sessionize.com/devsum-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60fa3eabe06d2a39e7f696",
+          "url": "https://sessionize.com/blablaconf-2026/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60fa4aabe06d2a39e7f697",
+          "url": "https://sessionize.com/kathleen-mcmahon/",
+          "status": "completed"
+        }
+      ],
+      "opportunities": [
+        {
+          "opportunity_id": "6a60f231e484c1f67f05a54a",
+          "event_name": "UX Y\u2019all 2026",
+          "link": "https://sessionize.com/ux-yall-2026/",
+          "createdAt": "2026-07-22T16:39:13.650000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a60f3e4e484c1f67f05a55c",
+          "event_name": "Visual Studio Live! Las Vegas 2027",
+          "link": "https://sessionize.com/vslivelasvegas27",
+          "createdAt": "2026-07-22T16:46:28.818000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a60f9aeabe06d2a39e7f68c",
+          "event_name": "Reversim Summit 2026",
+          "link": "https://sessionize.com/reversim-summit-2026/",
+          "createdAt": "2026-07-22T17:11:10.318000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a60f9dbabe06d2a39e7f68f",
+          "event_name": "Umbraco UK Conference 2026",
+          "link": "https://2026.umbracofoundation.co.uk/",
+          "createdAt": "2026-07-22T17:11:55.268000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a60fa0babe06d2a39e7f692",
+          "event_name": "reactjsday 2026",
+          "link": "https://sessionize.com/reactjsday-2026/",
+          "createdAt": "2026-07-22T17:12:43.178000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a610119149296bcf7457c71",
+          "event_name": "Tech Tactics in Education Fall 2026",
+          "link": "https://sessionize.com/tech-tactics-fall-2026/",
+          "createdAt": "2026-07-22T17:42:49.628000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a6102b6149296bcf7457c82",
+          "event_name": "AIE NYC 2026",
+          "link": "https://sessionize.com/aienyc2026/",
+          "createdAt": "2026-07-22T17:49:42.579000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a61704378f8eb31eb8d423c",
+          "event_name": "DynamicsCon Regional: Texas 2026",
+          "link": "https://sessionize.com/dynamicscon-regional-texas-2026/",
+          "createdAt": "2026-07-23T01:37:07.766000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a61759578f8eb31eb8d4267",
+          "event_name": "Planview Connect 2027",
+          "link": "https://sessionize.com/planview-connect-2027/",
+          "createdAt": "2026-07-23T01:59:49.899000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a6175c978f8eb31eb8d426b",
+          "event_name": "Tech Fuse Des Moines 2026",
+          "link": "https://sessionize.com/tech-fuse-des-moines-2026/",
+          "createdAt": "2026-07-23T02:00:41.946000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a61762678f8eb31eb8d4272",
+          "event_name": "Visual Studio Live! San Diego",
+          "link": "https://sessionize.com/vslive_sandiego26/",
+          "createdAt": "2026-07-23T02:02:14.309000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a61769d78f8eb31eb8d4277",
+          "event_name": "DynamicsCon Regional: Ohio Valley",
+          "link": "https://www.eventbrite.com/e/1981189370740?aff=oddtdtcreator",
+          "createdAt": "2026-07-23T02:04:13.271000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a6177e1149296bcf7457d44",
+          "event_name": "DynamicsCon Regional: Montreal 2026",
+          "link": "https://sessionize.com/dynamicscon-regional-montreal-2026/",
+          "createdAt": "2026-07-23T02:09:37.446000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a61a38a78f8eb31eb8d42f9",
+          "event_name": "PHP Tek 2027",
+          "link": "https://sessionize.com/php-tek-2027/",
+          "createdAt": "2026-07-23T05:15:54.741000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a61dd8c788003c747122136",
+          "event_name": "Airflow Summit 2026",
+          "link": "https://sessionize.com/airflow-summit-2026/",
+          "createdAt": "2026-07-23T09:23:24.530000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a61e217788003c74712216e",
+          "event_name": "PyBay2026",
+          "link": "https://sessionize.com/pybay2026/",
+          "createdAt": "2026-07-23T09:42:47.176000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a61e259788003c747122170",
+          "event_name": "The AI-Native Workplace Summit 2026",
+          "link": "https://ainativeworkplace.com/",
+          "createdAt": "2026-07-23T09:43:53.342000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a6200c62e71c78e20282d4d",
+          "event_name": "Nordic Summit 2026",
+          "link": "https://nordicsummit.info/",
+          "createdAt": "2026-07-23T11:53:42.588000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a6204ad2e71c78e20282d77",
+          "event_name": "Tech Tactics in Education Fall 2026",
+          "link": "https://techtacticsineducation.com/speakers",
+          "createdAt": "2026-07-23T12:10:21.940000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a622c9968435313dd53a4ac",
+          "event_name": "2026 ACSA Women in School Leadership Forum",
+          "link": "https://sessionize.com/2026-acsa-women-in-school-leadership-for1511/",
+          "createdAt": "2026-07-23T15:00:41.498000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a622d1e7384fa219763d9cb",
+          "event_name": "MCP Dev Summit",
+          "link": "https://events.linuxfoundation.org/mcp-dev-summit-toronto/program/cfp/",
+          "createdAt": "2026-07-23T15:02:54.493000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a6239a47384fa219763da5c",
+          "event_name": "UN Blockchain Week 2026",
+          "link": "https://sessionize.com/UN-Blockchain-Week/",
+          "createdAt": "2026-07-23T15:56:20.443000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623bcc7384fa219763da5f",
+          "event_name": "ValkeyConf 2026",
+          "link": "https://sessionize.com/valkeyconf-2026",
+          "createdAt": "2026-07-23T16:05:32.738000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623bcc7384fa219763da60",
+          "event_name": "2026 P4 Workshop",
+          "link": "https://sessionize.com/p4-workshop-2026",
+          "createdAt": "2026-07-23T16:05:32.738000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623bcc7384fa219763da63",
+          "event_name": "OCUDU Ecosystem Summit 2026",
+          "link": "https://sessionize.com/ocodu-ecosystem-summit-2026",
+          "createdAt": "2026-07-23T16:05:32.738000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623bcc7384fa219763da64",
+          "event_name": "OpenInfra Day North America 2026",
+          "link": "https://sessionize.com/OpenInfra2026",
+          "createdAt": "2026-07-23T16:05:32.738000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623bcc7384fa219763da65",
+          "event_name": "gRPConf India 2026",
+          "link": "https://sessionize.com/grpconf-india-2026",
+          "createdAt": "2026-07-23T16:05:32.738000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623bcc7384fa219763da66",
+          "event_name": "MCP Dev Summit Nairobi 2026",
+          "link": "https://sessionize.com/mcp-dev-summit-nairobi-2026",
+          "createdAt": "2026-07-23T16:05:32.738000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623bed7384fa219763da6b",
+          "event_name": "ValuSignal 2026",
+          "link": "https://sessionize.com/valusignal-2026/",
+          "createdAt": "2026-07-23T16:06:05.043000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623c067384fa219763da6d",
+          "event_name": "Tokenize! Conference",
+          "link": "https://sessionize.com/tokenize-conference/",
+          "createdAt": "2026-07-23T16:06:30.903000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623c3d7384fa219763da71",
+          "event_name": "Dynamics 365 AI ERP Summit 2026",
+          "link": "https://sessionize.com/dynamics-365-ai-erp-summit-2026/",
+          "createdAt": "2026-07-23T16:07:25.458000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a623c847384fa219763da77",
+          "event_name": "Convergence 2026: Microsoft's Premier Dynamics 365 Event",
+          "link": "https://sessionize.com/convergence2026/",
+          "createdAt": "2026-07-23T16:08:36.708000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a623ca47384fa219763da7a",
+          "event_name": "YYC DataCon 2026",
+          "link": "https://sessionize.com/yyc-datacon-2026/",
+          "createdAt": "2026-07-23T16:09:08.443000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a624b4668435313dd53a506",
+          "event_name": "World Happiness Fellowship",
+          "link": "https://www.worldhappinessfellowship.com/",
+          "createdAt": "2026-07-23T17:11:34.392000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a624ce268435313dd53a516",
+          "event_name": "CypherCon 10 (2027)",
+          "link": "https://sessionize.com/CypherCon2027/",
+          "createdAt": "2026-07-23T17:18:26.542000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a62566c68435313dd53a573",
+          "event_name": "Directions EMEA 2026",
+          "link": "https://www.directionsforpartners.com/emea2026",
+          "createdAt": "2026-07-23T17:59:08.341000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a6259ae68435313dd53a5a2",
+          "event_name": "Open Conf 2026 - PANELS and OPEN SPACE ACTIVITIES",
+          "link": "https://sessionize.com/open-conf-2026/",
+          "createdAt": "2026-07-23T18:13:02.213000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a625a4568435313dd53a5ae",
+          "event_name": "GHI CON",
+          "link": "https://sessionize.com/ghi-con/",
+          "createdAt": "2026-07-23T18:15:33.818000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a625f1c7384fa219763dbfd",
+          "event_name": "Open Source Summit Europe",
+          "link": "https://events.linuxfoundation.org/open-source-summit-europe/",
+          "createdAt": "2026-07-23T18:36:12.888000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a625f317384fa219763dc01",
+          "event_name": "South Florida Women in Tech",
+          "link": "https://sessionize.com/south-florida-women-in-tech/",
+          "createdAt": "2026-07-23T18:36:33.408000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a6260377384fa219763dc12",
+          "event_name": "First Stage Live: Unlocking AI in Business",
+          "link": "https://sessionize.com/first-stage-unlocking-ai-in-business/",
+          "createdAt": "2026-07-23T18:40:55.795000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a6260c87384fa219763dc16",
+          "event_name": "Workplace Ninjas US 2027",
+          "link": "https://workplaceninjas.us/",
+          "createdAt": "2026-07-23T18:43:20.710000Z",
+          "isQualified": false
+        },
+        {
+          "opportunity_id": "6a6b414a662c6d2e29025fa1",
+          "event_name": "AI DevWorld 2027",
+          "link": "https://sessionize.com/aidevworld-2027/",
+          "createdAt": "2026-07-30T12:19:22.760000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a70625af3adaeb106036040",
+          "event_name": "DevFest Campobasso 2026",
+          "link": "https://sessionize.com/devfest-campobasso-2026/",
+          "createdAt": "2026-08-03T09:41:46.908000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a706e655dd212af9fff73dd",
+          "event_name": ".Net Africa Conference 2026",
+          "link": "https://sessionize.com/net-africa-conference-2026/",
+          "createdAt": "2026-08-03T10:33:09.773000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a706ea05dd212af9fff73e1",
+          "event_name": "droidCon India 2026",
+          "link": "https://sessionize.com/droidcon-india-2026/",
+          "createdAt": "2026-08-03T10:34:08.355000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a70903e5dd212af9fff756d",
+          "event_name": "Dutch Women in Tech Call for Sessions",
+          "link": "https://sessionize.com/dutch-women-in-tech-call-for-sessions/",
+          "createdAt": "2026-08-03T12:57:34.368000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a70bd065dd212af9fff7749",
+          "event_name": "AI Engineer Code Summit",
+          "link": "https://www.ai.engineer/code/2026",
+          "createdAt": "2026-08-03T16:08:38.480000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a84566a5823585f67a9d280",
+          "event_name": "flutterCon India 2026",
+          "link": "https://sessionize.com/fluttercon-india-2026/",
+          "createdAt": "2026-08-18T12:56:10.461000Z",
+          "isQualified": true
+        },
+        {
+          "opportunity_id": "6a8456fa5823585f67a9d28a",
+          "event_name": "NDC London 2027",
+          "link": "https://sessionize.com/ndc-london-2027/",
+          "createdAt": "2026-08-18T12:58:34.676000Z",
+          "isQualified": true
+        }
+      ]
+    },
+    "aidataanalytics.network": {
+      "in_serp": false,
+      "in_url_collections": false,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 0,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [],
+      "opportunities": []
+    },
+    "corporatecompliance.org": {
+      "in_serp": true,
+      "in_url_collections": true,
+      "in_opportunities": false,
+      "serp_hit_count": 1,
+      "url_collection_count": 6,
+      "opportunity_count": 0,
+      "serp_hits": [
+        {
+          "google_query_id": "6a60fc1412de5cb877cf8b77",
+          "query": "(\"EdTech\" OR \"educational technology\" OR \"higher education\") AND (\"call for speakers\" OR \"submit a talk\") AND (USA OR \"United States\" OR \"Austin\" OR \"Denver\" OR \"Chicago\") (2026 OR 2027)",
+          "category": null,
+          "matched_urls": [
+            "https://www.corporatecompliance.org/higher-education-compliance-conference-call-speakers"
+          ]
+        }
+      ],
+      "url_collections": [
+        {
+          "url_collection_id": "6a1081277ef47609a49902cf",
+          "url": "https://www.corporatecompliance.org/higher-education-compliance-conference-call-speakers",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a62044f2e71c78e20282d72",
+          "url": "https://www.corporatecompliance.org/higher-education-compliance-conference-call-speakers",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a6208a1625570e52271cd80",
+          "url": "https://www.corporatecompliance.org/higher-education-compliance-conference-call-speakers",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a624e727384fa219763db48",
+          "url": "https://www.corporatecompliance.org/conferences/call-speakers/2026-ai-compliance-conference-series-call-speakers",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a7093e25dd212af9fff75a2",
+          "url": "https://www.corporatecompliance.org/higher-education-compliance-conference-call-speakers",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a8560215823585f67a9d515",
+          "url": "https://www.corporatecompliance.org/higher-education-compliance-conference-call-speakers",
+          "status": "completed"
+        }
+      ],
+      "opportunities": []
+    },
+    "enterpriseaiworld.com": {
+      "in_serp": false,
+      "in_url_collections": true,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 6,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [
+        {
+          "url_collection_id": "6a1431caa52d825bdb7627e7",
+          "url": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a143caf4f48e142078c65cb",
+          "url": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a145d128e59070b3b40a6b9",
+          "url": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a146d6c8e59070b3b40a768",
+          "url": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a60817e2285ffb3c709f295",
+          "url": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a6081ed2285ffb3c709f29c",
+          "url": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+          "status": "completed"
+        }
+      ],
+      "opportunities": []
+    },
+    "jupiter-miami.com": {
+      "in_serp": false,
+      "in_url_collections": true,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 1,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [
+        {
+          "url_collection_id": "6a70c64d5dd212af9fff77dd",
+          "url": "https://www.jupiter-miami.com/apply-to-speak",
+          "status": "completed"
+        }
+      ],
+      "opportunities": []
+    },
+    "marketingaiinstitute.com": {
+      "in_serp": false,
+      "in_url_collections": false,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 0,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [],
+      "opportunities": []
+    },
+    "worldsummit.ai": {
+      "in_serp": false,
+      "in_url_collections": true,
+      "in_opportunities": false,
+      "serp_hit_count": 0,
+      "url_collection_count": 4,
+      "opportunity_count": 0,
+      "serp_hits": [],
+      "url_collections": [
+        {
+          "url_collection_id": "6a104720dbb6286f4e515874",
+          "url": "https://worldsummit.ai/form-speakers-enquiries/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1087e97ef47609a499033e",
+          "url": "https://worldsummit.ai/form-speakers-enquiries/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a1474d88e59070b3b40a7aa",
+          "url": "https://worldsummit.ai/form-speakers-enquiries/",
+          "status": "completed"
+        },
+        {
+          "url_collection_id": "6a6082d52285ffb3c709f2aa",
+          "url": "https://worldsummit.ai/form-speakers-enquiries/",
+          "status": "completed"
+        }
+      ],
+      "opportunities": []
+    }
+  },
+  "totals": {
+    "google_queries": 74,
+    "url_collections_scanned": 6494,
+    "opportunities_scanned": 725
+  }
+}
