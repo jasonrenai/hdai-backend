@@ -18,14 +18,14 @@ from app.services.UrlScraperRapidAPI import UrlScraperRapidAPIService, RAPIDAPI_
 
 logger = logging.getLogger(__name__)
 
-GOOGLE_QUERY_TOP_N = 20
+GOOGLE_QUERY_TOP_N = 30
 SERP_PAGE_SIZE = 10
 
 
 class GoogleQueryScraperService:
     """
     Flow: Save query+createdAt+status=pending to GoogleQueries -> background task
-    runs SERP (2 pages / top N URLs) -> skips URLs already known in Opportunities ->
+    runs SERP (3 pages / top N URLs) -> skips URLs already known in Opportunities ->
     runs RapidAPI+LLM extraction flow as UrlScraperRapidAPIService.
     """
 
