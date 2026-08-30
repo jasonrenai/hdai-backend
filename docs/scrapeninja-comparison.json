@@ -1,0 +1,394 @@
+{
+  "summary": {
+    "tested": 5,
+    "winner_counts": {
+      "current": 0,
+      "ninja_static": 3,
+      "ninja_js": 2,
+      "none": 0
+    },
+    "current_thin_or_fail": 2,
+    "ninja_js_usable_with_form_signal": 4,
+    "thin_threshold_chars": 500,
+    "generated_at": "2026-08-30T05:55:15.474986Z"
+  },
+  "results": [
+    {
+      "url": "https://2026.allthingsai.org/calling-the-worlds-best-ai-speakers",
+      "current": {
+        "provider": "ai-content-scraper",
+        "ok": true,
+        "error": null,
+        "content_len": 210,
+        "elapsed_ms": 939,
+        "name": "Client Challenge",
+        "description": "",
+        "preview": " A required part of this site couldn\u2019t load. This may be due to a browser extension, network issues, or browser settings. Please check your connection, disable any ad blockers, or try using a different browser.",
+        "thin": true
+      },
+      "ninja_static": {
+        "provider": "scrapeninja-static",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 11190,
+        "elapsed_ms": 2991,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "billingPoints",
+            "headers",
+            "statusCode",
+            "statusMessage",
+            "version"
+          ],
+          "html_len": 63513,
+          "text_len": 11190
+        },
+        "preview": "Calling the World&#039;s Best AI Speakers &#8226; All Things AI 2026 Conference Close About Register Schedule Sponsors Speakers News Subscribe Calling the World&#8217;s Best AI Speakers 2026 Call for Papers (CFP) Now Open! We\u2019re thrilled to announce the 2026 All Things AI call for papers (CFP) is no",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "ninja_js": {
+        "provider": "scrapeninja-js",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 11178,
+        "elapsed_ms": 19077,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "attemptsNum",
+            "billingPoints",
+            "errStack",
+            "finalUrl",
+            "headers",
+            "js",
+            "log",
+            "pageCookies",
+            "screenshot",
+            "statusCode"
+          ],
+          "html_len": 682236,
+          "text_len": 11178
+        },
+        "preview": "Calling the World's Best AI Speakers \u2022 All Things AI 2026 Conference Close About Register Schedule Sponsors Speakers News Subscribe Calling the World\u2019s Best AI Speakers 2026 Call for Papers (CFP) Now Open! We\u2019re thrilled to announce the 2026 All Things AI call for papers (CFP) is now open! Please ta",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "winner": "ninja_static"
+    },
+    {
+      "url": "https://worldsummit.ai/form-speakers-enquiries/",
+      "current": {
+        "provider": "ai-content-scraper",
+        "ok": true,
+        "error": null,
+        "content_len": 103,
+        "elapsed_ms": 1959,
+        "name": "FORM \u2013 SPEAKER ENQUIRIES - World Summit AI Amsterdam",
+        "description": "Apply to speak at World Summit AI",
+        "preview": "# Speaker enquiries  ### Thank you so much for your interest in speaking at one of our events.  ---    ",
+        "thin": true
+      },
+      "ninja_static": {
+        "provider": "scrapeninja-static",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 1102,
+        "elapsed_ms": 3343,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "billingPoints",
+            "headers",
+            "statusCode",
+            "statusMessage",
+            "version"
+          ],
+          "html_len": 45331,
+          "text_len": 1102
+        },
+        "preview": "FORM \u2013 SPEAKER ENQUIRIES - World Summit AI Amsterdam You are using an outdated browser. Please upgrade your browser to improve your experience. AGENDA SPEAKERS STARTUPS & INVESTORS COMMUNITY HUB COMMERCIAL PARTNERS COMMUNITY PARTNERS MORE WHO\u2019S ATTENDING STARTUP ACCELERATOR STARTUP COMPETITION INTER",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "ninja_js": {
+        "provider": "scrapeninja-js",
+        "ok": false,
+        "http_status": 503,
+        "error": "http=503 empty_or_error",
+        "content_len": 411,
+        "elapsed_ms": 31946,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "error",
+            "info"
+          ],
+          "info_status": 503,
+          "info_keys": [
+            "attemptsNum",
+            "errStack",
+            "finalUrl",
+            "headers",
+            "js",
+            "log",
+            "pageCookies",
+            "screenshot",
+            "statusCode"
+          ]
+        },
+        "preview": "{\"info\": {\"js\": true, \"attemptsNum\": 1, \"statusCode\": 503, \"screenshot\": \"https://cdn2.scrapeninja.net/2026-08-30-T05-54-00-o754v1uknjaiyc5nrj2ptt06bj6fiq0nmtfe9c6x.png\", \"log\": [], \"finalUrl\": null, \"headers\": [], \"pageCookies\": \"\", \"errStack\": [\"Navigation timeout of 30000 ms exceeded\"]}, \"error\":",
+        "thin": true,
+        "has_form_signal": false
+      },
+      "winner": "ninja_static"
+    },
+    {
+      "url": "https://www.jupiter-miami.com/apply-to-speak",
+      "current": {
+        "provider": "ai-content-scraper",
+        "ok": true,
+        "error": null,
+        "content_len": 4544,
+        "elapsed_ms": 2057,
+        "name": "Apply to Speak, open until June 22nd, 2026 - Jupiter Festival Miami",
+        "description": "the only event that brings together the world of media, entertainment and sports for global collaboration\n",
+        "preview": "![](https://www.jupiter-miami.com/images/jupiter-miami/background/WAVE%20GRADIENT.webp)  ![](https://www.jupiter-miami.com/images/jupiter-miami/background/WAVE%20GRADIENT.webp)  banner-image-1  banner-image-1  # Apply to Speak, open until June 22nd, 2026  ## WE WANT YOU TO COME AND BE A PART OF JUPI",
+        "thin": false
+      },
+      "ninja_static": {
+        "provider": "scrapeninja-static",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 5396,
+        "elapsed_ms": 2689,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "billingPoints",
+            "headers",
+            "statusCode",
+            "statusMessage",
+            "version"
+          ],
+          "html_len": 82287,
+          "text_len": 5396
+        },
+        "preview": "Apply to Speak, open until June 22nd, 2026 - Jupiter Festival Miami LIMITED SUMMER SPECIAL PASSES AVAILABLE - $1,195 UNTIL August 31st Founding Partner: Sponsored by: Affiliate Partner: Affiliate Partner: Main Menu Attend Buy Pass Now Why Attend Hotels Networking Speakers Speakers Apply to Speak Par",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "ninja_js": {
+        "provider": "scrapeninja-js",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 9000,
+        "elapsed_ms": 14051,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "attemptsNum",
+            "billingPoints",
+            "errStack",
+            "finalUrl",
+            "headers",
+            "js",
+            "log",
+            "pageCookies",
+            "screenshot",
+            "statusCode"
+          ],
+          "html_len": 174219,
+          "text_len": 9000
+        },
+        "preview": "Apply to Speak, open until June 22nd, 2026 - Jupiter Festival Miami LIMITED SUMMER SPECIAL PASSES AVAILABLE - $1,195 UNTIL August 31st Founding Partner: Sponsored by: Affiliate Partner: Affiliate Partner: Main Menu Attend Buy Pass Now Why Attend Hotels Networking Speakers Speakers Apply to Speak Par",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "winner": "ninja_js"
+    },
+    {
+      "url": "https://www.marketingaiinstitute.com/blog/maicon-call-for-speakers",
+      "current": {
+        "provider": "ai-content-scraper",
+        "ok": true,
+        "error": null,
+        "content_len": 6119,
+        "elapsed_ms": 2017,
+        "name": "Now Open: Marketing AI Conference (MAICON)  Call for Speakers",
+        "description": "We\u2019re looking for authors, entrepreneurs, educators, practitioners and experts who can help make AI approachable and actionable for marketers for our Marketing Artificial Intelligence Conference (MAIC",
+        "preview": " 1 Min Read  # Now Open: Marketing Artificial Intelligence Conference (MAICON) and AI Academy for Marketers Call for Speakers  By [Paul Roetzer ](https://www.marketingaiinstitute.com/blog/author/paul-roetzer) on October 6, 2020  ![Featured Image](https://www.marketingaiinstitute.com/hubfs/Imported_B",
+        "thin": false
+      },
+      "ninja_static": {
+        "provider": "scrapeninja-static",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 5203,
+        "elapsed_ms": 2569,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "billingPoints",
+            "headers",
+            "statusCode",
+            "statusMessage",
+            "version"
+          ],
+          "html_len": 117787,
+          "text_len": 5203
+        },
+        "preview": "Now Open: Marketing AI Conference (MAICON) Call for Speakers SMARTERX AI ACADEMY MARKETING AI INSTITUTE MAII PODCAST MAICON 2026 is taking place Oct. 13-15 in Cleveland. Join thousands of AI-forward peers. Register Today! About What Is AI Advertise Consulting Partners Workshops Contact Us Resources ",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "ninja_js": {
+        "provider": "scrapeninja-js",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 5203,
+        "elapsed_ms": 33369,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "attemptsNum",
+            "billingPoints",
+            "errStack",
+            "finalUrl",
+            "headers",
+            "js",
+            "log",
+            "pageCookies",
+            "screenshot",
+            "statusCode"
+          ],
+          "html_len": 160424,
+          "text_len": 5203
+        },
+        "preview": "Now Open: Marketing AI Conference (MAICON) Call for Speakers SMARTERX AI ACADEMY MARKETING AI INSTITUTE MAII PODCAST MAICON 2026 is taking place Oct. 13-15 in Cleveland. Join thousands of AI-forward peers. Register Today! About What Is AI Advertise Consulting Partners Workshops Contact Us Resources ",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "winner": "ninja_static"
+    },
+    {
+      "url": "https://www.marketingaiinstitute.com/speaking-inquiries",
+      "current": {
+        "provider": "ai-content-scraper",
+        "ok": true,
+        "error": null,
+        "content_len": 3805,
+        "elapsed_ms": 835,
+        "name": "Speaking Inquiries | Marketing AI Institute",
+        "description": "Looking for an AI expert from Marketing AI Institute to speak at your next event? Fill out to form to get in touch.",
+        "preview": "Search   _Search_   Toggle Menu   [![Contact Us](https://no-cache.hubspot.com/cta/default/20757840/85d7a81f-6a75-4f73-9cce-739d839212d4.png)](https://cta-redirect.hubspot.com/cta/redirect/20757840/85d7a81f-6a75-4f73-9cce-739d839212d4)   [ _Facebook_ ](https://www.facebook.com/marketingAIinstitute) [",
+        "thin": false
+      },
+      "ninja_static": {
+        "provider": "scrapeninja-static",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 2257,
+        "elapsed_ms": 2637,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "billingPoints",
+            "headers",
+            "statusCode",
+            "statusMessage",
+            "version"
+          ],
+          "html_len": 110082,
+          "text_len": 2257
+        },
+        "preview": "Speaking Inquiries | Marketing AI Institute MAICON 2026 happens Oct. 13-15 - will you be there? SECURE YOUR SPOT Education AI Academy 3.0 Launch The AI Literacy Project AI Academy Home Blog Blueprints Community Free Classes Research Webinars Events AI for Business Bootcamp AI in CLE MAICON Tools AI ",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "ninja_js": {
+        "provider": "scrapeninja-js",
+        "ok": true,
+        "http_status": 200,
+        "error": null,
+        "content_len": 14522,
+        "elapsed_ms": 13833,
+        "meta": {
+          "raw_type": "dict",
+          "top_keys": [
+            "body",
+            "info"
+          ],
+          "info_status": 200,
+          "info_keys": [
+            "attemptsNum",
+            "billingPoints",
+            "errStack",
+            "finalUrl",
+            "headers",
+            "js",
+            "log",
+            "pageCookies",
+            "screenshot",
+            "statusCode"
+          ],
+          "html_len": 198624,
+          "text_len": 14522
+        },
+        "preview": "Speaking Inquiries | Marketing AI Institute MAICON 2026 happens Oct. 13-15 - will you be there? SECURE YOUR SPOT Education AI Academy 3.0 Launch The AI Literacy Project AI Academy Home Blog Blueprints Community Free Classes Research Webinars Events AI for Business Bootcamp AI in CLE MAICON Tools AI ",
+        "thin": false,
+        "has_form_signal": true
+      },
+      "winner": "ninja_js"
+    }
+  ]
+}

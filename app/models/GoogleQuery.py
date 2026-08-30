@@ -30,6 +30,16 @@ class GoogleQueryModel:
         )
         return result.modified_count > 0
 
+    async def set_related_topics(self, google_query_id: str, topics: list[str]) -> bool:
+        """Persist catalog topic tags for a GoogleQuery."""
+        return await self.update_by_id(
+            google_query_id,
+            {
+                "relatedTopics": list(topics or []),
+                "updatedAt": datetime.utcnow(),
+            },
+        )
+
     async def get_list(
         self, user_id: str | None = None, skip: int = 0, limit: int = 100, sort_by: dict | None = None
     ) -> list[dict]:

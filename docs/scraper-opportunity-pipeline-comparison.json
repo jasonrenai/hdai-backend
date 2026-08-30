@@ -1,0 +1,151 @@
+{
+  "summary": {
+    "generated_at": "2026-08-30T06:39:34.386718Z",
+    "tested": 4,
+    "regressions": 0,
+    "content_improvements_on_improve_role": 2,
+    "diff_counts": {
+      "gained": 0,
+      "lost": 0,
+      "same": 4
+    }
+  },
+  "results": [
+    {
+      "url": "https://2026.allthingsai.org/calling-the-worlds-best-ai-speakers",
+      "role": "improve",
+      "legacy": {
+        "provider": "legacy",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 210,
+        "scrape_path": null,
+        "name": "Client Challenge",
+        "opportunities_after_pipeline": 0,
+        "complete_count": 0,
+        "samples": []
+      },
+      "scrapeninja": {
+        "provider": "scrapeninja",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 11050,
+        "scrape_path": "static",
+        "name": "Calling the World's Best AI Speakers",
+        "opportunities_after_pipeline": 0,
+        "complete_count": 0,
+        "samples": []
+      },
+      "diff": "same",
+      "fail_reason": null
+    },
+    {
+      "url": "https://worldsummit.ai/form-speakers-enquiries/",
+      "role": "improve",
+      "legacy": {
+        "provider": "legacy",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 103,
+        "scrape_path": null,
+        "name": "FORM \u2013 SPEAKER ENQUIRIES - World Summit AI Amsterdam",
+        "opportunities_after_pipeline": 0,
+        "complete_count": 0,
+        "samples": []
+      },
+      "scrapeninja": {
+        "provider": "scrapeninja",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 539,
+        "scrape_path": "static",
+        "name": "FORM \u2013 SPEAKER ENQUIRIES - World Summit AI Amsterdam",
+        "opportunities_after_pipeline": 0,
+        "complete_count": 0,
+        "samples": []
+      },
+      "diff": "same",
+      "fail_reason": null
+    },
+    {
+      "url": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+      "role": "control",
+      "legacy": {
+        "provider": "legacy",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 5726,
+        "scrape_path": null,
+        "name": "\n\tSubmit a Proposal to Speak at Enterprise AI World 2026\n",
+        "opportunities_after_pipeline": 1,
+        "complete_count": 1,
+        "samples": [
+          {
+            "event_name": "Designing Adaptive Organizations with Enterprise AI",
+            "link": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+            "isVerified": true
+          }
+        ]
+      },
+      "scrapeninja": {
+        "provider": "scrapeninja",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 5497,
+        "scrape_path": "static",
+        "name": "Submit a Proposal to Speak at Enterprise AI World 2026",
+        "opportunities_after_pipeline": 1,
+        "complete_count": 1,
+        "samples": [
+          {
+            "event_name": "Designing Adaptive Organizations with Enterprise AI",
+            "link": "https://www.enterpriseaiworld.com/Conference/2026/CallForSpeakers.aspx",
+            "isVerified": true
+          }
+        ]
+      },
+      "diff": "same",
+      "fail_reason": null
+    },
+    {
+      "url": "https://reg.theaisummit.com/new-york-submit-speaker",
+      "role": "control",
+      "legacy": {
+        "provider": "legacy",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 15785,
+        "scrape_path": null,
+        "name": "Submit a Speaker | The AI Summit New York",
+        "opportunities_after_pipeline": 1,
+        "complete_count": 1,
+        "samples": [
+          {
+            "event_name": "THE AI SUMMIT NEW YORK",
+            "link": "https://reg.theaisummit.com/new-york-submit-speaker",
+            "isVerified": true
+          }
+        ]
+      },
+      "scrapeninja": {
+        "provider": "scrapeninja",
+        "scrape_ok": true,
+        "scrape_error": null,
+        "content_len": 8486,
+        "scrape_path": "static",
+        "name": "Submit a Speaker | The AI Summit New York",
+        "opportunities_after_pipeline": 1,
+        "complete_count": 1,
+        "samples": [
+          {
+            "event_name": "The AI Summit New York",
+            "link": "https://reg.theaisummit.com/new-york-submit-speaker",
+            "isVerified": true
+          }
+        ]
+      },
+      "diff": "same",
+      "fail_reason": null
+    }
+  ]
+}

@@ -10,6 +10,7 @@ from app.config.recent_activity import (
     RECENT_ACTIVITY_TYPE_OPPORTUNITIES,
     message_opportunities_added,
 )
+from app.helpers.GoogleQueryTopicTagger import resolve_related_topics
 from app.helpers.SerpHelper import SerpHelper
 from app.models.GoogleQuery import GoogleQueryModel
 from app.models.Opportunity import OpportunityModel
@@ -36,6 +37,7 @@ class GoogleQueryScraperService:
         self.opportunity_model = OpportunityModel()
 
     async def create_google_query_job(self, query: str, user_id: Optional[str] = None) -> str:
+        related_topics = await asyncio.to_thread(resolve_related_topics, query)
         doc = {
             "query": query,
             "status": "pending",
@@ -44,12 +46,33 @@ class GoogleQueryScraperService:
             "urls": [],
             "urlCollectionIds": [],
             "error": None,
+            "relatedTopics": related_topics,
         }
         if user_id:
             doc["userId"] = user_id
         inserted_id = await self.google_query_model.create(doc)
-        logger.info("GoogleQuery created google_query_id=%s query=%s", inserted_id, query[:120])
+        logger.info(
+            "GoogleQuery created google_query_id=%s query=%s relatedTopics=%s",
+            inserted_id,
+            query[:120],
+            related_topics,
+        )
         return inserted_id
+
+    async def _ensure_related_topics(self, google_query_id: str, query: str) -> list[str]:
+        """Tag relatedTopics if missing/empty (e.g. older or script-inserted docs)."""
+        existing = await self.google_query_model.get_by_id(google_query_id)
+        current = (existing or {}).get("relatedTopics")
+        if isinstance(current, list) and len(current) > 0:
+            return current
+        related_topics = await asyncio.to_thread(resolve_related_topics, query)
+        await self.google_query_model.set_related_topics(google_query_id, related_topics)
+        logger.info(
+            "GoogleQuery relatedTopics set google_query_id=%s relatedTopics=%s",
+            google_query_id,
+            related_topics,
+        )
+        return related_topics
 
     async def get_google_query_by_id(self, google_query_id: str, user_id: Optional[str] = None):
         return await self.google_query_model.get_by_id(google_query_id, user_id=user_id)
@@ -88,6 +111,7 @@ class GoogleQueryScraperService:
             {"status": "running", "updatedAt": datetime.utcnow(), "error": None},
         )
         try:
+            await self._ensure_related_topics(google_query_id, query)
             urls = await asyncio.to_thread(
                 SerpHelper().search_multi_page,
                 query,
