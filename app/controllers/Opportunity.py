@@ -1,5 +1,7 @@
 """Controller for Opportunities and speaker outreach email content."""
 
+from typing import Optional
+
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from app.schemas.ServerResponse import ServerResponse
 from app.schemas.Opportunity import (
@@ -42,10 +44,17 @@ async def list_opportunities(
             "past (deadline < today). Deadline is a string YYYY-MM-DD."
         ),
     ),
+    search: Optional[str] = Query(
+        None,
+        description=(
+            "Case-insensitive search against event_name, link, "
+            "or submissionInfo.applicationLink (submission link)"
+        ),
+    ),
     service=Depends(get_opportunity_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List opportunities with pagination, deadline filter, and deadline sort."""
+    """List opportunities with pagination, deadline filter, event name search, and deadline sort."""
     try:
         result = await service.list_opportunities(
             page=page,
@@ -55,6 +64,7 @@ async def list_opportunities(
             sort_by_created_at=sort_by_created_at,
             sort_by_deadline=sort_by_deadline,
             time_filter=filter,
+            search=search,
         )
         return Utils.create_response(result, True)
     except ValueError as e:
@@ -287,6 +297,13 @@ async def get_opportunity_application_content(
 @router.get("/matched", response_model=ServerResponse)
 async def get_matched_opportunities_by_speaker(
     speaker_profile_id: str = Query(..., description="Speaker profile ID"),
+    search: Optional[str] = Query(
+        None,
+        description=(
+            "Case-insensitive search against event_name, link, "
+            "or submissionInfo.applicationLink (submission link)"
+        ),
+    ),
     service=Depends(get_opportunity_service),
     jwt_payload: dict = Depends(jwt_validator),
 ):
@@ -294,13 +311,21 @@ async def get_matched_opportunities_by_speaker(
     Get matched opportunities for a speaker from the matchedOpportunities collection.
     Returns full opportunity documents (including nested activity flags) whose ids are
     in the saved opportunities array for this speaker.
+    Optional search filters by event_name, link, or submission link.
     """
     try:
         opportunities, status = await service.get_matched_opportunities_by_speaker_id(
-            speaker_profile_id
+            speaker_profile_id,
+            search=search,
         )
+        search_text = (search or "").strip() or None
         return Utils.create_response(
-            {"opportunities": opportunities, "status": status}, True
+            {
+                "opportunities": opportunities,
+                "status": status,
+                "search": search_text,
+            },
+            True,
         )
     except HTTPException:
         raise

@@ -1,6 +1,7 @@
 """Service for Opportunities CRUD operations and speaker-based matching via Mongo filters."""
 
 import logging
+import re
 from typing import List
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,18 @@ def _profile_string_list(value) -> list[str]:
     return out
 
 
+def _opportunity_matches_search(opp: dict, search_text: str) -> bool:
+    """Case-insensitive substring match on event_name, link, or submission applicationLink."""
+    needle = (search_text or "").strip().lower()
+    if not needle:
+        return True
+    event_name = str(opp.get("event_name") or "").lower()
+    link = str(opp.get("link") or "").lower()
+    sub = opp.get("submissionInfo") if isinstance(opp.get("submissionInfo"), dict) else {}
+    application_link = str(sub.get("applicationLink") or "").lower()
+    return needle in event_name or needle in link or needle in application_link
+
+
 class OpportunityService:
     def __init__(
         self,
@@ -58,12 +71,15 @@ class OpportunityService:
         sort_by_created_at: str | None = None,
         sort_by_deadline: str | None = "asc",
         time_filter: str | None = None,
+        search: str | None = None,
     ) -> dict:
         """
         List opportunities with pagination. page is 1-based.
         Optional sort by start_date, end_date, and/or created_at (asc/desc).
         sort_by_deadline: asc (default) | desc; 'deadline not found' always last.
         time_filter: future | past | none (all). Filters on submissionInfo.deadline.
+        search: optional case-insensitive substring match on event_name, link,
+        or submissionInfo.applicationLink (submission link).
         """
         skip = (page - 1) * limit
         sort_by = self._build_sort(
@@ -75,6 +91,17 @@ class OpportunityService:
         if deadline_sort not in ("asc", "desc"):
             raise ValueError("sort_by_deadline must be asc or desc")
         query = deadline_time_filter_query(time_filter)
+        search_text = (search or "").strip() or None
+        if search_text:
+            pattern = {"$regex": re.escape(search_text), "$options": "i"}
+            search_clause = {
+                "$or": [
+                    {"event_name": pattern},
+                    {"link": pattern},
+                    {"submissionInfo.applicationLink": pattern},
+                ],
+            }
+            query = {"$and": [query, search_clause]} if query else search_clause
         opportunities = await self.model.get_list(
             skip=skip,
             limit=limit,
@@ -90,6 +117,7 @@ class OpportunityService:
             "limit": limit,
             "totalPages": (total + limit - 1) // limit if limit > 0 else 0,
             "filter": (time_filter or "none").strip().lower() or "none",
+            "search": search_text,
             "sort_by_deadline": deadline_sort,
         }
 
@@ -128,9 +156,10 @@ class OpportunityService:
     ) -> List[dict]:
         """
         Match opportunities in Mongo by speaker topics, speaking formats, delivery mode,
-        target audiences, and geography_preferences (International – Virtual only /
-        International – In-Person only). Only includes isVerified=true. Includes open
-        deadlines (YYYY-MM-DD >= today) and opportunities with missing / \"deadline not found\" deadline.
+        target audiences, and geography_preferences (US region prefs for in-person US
+        events; International – In-Person only for in-person outside the US; virtual/hybrid
+        skip the geography gate). Only includes isVerified=true. Includes open deadlines
+        (YYYY-MM-DD >= today) and opportunities with missing / \"deadline not found\" deadline.
         """
         profile = await self.speaker_profile_model.get_profile(speaker_profile_id)
         if not profile:
@@ -236,7 +265,9 @@ class OpportunityService:
         return not is_weekly_new_opportunity_frequency(frequency)
 
     async def get_matched_opportunities_by_speaker_id(
-        self, speaker_profile_id: str
+        self,
+        speaker_profile_id: str,
+        search: str | None = None,
     ) -> tuple[List[dict], str]:
         """
         Get matched opportunities stored for this speaker (from matchedOpportunities collection).
@@ -244,6 +275,8 @@ class OpportunityService:
         where status is 'processing' or 'completed'.
         Re-applies geography / virtual-only delivery filters so a profile update is reflected
         without waiting for a rematch.
+        Optional search: case-insensitive substring on event_name, link, or
+        submissionInfo.applicationLink.
         """
         doc = await self.matched_opportunities_model.get_by_speaker_id(speaker_profile_id)
         if not doc:
@@ -260,6 +293,11 @@ class OpportunityService:
                 geography_preferences=geography_prefs_from_profile(profile),
                 delivery_modes=_profile_string_list(profile.get("delivery_mode")),
             )
+        search_text = (search or "").strip() or None
+        if search_text:
+            opportunities = [
+                opp for opp in opportunities if _opportunity_matches_search(opp, search_text)
+            ]
         for opp in opportunities:
             if opp.get("_id") is not None:
                 opp["_id"] = str(opp["_id"])

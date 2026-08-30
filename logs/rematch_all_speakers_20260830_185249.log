@@ -1,0 +1,36 @@
+2026-08-30 18:52:50,954 INFO Cleared matchedOpportunities: before=10 deleted=10
+2026-08-30 18:52:51,193 INFO Rematching 10 speaker profile(s)
+2026-08-30 18:52:51,193 INFO [1/10] Matching speaker_id=6a8f058a3829888c7d467750 name=jason
+2026-08-30 18:52:51,822 INFO [1/10] Done speaker_id=6a8f058a3829888c7d467750 status=completed matches=59
+2026-08-30 18:52:51,822 INFO [2/10] Matching speaker_id=6a8f02373829888c7d46774d name=Jason Renai
+2026-08-30 18:52:52,299 INFO [2/10] Done speaker_id=6a8f02373829888c7d46774d status=completed matches=1
+2026-08-30 18:52:52,299 INFO [3/10] Matching speaker_id=6a869b0d8be379c623247fa3 name=Sarah Mitchell
+2026-08-30 18:52:52,771 INFO [3/10] Done speaker_id=6a869b0d8be379c623247fa3 status=completed matches=61
+2026-08-30 18:52:52,771 INFO [4/10] Matching speaker_id=6a63483b7384fa219763dc3e name=Manish Gautam
+2026-08-30 18:52:53,154 INFO [4/10] Done speaker_id=6a63483b7384fa219763dc3e status=completed matches=19
+2026-08-30 18:52:53,154 INFO [5/10] Matching speaker_id=6a259ad9bf716093173f8cd4 name=Dr. David Mitchell
+2026-08-30 18:52:53,562 INFO [5/10] Done speaker_id=6a259ad9bf716093173f8cd4 status=completed matches=0
+2026-08-30 18:52:53,562 INFO [6/10] Matching speaker_id=6a24cba1650eade6b2f84631 name=Jennifer Jones-Mitchell
+2026-08-30 18:52:54,104 INFO [6/10] Done speaker_id=6a24cba1650eade6b2f84631 status=completed matches=131
+2026-08-30 18:52:54,104 INFO [7/10] Matching speaker_id=69d3ea4e44de12bf73c12298 name=Katherine Morales
+2026-08-30 18:52:54,497 INFO [7/10] Done speaker_id=69d3ea4e44de12bf73c12298 status=completed matches=0
+2026-08-30 18:52:54,497 INFO [8/10] Matching speaker_id=69d3b78044de12bf73c12296 name=Katherine Morales, APR
+2026-08-30 18:52:54,876 INFO [8/10] Done speaker_id=69d3b78044de12bf73c12296 status=completed matches=15
+2026-08-30 18:52:54,876 INFO [9/10] Matching speaker_id=69d03b088f9008143d6dea9d name=jennifer
+2026-08-30 18:52:55,208 INFO [9/10] Done speaker_id=69d03b088f9008143d6dea9d status=completed matches=0
+2026-08-30 18:52:55,208 INFO [10/10] Matching speaker_id=69bd61749d3cb45e8cadb4e3 name=Katherine Morales, APR
+2026-08-30 18:52:55,666 INFO [10/10] Done speaker_id=69bd61749d3cb45e8cadb4e3 status=completed matches=20
+
+=== Rematch summary ===
+6a8f058a3829888c7d467750 | jason | status=completed | matches=59
+6a8f02373829888c7d46774d | Jason Renai | status=completed | matches=1
+6a869b0d8be379c623247fa3 | Sarah Mitchell | status=completed | matches=61
+6a63483b7384fa219763dc3e | Manish Gautam | status=completed | matches=19
+6a259ad9bf716093173f8cd4 | Dr. David Mitchell | status=completed | matches=0
+6a24cba1650eade6b2f84631 | Jennifer Jones-Mitchell | status=completed | matches=131
+69d3ea4e44de12bf73c12298 | Katherine Morales | status=completed | matches=0
+69d3b78044de12bf73c12296 | Katherine Morales, APR | status=completed | matches=15
+69d03b088f9008143d6dea9d | jennifer | status=completed | matches=0
+69bd61749d3cb45e8cadb4e3 | Katherine Morales, APR | status=completed | matches=20
+Total profiles: 10
+matchedOpportunities docs now: 10
