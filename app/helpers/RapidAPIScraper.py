@@ -156,7 +156,7 @@ class RapidAPIScraper:
 
     # -------------------------------------------------------------- scrapeninja
     def _scrape_scrapeninja(self, url: str) -> dict:
-        logger.info("Starting ScrapeNinja scrape for url=%s", url[:80])
+        logger.info("Starting ScrapeNinja scrape (provider=scrapeninja) for url=%s", url[:80])
         thin_chars = max(1, _env_int("SCRAPENINJA_THIN_CHARS", _DEFAULT_THIN_CHARS))
         enable_js = _env_bool("SCRAPENINJA_ENABLE_JS_FALLBACK", True)
 
