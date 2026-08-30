@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from app.dependencies import get_google_query_scraper_service
@@ -13,12 +15,31 @@ router = APIRouter(prefix="/api/v1/google-query-scraper", tags=["Google Query Sc
 async def get_all_google_queries(
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     limit: int = Query(10, ge=1, le=500, description="Items per page"),
+    search: Optional[str] = Query(
+        None,
+        description="Case-insensitive search against the Google query text",
+    ),
+    relatedTopics: Optional[List[str]] = Query(
+        None,
+        description=(
+            "Filter by related topics (match any). "
+            "Repeat the param and/or comma-separate values, e.g. relatedTopics=AI&relatedTopics=Marketing"
+        ),
+    ),
     service=Depends(get_google_query_scraper_service),
     _jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List all Google queries with page/limit pagination."""
+    """List Google queries with pagination, optional text search, and relatedTopics filter.
+
+    Each item includes ``relatedTopics`` for frontend display.
+    """
     try:
-        result = await service.get_list(page=page, limit=limit)
+        result = await service.get_list(
+            page=page,
+            limit=limit,
+            search=search,
+            related_topics=relatedTopics,
+        )
         return Utils.create_response(result, True)
     except HTTPException:
         raise
@@ -86,6 +107,8 @@ async def get_google_query(
                 detail={"data": None, "error": "GoogleQuery not found", "success": False},
             )
         doc["_id"] = str(doc["_id"])
+        if not isinstance(doc.get("relatedTopics"), list):
+            doc["relatedTopics"] = []
         return Utils.create_response(doc, True)
     except HTTPException:
         raise

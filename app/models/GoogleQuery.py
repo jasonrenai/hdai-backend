@@ -1,5 +1,7 @@
 import os
+import re
 from datetime import datetime, timedelta
+from typing import Optional, Sequence
 
 from bson import ObjectId
 from pymongo import ReturnDocument
@@ -40,17 +42,53 @@ class GoogleQueryModel:
             },
         )
 
+    @staticmethod
+    def _build_filter(
+        user_id: str | None = None,
+        search: str | None = None,
+        related_topics: Optional[Sequence[str]] = None,
+    ) -> dict:
+        """Build Mongo filter for list/count (text search + relatedTopics)."""
+        clauses: list[dict] = []
+        if user_id is not None:
+            clauses.append({"userId": user_id})
+
+        search_text = (search or "").strip()
+        if search_text:
+            clauses.append(
+                {"query": {"$regex": re.escape(search_text), "$options": "i"}}
+            )
+
+        topics = [str(t).strip() for t in (related_topics or []) if str(t or "").strip()]
+        if topics:
+            clauses.append({"relatedTopics": {"$in": topics}})
+
+        if not clauses:
+            return {}
+        if len(clauses) == 1:
+            return clauses[0]
+        return {"$and": clauses}
+
     async def get_list(
-        self, user_id: str | None = None, skip: int = 0, limit: int = 100, sort_by: dict | None = None
+        self,
+        user_id: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+        sort_by: dict | None = None,
+        search: str | None = None,
+        related_topics: Optional[Sequence[str]] = None,
     ) -> list[dict]:
         """
         Get GoogleQueries with pagination.
         Default order by status: running → completed → pending → failed/other,
         then createdAt desc within each status.
+        Optional case-insensitive ``search`` on query text and ``related_topics`` ($in).
         """
-        query: dict = {}
-        if user_id is not None:
-            query["userId"] = user_id
+        query = self._build_filter(
+            user_id=user_id,
+            search=search,
+            related_topics=related_topics,
+        )
 
         # Explicit custom order when no override sort is provided.
         if sort_by is None:
@@ -87,11 +125,18 @@ class GoogleQueryModel:
         )
         return [doc async for doc in cursor]
 
-    async def count(self, user_id: str | None = None) -> int:
-        """Total count. Optionally filter by user_id."""
-        query = {}
-        if user_id is not None:
-            query["userId"] = user_id
+    async def count(
+        self,
+        user_id: str | None = None,
+        search: str | None = None,
+        related_topics: Optional[Sequence[str]] = None,
+    ) -> int:
+        """Total count with the same filters as get_list."""
+        query = self._build_filter(
+            user_id=user_id,
+            search=search,
+            related_topics=related_topics,
+        )
         return await self.collection.count_documents(query)
 
     async def delete_by_id(self, google_query_id: str, user_id: str | None = None) -> bool:

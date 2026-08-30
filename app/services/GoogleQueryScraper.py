@@ -82,20 +82,55 @@ class GoogleQueryScraperService:
 
         return await self.google_query_model.delete_by_id(google_query_id, user_id=user_id)
 
+    @staticmethod
+    def _normalize_related_topics_param(related_topics: Optional[list] = None) -> list[str]:
+        """Flatten repeated/comma-separated relatedTopics query params."""
+        if not related_topics:
+            return []
+        out: list[str] = []
+        seen = set()
+        for raw in related_topics:
+            for part in str(raw or "").split(","):
+                topic = part.strip()
+                if not topic:
+                    continue
+                key = topic.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(topic)
+        return out
+
     async def get_list(
         self,
         user_id: Optional[str] = None,
         page: int = 1,
         limit: int = 10,
+        search: Optional[str] = None,
+        related_topics: Optional[list] = None,
     ) -> dict:
-        """List GoogleQueries with page/limit pagination. Filter by user_id when provided."""
+        """List GoogleQueries with page/limit pagination and optional search filters."""
         page = max(1, int(page or 1))
         limit = max(1, int(limit or 10))
         skip = (page - 1) * limit
-        items = await self.google_query_model.get_list(user_id=user_id, skip=skip, limit=limit)
-        total = await self.google_query_model.count(user_id=user_id)
+        topics = self._normalize_related_topics_param(related_topics)
+        search_text = (search or "").strip() or None
+        items = await self.google_query_model.get_list(
+            user_id=user_id,
+            skip=skip,
+            limit=limit,
+            search=search_text,
+            related_topics=topics or None,
+        )
+        total = await self.google_query_model.count(
+            user_id=user_id,
+            search=search_text,
+            related_topics=topics or None,
+        )
         for doc in items:
             doc["_id"] = str(doc["_id"])
+            if not isinstance(doc.get("relatedTopics"), list):
+                doc["relatedTopics"] = []
         return {
             "googleQueries": items,
             "total": total,
