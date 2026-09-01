@@ -26,19 +26,12 @@ async def get_all_google_queries(
             "Repeat the param and/or comma-separate values, e.g. relatedTopics=AI&relatedTopics=Marketing"
         ),
     ),
-    topic: Optional[List[str]] = Query(
-        None,
-        description=(
-            "Filter by user-provided topics (match any). "
-            "Repeat the param and/or comma-separate values, e.g. topic=AI&topic=Marketing"
-        ),
-    ),
     service=Depends(get_google_query_scraper_service),
     _jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List Google queries with pagination, optional text search, and topic filters.
+    """List Google queries with pagination, optional text search, and relatedTopics filter.
 
-    Each item includes ``topic`` (user-provided, [] when absent) and ``relatedTopics``.
+    Each item includes ``relatedTopics`` (API-provided, [] when absent).
     """
     try:
         result = await service.get_list(
@@ -46,7 +39,6 @@ async def get_all_google_queries(
             limit=limit,
             search=search,
             related_topics=relatedTopics,
-            topic=topic,
         )
         return Utils.create_response(result, True)
     except HTTPException:
@@ -78,17 +70,20 @@ async def create_google_query_scrape(
             )
 
         user_id = jwt_payload.get("id")
-        topics = [str(t).strip() for t in (data.topic or []) if str(t or "").strip()]
+        related_topics = [
+            str(t).strip() for t in (data.relatedTopics or []) if str(t or "").strip()
+        ]
         google_query_id = await service.create_google_query_job(
-            query, user_id=user_id, topic=topics
+            query, user_id=user_id, related_topics=related_topics
         )
         background_tasks.add_task(service.run_query_serp_and_scrape, google_query_id, query, user_id)
 
+        doc = await service.get_google_query_by_id(google_query_id, user_id=user_id)
         return Utils.create_response(
             {
                 "googleQueryId": google_query_id,
                 "query": query,
-                "topic": topics,
+                "relatedTopics": (doc or {}).get("relatedTopics") or [],
                 "status": "pending",
                 "message": "Query submitted. Processing in background.",
             },

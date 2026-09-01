@@ -10,7 +10,6 @@ from app.config.recent_activity import (
     RECENT_ACTIVITY_TYPE_OPPORTUNITIES,
     message_opportunities_added,
 )
-from app.helpers.GoogleQueryTopicTagger import resolve_related_topics
 from app.helpers.SerpHelper import SerpHelper
 from app.models.GoogleQuery import GoogleQueryModel
 from app.models.Opportunity import OpportunityModel
@@ -40,13 +39,11 @@ class GoogleQueryScraperService:
         self,
         query: str,
         user_id: Optional[str] = None,
-        topic: Optional[list[str]] = None,
+        related_topics: Optional[list[str]] = None,
     ) -> str:
-        related_topics = await asyncio.to_thread(resolve_related_topics, query)
-        topics = [str(t).strip() for t in (topic or []) if str(t or "").strip()]
+        related_topics = self._normalize_related_topics_input(related_topics)
         doc = {
             "query": query,
-            "topic": topics,
             "status": "pending",
             "createdAt": datetime.utcnow(),
             "updatedAt": datetime.utcnow(),
@@ -59,28 +56,12 @@ class GoogleQueryScraperService:
             doc["userId"] = user_id
         inserted_id = await self.google_query_model.create(doc)
         logger.info(
-            "GoogleQuery created google_query_id=%s query=%s topic=%s relatedTopics=%s",
+            "GoogleQuery created google_query_id=%s query=%s relatedTopics=%s",
             inserted_id,
             query[:120],
-            topics,
             related_topics,
         )
         return inserted_id
-
-    async def _ensure_related_topics(self, google_query_id: str, query: str) -> list[str]:
-        """Tag relatedTopics if missing/empty (e.g. older or script-inserted docs)."""
-        existing = await self.google_query_model.get_by_id(google_query_id)
-        current = (existing or {}).get("relatedTopics")
-        if isinstance(current, list) and len(current) > 0:
-            return current
-        related_topics = await asyncio.to_thread(resolve_related_topics, query)
-        await self.google_query_model.set_related_topics(google_query_id, related_topics)
-        logger.info(
-            "GoogleQuery relatedTopics set google_query_id=%s relatedTopics=%s",
-            google_query_id,
-            related_topics,
-        )
-        return related_topics
 
     async def get_google_query_by_id(self, google_query_id: str, user_id: Optional[str] = None):
         doc = await self.google_query_model.get_by_id(google_query_id, user_id=user_id)
@@ -92,6 +73,22 @@ class GoogleQueryScraperService:
         """Delete a GoogleQuery by id. When user_id is set, only that user's record can be deleted."""
 
         return await self.google_query_model.delete_by_id(google_query_id, user_id=user_id)
+
+    @staticmethod
+    def _normalize_related_topics_input(related_topics: Optional[list[str]] = None) -> list[str]:
+        """Deduplicate API-provided relatedTopics; catalog and custom strings are allowed."""
+        out: list[str] = []
+        seen = set()
+        for raw in related_topics or []:
+            item = str(raw or "").strip()
+            if not item:
+                continue
+            key = item.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(item)
+        return out
 
     @staticmethod
     def _normalize_string_list_param(values: Optional[list] = None) -> list[str]:
@@ -118,8 +115,6 @@ class GoogleQueryScraperService:
         doc["_id"] = str(doc["_id"])
         if not isinstance(doc.get("relatedTopics"), list):
             doc["relatedTopics"] = []
-        if not isinstance(doc.get("topic"), list):
-            doc["topic"] = []
         return doc
 
     @staticmethod
@@ -134,14 +129,12 @@ class GoogleQueryScraperService:
         limit: int = 10,
         search: Optional[str] = None,
         related_topics: Optional[list] = None,
-        topic: Optional[list] = None,
     ) -> dict:
         """List GoogleQueries with page/limit pagination and optional search filters."""
         page = max(1, int(page or 1))
         limit = max(1, int(limit or 10))
         skip = (page - 1) * limit
         related = self._normalize_related_topics_param(related_topics)
-        topics = self._normalize_string_list_param(topic)
         search_text = (search or "").strip() or None
         items = await self.google_query_model.get_list(
             user_id=user_id,
@@ -149,13 +142,11 @@ class GoogleQueryScraperService:
             limit=limit,
             search=search_text,
             related_topics=related or None,
-            topics=topics or None,
         )
         total = await self.google_query_model.count(
             user_id=user_id,
             search=search_text,
             related_topics=related or None,
-            topics=topics or None,
         )
         normalized_items = [self._normalize_google_query_doc(doc) for doc in items]
         return {
@@ -173,7 +164,6 @@ class GoogleQueryScraperService:
             {"status": "running", "updatedAt": datetime.utcnow(), "error": None},
         )
         try:
-            await self._ensure_related_topics(google_query_id, query)
             urls = await asyncio.to_thread(
                 SerpHelper().search_multi_page,
                 query,
