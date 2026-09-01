@@ -36,10 +36,17 @@ class GoogleQueryScraperService:
         self.recent_activity_model = RecentActivityModel()
         self.opportunity_model = OpportunityModel()
 
-    async def create_google_query_job(self, query: str, user_id: Optional[str] = None) -> str:
+    async def create_google_query_job(
+        self,
+        query: str,
+        user_id: Optional[str] = None,
+        topic: Optional[list[str]] = None,
+    ) -> str:
         related_topics = await asyncio.to_thread(resolve_related_topics, query)
+        topics = [str(t).strip() for t in (topic or []) if str(t or "").strip()]
         doc = {
             "query": query,
+            "topic": topics,
             "status": "pending",
             "createdAt": datetime.utcnow(),
             "updatedAt": datetime.utcnow(),
@@ -52,9 +59,10 @@ class GoogleQueryScraperService:
             doc["userId"] = user_id
         inserted_id = await self.google_query_model.create(doc)
         logger.info(
-            "GoogleQuery created google_query_id=%s query=%s relatedTopics=%s",
+            "GoogleQuery created google_query_id=%s query=%s topic=%s relatedTopics=%s",
             inserted_id,
             query[:120],
+            topics,
             related_topics,
         )
         return inserted_id
@@ -75,7 +83,10 @@ class GoogleQueryScraperService:
         return related_topics
 
     async def get_google_query_by_id(self, google_query_id: str, user_id: Optional[str] = None):
-        return await self.google_query_model.get_by_id(google_query_id, user_id=user_id)
+        doc = await self.google_query_model.get_by_id(google_query_id, user_id=user_id)
+        if not doc:
+            return None
+        return self._normalize_google_query_doc(doc)
 
     async def delete_google_query(self, google_query_id: str, user_id: Optional[str] = None) -> bool:
         """Delete a GoogleQuery by id. When user_id is set, only that user's record can be deleted."""
@@ -83,23 +94,38 @@ class GoogleQueryScraperService:
         return await self.google_query_model.delete_by_id(google_query_id, user_id=user_id)
 
     @staticmethod
-    def _normalize_related_topics_param(related_topics: Optional[list] = None) -> list[str]:
-        """Flatten repeated/comma-separated relatedTopics query params."""
-        if not related_topics:
+    def _normalize_string_list_param(values: Optional[list] = None) -> list[str]:
+        """Flatten repeated/comma-separated query params into a deduplicated list."""
+        if not values:
             return []
         out: list[str] = []
         seen = set()
-        for raw in related_topics:
+        for raw in values:
             for part in str(raw or "").split(","):
-                topic = part.strip()
-                if not topic:
+                item = part.strip()
+                if not item:
                     continue
-                key = topic.casefold()
+                key = item.casefold()
                 if key in seen:
                     continue
                 seen.add(key)
-                out.append(topic)
+                out.append(item)
         return out
+
+    @staticmethod
+    def _normalize_google_query_doc(doc: dict) -> dict:
+        """Ensure optional list fields exist for API responses (legacy docs may omit them)."""
+        doc["_id"] = str(doc["_id"])
+        if not isinstance(doc.get("relatedTopics"), list):
+            doc["relatedTopics"] = []
+        if not isinstance(doc.get("topic"), list):
+            doc["topic"] = []
+        return doc
+
+    @staticmethod
+    def _normalize_related_topics_param(related_topics: Optional[list] = None) -> list[str]:
+        """Flatten repeated/comma-separated relatedTopics query params."""
+        return GoogleQueryScraperService._normalize_string_list_param(related_topics)
 
     async def get_list(
         self,
@@ -108,31 +134,32 @@ class GoogleQueryScraperService:
         limit: int = 10,
         search: Optional[str] = None,
         related_topics: Optional[list] = None,
+        topic: Optional[list] = None,
     ) -> dict:
         """List GoogleQueries with page/limit pagination and optional search filters."""
         page = max(1, int(page or 1))
         limit = max(1, int(limit or 10))
         skip = (page - 1) * limit
-        topics = self._normalize_related_topics_param(related_topics)
+        related = self._normalize_related_topics_param(related_topics)
+        topics = self._normalize_string_list_param(topic)
         search_text = (search or "").strip() or None
         items = await self.google_query_model.get_list(
             user_id=user_id,
             skip=skip,
             limit=limit,
             search=search_text,
-            related_topics=topics or None,
+            related_topics=related or None,
+            topics=topics or None,
         )
         total = await self.google_query_model.count(
             user_id=user_id,
             search=search_text,
-            related_topics=topics or None,
+            related_topics=related or None,
+            topics=topics or None,
         )
-        for doc in items:
-            doc["_id"] = str(doc["_id"])
-            if not isinstance(doc.get("relatedTopics"), list):
-                doc["relatedTopics"] = []
+        normalized_items = [self._normalize_google_query_doc(doc) for doc in items]
         return {
-            "googleQueries": items,
+            "googleQueries": normalized_items,
             "total": total,
             "page": page,
             "limit": limit,

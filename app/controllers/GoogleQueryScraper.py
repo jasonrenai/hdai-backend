@@ -26,12 +26,19 @@ async def get_all_google_queries(
             "Repeat the param and/or comma-separate values, e.g. relatedTopics=AI&relatedTopics=Marketing"
         ),
     ),
+    topic: Optional[List[str]] = Query(
+        None,
+        description=(
+            "Filter by user-provided topics (match any). "
+            "Repeat the param and/or comma-separate values, e.g. topic=AI&topic=Marketing"
+        ),
+    ),
     service=Depends(get_google_query_scraper_service),
     _jwt_payload: dict = Depends(jwt_validator),
 ):
-    """List Google queries with pagination, optional text search, and relatedTopics filter.
+    """List Google queries with pagination, optional text search, and topic filters.
 
-    Each item includes ``relatedTopics`` for frontend display.
+    Each item includes ``topic`` (user-provided, [] when absent) and ``relatedTopics``.
     """
     try:
         result = await service.get_list(
@@ -39,6 +46,7 @@ async def get_all_google_queries(
             limit=limit,
             search=search,
             related_topics=relatedTopics,
+            topic=topic,
         )
         return Utils.create_response(result, True)
     except HTTPException:
@@ -70,13 +78,17 @@ async def create_google_query_scrape(
             )
 
         user_id = jwt_payload.get("id")
-        google_query_id = await service.create_google_query_job(query, user_id=user_id)
+        topics = [str(t).strip() for t in (data.topic or []) if str(t or "").strip()]
+        google_query_id = await service.create_google_query_job(
+            query, user_id=user_id, topic=topics
+        )
         background_tasks.add_task(service.run_query_serp_and_scrape, google_query_id, query, user_id)
 
         return Utils.create_response(
             {
                 "googleQueryId": google_query_id,
                 "query": query,
+                "topic": topics,
                 "status": "pending",
                 "message": "Query submitted. Processing in background.",
             },
@@ -106,9 +118,6 @@ async def get_google_query(
                 status_code=404,
                 detail={"data": None, "error": "GoogleQuery not found", "success": False},
             )
-        doc["_id"] = str(doc["_id"])
-        if not isinstance(doc.get("relatedTopics"), list):
-            doc["relatedTopics"] = []
         return Utils.create_response(doc, True)
     except HTTPException:
         raise

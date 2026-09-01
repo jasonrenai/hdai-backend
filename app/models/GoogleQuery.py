@@ -47,8 +47,9 @@ class GoogleQueryModel:
         user_id: str | None = None,
         search: str | None = None,
         related_topics: Optional[Sequence[str]] = None,
+        topics: Optional[Sequence[str]] = None,
     ) -> dict:
-        """Build Mongo filter for list/count (text search + relatedTopics)."""
+        """Build Mongo filter for list/count (text search + relatedTopics + topic)."""
         clauses: list[dict] = []
         if user_id is not None:
             clauses.append({"userId": user_id})
@@ -59,9 +60,13 @@ class GoogleQueryModel:
                 {"query": {"$regex": re.escape(search_text), "$options": "i"}}
             )
 
-        topics = [str(t).strip() for t in (related_topics or []) if str(t or "").strip()]
-        if topics:
-            clauses.append({"relatedTopics": {"$in": topics}})
+        related = [str(t).strip() for t in (related_topics or []) if str(t or "").strip()]
+        if related:
+            clauses.append({"relatedTopics": {"$in": related}})
+
+        topic_values = [str(t).strip() for t in (topics or []) if str(t or "").strip()]
+        if topic_values:
+            clauses.append({"topic": {"$in": topic_values}})
 
         if not clauses:
             return {}
@@ -77,17 +82,20 @@ class GoogleQueryModel:
         sort_by: dict | None = None,
         search: str | None = None,
         related_topics: Optional[Sequence[str]] = None,
+        topics: Optional[Sequence[str]] = None,
     ) -> list[dict]:
         """
         Get GoogleQueries with pagination.
         Default order by status: running → completed → pending → failed/other,
         then createdAt desc within each status.
-        Optional case-insensitive ``search`` on query text and ``related_topics`` ($in).
+        Optional case-insensitive ``search`` on query text, ``related_topics`` ($in),
+        and user-provided ``topics`` ($in on topic field).
         """
         query = self._build_filter(
             user_id=user_id,
             search=search,
             related_topics=related_topics,
+            topics=topics,
         )
 
         # Explicit custom order when no override sort is provided.
@@ -130,12 +138,14 @@ class GoogleQueryModel:
         user_id: str | None = None,
         search: str | None = None,
         related_topics: Optional[Sequence[str]] = None,
+        topics: Optional[Sequence[str]] = None,
     ) -> int:
         """Total count with the same filters as get_list."""
         query = self._build_filter(
             user_id=user_id,
             search=search,
             related_topics=related_topics,
+            topics=topics,
         )
         return await self.collection.count_documents(query)
 
