@@ -1,7 +1,14 @@
 """Create or update SpeakerPitcher Postmark templates by alias.
 
-Requires POSTMARK_SERVER_API_TOKEN (or POSTMARK-SERVER-API-TOKEN).
-Idempotent: existing aliases are updated in place.
+Sending and template APIs require a **Server API token**
+(``X-Postmark-Server-Token``). An Account API token cannot send mail or
+create templates; it can only list servers and return each server's token.
+
+Usage:
+  POSTMARK_SERVER_API_TOKEN=... python scripts/sync_postmark_templates.py
+  POSTMARK_ACCOUNT_API_TOKEN=... python scripts/sync_postmark_templates.py
+  POSTMARK_ACCOUNT_API_TOKEN=... POSTMARK_SERVER_NAME=Nexus python scripts/sync_postmark_templates.py
+  python scripts/sync_postmark_templates.py --dry-run
 """
 
 from __future__ import annotations
@@ -11,222 +18,62 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.email.postmark_templates import ALIASES, TEMPLATES, template_bodies
 
 POSTMARK_API = "https://api.postmarkapp.com"
-ALIASES = (
-    "welcome_mail",
-    "Welcome_mail_after_signup",
-    "Verify_email_confirmation",
-    "Password_reset",
-    "General_system_communication",
-    "Pitch_ready",
-    "New_opportunity",
-    "Reminder_submition",
-    "Deadline_approaching",
-    "Customer_support",
-    "Help_request",
-    "Billing_questions",
+ACCOUNT_TOKEN_ENV_KEYS = (
+    "POSTMARK_ACCOUNT_API_TOKEN",
+    "POSTMARK-ACCOUNT-API-TOKEN",
+)
+SERVER_TOKEN_ENV_KEYS = (
+    "POSTMARK_SERVER_API_TOKEN",
+    "POSTMARK-SERVER-API-TOKEN",
 )
 
 
-def _token() -> str:
-    for key in ("POSTMARK_SERVER_API_TOKEN", "POSTMARK-SERVER-API-TOKEN"):
+class SyncError(Exception):
+    """User-facing sync failure."""
+
+
+def _env_first(keys: tuple[str, ...]) -> str | None:
+    for key in keys:
         value = (os.getenv(key) or "").strip()
         if value:
             return value
-    raise SystemExit("Set POSTMARK_SERVER_API_TOKEN")
+    return None
 
 
-def _layout(inner: str) -> str:
-    return f"""<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f5;padding:24px 0;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:8px;padding:32px;">
-          <tr>
-            <td style="font-size:14px;line-height:1.6;">
-              <p style="margin:0 0 16px;font-size:18px;font-weight:bold;">SpeakerPitcher</p>
-              {inner}
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>"""
-
-
-def _cta(url_var: str, label: str) -> str:
-    return (
-        f'<p style="margin:24px 0 0;"><a href="{{{{{url_var}}}}}" '
-        f'style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;'
-        f'padding:12px 20px;border-radius:6px;">{label}</a></p>'
-    )
-
-
-TEMPLATES = {
-    "welcome_mail": {
-        "Name": "Welcome",
-        "Subject": "Welcome to SpeakerPitcher",
-        "TextBody": "Hi {{user_name}}, welcome to SpeakerPitcher. Complete your setup: {{cta_url}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>{{preheader}}</p>"
-            "<p>Welcome to SpeakerPitcher. Complete your setup to start matching speaking opportunities.</p>"
-            + _cta("cta_url", "Complete your setup")
-        ),
-    },
-    "Welcome_mail_after_signup": {
-        "Name": "Welcome after signup",
-        "Subject": "Welcome to SpeakerPitcher",
-        "TextBody": "Hi {{user_name}}, your SpeakerPitcher account is ready.",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>Your SpeakerPitcher account is ready. You can sign in and start building your speaker profile.</p>"
-        ),
-    },
-    "Verify_email_confirmation": {
-        "Name": "Verify email confirmation",
-        "Subject": "Confirm your SpeakerPitcher email",
-        "TextBody": "Hi {{user_name}}, confirm your email: {{verification_url}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>Please confirm your email address to finish setting up your account.</p>"
-            + _cta("verification_url", "Verify email")
-        ),
-    },
-    "Password_reset": {
-        "Name": "Password reset",
-        "Subject": "Your SpeakerPitcher reset code",
-        "TextBody": "Hi {{user_name}}, your password reset code is {{otp}}.",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>Use this code to reset your password:</p>"
-            '<p style="font-size:28px;letter-spacing:4px;font-weight:bold;">{{otp}}</p>'
-            "<p>If you did not request this, you can ignore this email.</p>"
-        ),
-    },
-    "General_system_communication": {
-        "Name": "General system communication",
-        "Subject": "{{update_title}}",
-        "TextBody": "Hi {{user_name}}, {{intro_message}} {{body_message}} {{cta_url}}",
-        "HtmlBody": _layout(
-            '<p><img src="{{hero_image_url}}" alt="" style="max-width:100%;"></p>'
-            "<p>Hi {{user_name}},</p>"
-            "<p>{{intro_message}}</p>"
-            "<p><strong>{{feature_title}}</strong></p>"
-            "<p>{{feature_description}}</p>"
-            "<p>{{body_message}}</p>"
-            '<p><a href="{{cta_url}}">{{cta_text}}</a></p>'
-        ),
-    },
-    "Pitch_ready": {
-        "Name": "Pitch ready",
-        "Subject": "Your pitch for {{event_name}} is ready",
-        "TextBody": "Hi {{user_name}}, your pitch for {{event_name}} ({{event_date}}, {{event_location}}) is ready. Deadline {{deadline_date}}. Review: {{pitch_review_url}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>Your pitch for <strong>{{event_name}}</strong> is ready to review.</p>"
-            "<p>{{event_date}} · {{event_location}}<br>Deadline: {{deadline_date}}</p>"
-            + _cta("pitch_review_url", "Review your pitch")
-        ),
-    },
-    "New_opportunity": {
-        "Name": "New opportunity",
-        "Subject": "New speaking opportunities for you",
-        "TextBody": "Hi {{user_name}}, new speaking opportunities are ready in SpeakerPitcher.",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>Here are new speaking opportunities matched to your profile:</p>"
-            "<ul>"
-            "{{#opportunities}}"
-            "<li><a href=\"{{opportunity_url}}\">{{title}}</a>"
-            "<br>{{date}} · {{location}} · Deadline {{deadline}}</li>"
-            "{{/opportunities}}"
-            "</ul>"
-        ),
-    },
-    "Reminder_submition": {
-        "Name": "Reminder to submit",
-        "Subject": "Reminder: submit for {{event_name}}",
-        "TextBody": "Hi {{user_name}}, reminder to submit for {{event_name}} by {{deadline_date}}. {{submission_url}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>This is a reminder to submit for <strong>{{event_name}}</strong>.</p>"
-            "<p>{{event_date}} · {{event_location}}<br>Deadline: {{deadline_date}}</p>"
-            + _cta("submission_url", "Open submission")
-        ),
-    },
-    "Deadline_approaching": {
-        "Name": "Deadline approaching",
-        "Subject": "Deadline approaching: {{event_name}}",
-        "TextBody": "Hi {{user_name}}, {{intro}} Deadline {{deadline_date}} ({{days_remaining}} days). {{submission_url}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>{{intro}}</p>"
-            "<ul>"
-            "{{#opportunities}}"
-            "<li><a href=\"{{opportunity_url}}\">{{title}}</a>"
-            "<br>{{date}} · {{location}} · Deadline {{deadline}}</li>"
-            "{{/opportunities}}"
-            "</ul>"
-            "<p><strong>{{event_name}}</strong><br>{{event_date}} · {{event_location}}"
-            "<br>Deadline: {{deadline_date}} ({{days_remaining}} days remaining)</p>"
-            + _cta("submission_url", "Submit now")
-        ),
-    },
-    "Customer_support": {
-        "Name": "Customer support",
-        "Subject": "Support update on ticket {{ticket_id}}",
-        "TextBody": "Hi {{user_name}}, {{support_response}} Ticket {{ticket_id}}. {{support_ticket_url}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>{{support_response}}</p>"
-            "<p>Ticket {{ticket_id}} · {{agent_name}}</p>"
-            + _cta("support_ticket_url", "View ticket")
-        ),
-    },
-    "Help_request": {
-        "Name": "Help request",
-        "Subject": "We received your request {{ticket_id}}",
-        "TextBody": "Hi {{user_name}}, we received {{ticket_subject}} ({{ticket_id}}). Status: {{ticket_status}}. {{support_ticket_url}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>We received your request <strong>{{ticket_subject}}</strong>.</p>"
-            "<p>Ticket {{ticket_id}} · {{ticket_status}} · Submitted {{submitted_date}}</p>"
-            "<p>Typical response time: {{response_time_estimate}}</p>"
-            + _cta("support_ticket_url", "View request")
-        ),
-    },
-    "Billing_questions": {
-        "Name": "Billing questions",
-        "Subject": "{{billing_heading}}",
-        "TextBody": "Hi {{user_name}}, {{billing_message}} Invoice {{invoice_id}} · {{plan_name}} · {{billing_amount}} · {{billing_status}}",
-        "HtmlBody": _layout(
-            "<p>Hi {{user_name}},</p>"
-            "<p>{{billing_message}}</p>"
-            "<p><strong>{{billing_title}}</strong></p>"
-            "<p>Invoice {{invoice_id}}<br>Plan: {{plan_name}}<br>Amount: {{billing_amount}}<br>Status: {{billing_status}}</p>"
-            '<p><a href="{{invoice_pdf_url.invoice_pdf_url}}">Download invoice</a></p>'
-        ),
-    },
-}
-
-
-def _request(method: str, path: str, token: str, body: dict | None = None) -> tuple[int, dict]:
+def _request(
+    method: str,
+    path: str,
+    *,
+    server_token: str | None = None,
+    account_token: str | None = None,
+    body: dict | None = None,
+) -> tuple[int, dict]:
+    if bool(server_token) == bool(account_token):
+        raise ValueError("Provide exactly one of server_token or account_token.")
     data = None if body is None else json.dumps(body).encode("utf-8")
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    if server_token:
+        headers["X-Postmark-Server-Token"] = server_token
+    else:
+        headers["X-Postmark-Account-Token"] = account_token or ""
     req = urllib.request.Request(
         f"{POSTMARK_API}{path}",
         data=data,
         method=method,
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Postmark-Server-Token": token,
-        },
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -241,6 +88,142 @@ def _request(method: str, path: str, token: str, body: dict | None = None) -> tu
         return exc.code, payload
 
 
+def _is_unauthorized(status: int, payload: dict) -> bool:
+    if status == 401:
+        return True
+    message = str(payload.get("Message") or "").lower()
+    return "unauthorized" in message or ("invalid" in message and "token" in message)
+
+
+def list_servers(account_token: str) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        status, payload = _request(
+            "GET",
+            f"/servers?count=100&offset={offset}",
+            account_token=account_token,
+        )
+        if status != 200:
+            raise SyncError(f"List Postmark servers failed ({status}): {payload}")
+        rows = payload.get("Servers") or []
+        found.extend(row for row in rows if isinstance(row, dict))
+        total = int(payload.get("TotalCount") or 0)
+        offset += len(rows)
+        if offset >= total or not rows:
+            break
+    return found
+
+
+def pick_server(
+    servers: list[dict[str, Any]],
+    *,
+    server_id: str | None = None,
+    server_name: str | None = None,
+) -> dict[str, Any]:
+    if not servers:
+        raise SyncError("This Postmark account has no servers. Create a server in Postmark first.")
+
+    if server_id:
+        wanted = str(server_id).strip()
+        for row in servers:
+            if str(row.get("ID") or "") == wanted:
+                return row
+        raise SyncError(f"No Postmark server with ID {wanted}.")
+
+    if server_name:
+        needle = server_name.strip().lower()
+        matches = [row for row in servers if needle in str(row.get("Name") or "").lower()]
+        if len(matches) == 1:
+            return matches[0]
+        names = ", ".join(f"{row.get('Name')} (id={row.get('ID')})" for row in servers)
+        if not matches:
+            raise SyncError(f"No Postmark server named {server_name!r}. Available: {names}")
+        raise SyncError(
+            f"Multiple Postmark servers match {server_name!r}. Set POSTMARK_SERVER_ID. Available: {names}"
+        )
+
+    if len(servers) == 1:
+        return servers[0]
+
+    names = ", ".join(f"{row.get('Name')} (id={row.get('ID')})" for row in servers)
+    raise SyncError(
+        "Multiple Postmark servers found. Set POSTMARK_SERVER_NAME or POSTMARK_SERVER_ID. "
+        f"Available: {names}"
+    )
+
+
+def server_api_token(server: dict[str, Any]) -> str:
+    tokens = [str(t).strip() for t in (server.get("ApiTokens") or []) if str(t).strip()]
+    if not tokens:
+        name = server.get("Name") or server.get("ID")
+        raise SyncError(f"Postmark server {name!r} has no Server API tokens.")
+    return tokens[0]
+
+
+def _account_token_error() -> str:
+    return (
+        "Postmark account API tokens cannot send mail or manage templates. "
+        "Use a Server API token from Postmark → Servers → (your server) → API Tokens "
+        "as POSTMARK_SERVER_API_TOKEN. Or set POSTMARK_ACCOUNT_API_TOKEN so this script "
+        "can look up that server token (still put the server token in the app env for sending)."
+    )
+
+
+def resolve_server_token() -> tuple[str, str]:
+    """Return (server_token, source_description)."""
+    configured_server = _env_first(SERVER_TOKEN_ENV_KEYS)
+    configured_account = _env_first(ACCOUNT_TOKEN_ENV_KEYS)
+    server_id = (os.getenv("POSTMARK_SERVER_ID") or "").strip() or None
+    server_name = (os.getenv("POSTMARK_SERVER_NAME") or "").strip() or None
+
+    if configured_server:
+        status, payload = _request(
+            "GET",
+            "/templates?count=1&offset=0&templateType=Standard",
+            server_token=configured_server,
+        )
+        if status == 200:
+            return configured_server, "POSTMARK_SERVER_API_TOKEN"
+
+        account_candidate = configured_account or configured_server
+        servers_status, servers_payload = _request(
+            "GET",
+            "/servers?count=1&offset=0",
+            account_token=account_candidate,
+        )
+        if servers_status == 200:
+            if configured_server and not configured_account:
+                print(
+                    "warning: POSTMARK_SERVER_API_TOKEN looks like an Account API token. "
+                    "Resolving a Server API token from the account. "
+                    "The running app still needs the Server API token to send email."
+                )
+            servers = list_servers(account_candidate)
+            server = pick_server(servers, server_id=server_id, server_name=server_name)
+            token = server_api_token(server)
+            desc = f"account token → server {server.get('Name')!r} (id={server.get('ID')})"
+            return token, desc
+
+        if _is_unauthorized(status, payload):
+            raise SyncError(
+                f"Postmark rejected the token ({status}): {payload}. {_account_token_error()}"
+            )
+        raise SyncError(f"List templates failed ({status}): {payload}")
+
+    if configured_account:
+        servers = list_servers(configured_account)
+        server = pick_server(servers, server_id=server_id, server_name=server_name)
+        token = server_api_token(server)
+        desc = f"POSTMARK_ACCOUNT_API_TOKEN → server {server.get('Name')!r} (id={server.get('ID')})"
+        return token, desc
+
+    raise SyncError(
+        "Set POSTMARK_SERVER_API_TOKEN (Server API token) or POSTMARK_ACCOUNT_API_TOKEN "
+        "(Account API token, used only to look up the server token)."
+    )
+
+
 def _existing_by_alias(token: str) -> dict[str, int]:
     found: dict[str, int] = {}
     offset = 0
@@ -248,10 +231,10 @@ def _existing_by_alias(token: str) -> dict[str, int]:
         status, payload = _request(
             "GET",
             f"/templates?count=100&offset={offset}&templateType=Standard",
-            token,
+            server_token=token,
         )
         if status != 200:
-            raise SystemExit(f"List templates failed ({status}): {payload}")
+            raise SyncError(f"List templates failed ({status}): {payload}")
         templates = payload.get("Templates") or []
         for row in templates:
             alias = row.get("Alias") or ""
@@ -265,39 +248,54 @@ def _existing_by_alias(token: str) -> dict[str, int]:
     return found
 
 
-def main() -> None:
-    token = _token()
+def _print_dry_run() -> None:
+    for alias in ALIASES:
+        spec = TEMPLATES[alias]
+        html_len = len(spec["HtmlBody"])
+        text_len = len(spec["TextBody"])
+        print(f"{alias:28} name={spec['Name']!r} subject={spec['Subject']!r} html={html_len} text={text_len}")
+    print(f"dry-run templates={len(ALIASES)}")
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if "--dry-run" in args:
+        _print_dry_run()
+        return
+
+    token, source = resolve_server_token()
+    print(f"using server token from {source}")
     existing = _existing_by_alias(token)
     created = 0
     updated = 0
     for alias in ALIASES:
-        spec = TEMPLATES[alias]
-        body = {
-            "Name": spec["Name"],
-            "Alias": alias,
-            "Subject": spec["Subject"],
-            "HtmlBody": spec["HtmlBody"],
-            "TextBody": spec["TextBody"],
-            "TemplateType": "Standard",
-        }
+        body = template_bodies(alias)
         template_id = existing.get(alias)
         if template_id:
-            status, payload = _request("PUT", f"/templates/{template_id}", token, body)
+            status, payload = _request(
+                "PUT", f"/templates/{template_id}", server_token=token, body=body
+            )
             if status != 200:
-                raise SystemExit(f"Update {alias} failed ({status}): {payload}")
+                raise SyncError(f"Update {alias} failed ({status}): {payload}")
             updated += 1
             print(f"updated {alias} id={payload.get('TemplateId', template_id)}")
         else:
-            status, payload = _request("POST", "/templates", token, body)
+            status, payload = _request("POST", "/templates", server_token=token, body=body)
             if status != 200:
-                raise SystemExit(f"Create {alias} failed ({status}): {payload}")
+                raise SyncError(f"Create {alias} failed ({status}): {payload}")
             created += 1
             print(f"created {alias} id={payload.get('TemplateId')}")
     print(f"done created={created} updated={updated}")
+    print(
+        "Set POSTMARK_SERVER_API_TOKEN on the app to this server's API token "
+        "(Postmark → Servers → API Tokens). An account token will not send mail."
+    )
 
 
 if __name__ == "__main__":
     try:
         main()
+    except SyncError as exc:
+        raise SystemExit(str(exc)) from exc
     except KeyboardInterrupt:
         sys.exit(130)

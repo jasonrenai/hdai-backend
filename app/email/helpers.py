@@ -26,6 +26,39 @@ def get_postmark_server_token() -> str | None:
     return None
 
 
+def describe_email_send_failure(exc: BaseException | None = None, *, disabled: bool = False) -> str:
+    """Short reason suitable for API clients and logs."""
+    if disabled:
+        return "Email sending is disabled on the server (EMAIL_SENDING_ENABLED=false)."
+    text = str(exc or "").strip()
+    lowered = text.lower()
+    if (
+        "401" in lowered
+        or "unauthorized" in lowered
+        or ("invalid" in lowered and "token" in lowered)
+    ):
+        return (
+            "Postmark rejected the API token. Set POSTMARK_SERVER_API_TOKEN to a "
+            "Server API token from Servers → API Tokens, not the Account API token."
+        )
+    if "[1101]" in text or (
+        "template" in lowered
+        and ("not found" in lowered or "inactive" in lowered or "does not exist" in lowered)
+    ):
+        return (
+            "Postmark template is missing on this server. "
+            "Run scripts/sync_postmark_templates.py with this server's token."
+        )
+    if "sender" in lowered or "from" in lowered:
+        return (
+            "Postmark rejected the From address. Verify hello@speakerpitcher.ai "
+            "as a Sender Signature on this Postmark server."
+        )
+    if text:
+        return f"Failed to send reset email: {text}"
+    return "Failed to send reset email."
+
+
 @lru_cache(maxsize=8)
 def resolve_sender_email(sender: SenderType) -> str:
     env_key_map = {

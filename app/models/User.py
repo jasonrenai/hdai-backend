@@ -2,6 +2,7 @@ from typing import List, Optional
 from app.helpers.Database import MongoDB
 from bson import ObjectId
 import os
+import re
 from app.schemas.User import UserSchema
 from datetime import datetime
 from app.schemas.PyObjectId import PyObjectId
@@ -21,6 +22,45 @@ class UserModel:
         if document:
             return UserSchema(**document)
         return None
+
+    async def find_user_document_by_email(self, email: str) -> Optional[dict]:
+        """Return the raw users document, case-insensitive. Does not parse UserSchema."""
+        raw = (email or "").strip()
+        if not raw:
+            return None
+        document = await self.collection.find_one({"email": raw})
+        if document is None:
+            document = await self.collection.find_one(
+                {"email": {"$regex": f"^{re.escape(raw)}$", "$options": "i"}}
+            )
+        return document
+
+    async def get_user_document_by_id(self, user_id: str) -> Optional[dict]:
+        uid = (user_id or "").strip()
+        if not uid:
+            return None
+        try:
+            oid = ObjectId(uid)
+        except Exception:
+            return None
+        return await self.collection.find_one({"_id": oid})
+
+    async def get_user_by_email(self, email: str) -> Optional[UserSchema]:
+        """Look up a user by email, ignoring case."""
+        document = await self.find_user_document_by_email(email)
+        if not document:
+            return None
+        try:
+            return UserSchema(**document)
+        except Exception:
+            # Copied/legacy rows can fail UserSchema (phone, userType, etc.).
+            # Password reset only needs email + name.
+            return UserSchema.model_construct(
+                id=document.get("_id"),
+                email=str(document.get("email") or email).strip(),
+                password=str(document.get("password") or "placeholder-password"),
+                fullName=str(document.get("fullName") or document.get("full_name") or "there"),
+            )
 
     
     async def get_documents_count(self, filters: dict) -> int:
@@ -131,9 +171,16 @@ class UserModel:
         return result.deleted_count > 0
     
     async def update_password(self, email: str, new_password: str) -> bool:
-        """Update the password of a user based on email."""
+        """Update the password of a user based on email (case-insensitive)."""
+        raw = (email or "").strip()
         result = await self.collection.update_one(
-            {"email": email},
-            {"$set": {"password": new_password, "updatedOn": datetime.utcnow()}}
+            {"email": raw},
+            {"$set": {"password": new_password, "updatedOn": datetime.utcnow()}},
         )
-        return result.modified_count > 0    
+        if result.modified_count:
+            return True
+        result = await self.collection.update_one(
+            {"email": {"$regex": f"^{re.escape(raw)}$", "$options": "i"}},
+            {"$set": {"password": new_password, "updatedOn": datetime.utcnow()}},
+        )
+        return result.modified_count > 0 
