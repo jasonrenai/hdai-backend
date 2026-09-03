@@ -7,6 +7,7 @@ from app.email.constants import resolve_postmark_template
 from app.email.event_registry import EMAIL_EVENT_REGISTRY
 from app.email.enums import EmailEventType, SenderType
 from app.email.helpers import (
+    describe_email_send_failure,
     get_postmark_server_token,
     is_email_sending_enabled,
     normalize_template_model,
@@ -27,6 +28,7 @@ class EmailService:
     ):
         self.event_registry = event_registry or EMAIL_EVENT_REGISTRY
         self._postmark_client = postmark_client
+        self.last_send_error: Optional[str] = None
 
     def _client(self) -> PostmarkClient:
         if self._postmark_client is not None:
@@ -83,9 +85,11 @@ class EmailService:
         template_model: Optional[Dict[str, Any]] = None,
         sender: Optional[SenderType] = None,
     ) -> bool:
+        self.last_send_error = None
         recipient = (to_email or "").strip()
         if not recipient:
             logger.warning("Skipped %s email: empty recipient", event_type.value)
+            self.last_send_error = "Recipient email is required."
             return False
 
         if not is_email_sending_enabled():
@@ -94,6 +98,7 @@ class EmailService:
                 event_type.value,
                 recipient,
             )
+            self.last_send_error = describe_email_send_failure(disabled=True)
             return False
 
         config = self.event_registry.get(event_type)
@@ -132,6 +137,7 @@ class EmailService:
                         "Postmark auth failed. POSTMARK_SERVER_API_TOKEN must be a "
                         "Server API token (Servers → API Tokens), not an Account API token."
                     )
+                self.last_send_error = describe_email_send_failure(exc)
                 return False
             try:
                 _send(tid=None, alias=template_alias)
@@ -143,6 +149,7 @@ class EmailService:
                     recipient,
                     alias_exc,
                 )
+                self.last_send_error = describe_email_send_failure(alias_exc)
                 return False
 
         logger.info(

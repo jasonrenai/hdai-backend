@@ -242,13 +242,13 @@ class AuthService:
         """
         try:
             # Validate user exists
-            user = await self.user_model.get_user({"email": email})
+            user = await self.user_model.get_user_by_email(email)
             if not user:
                 return {"success": False, "data": None, "error": "User not found."}
 
-            # Generate and save OTP
+            to_email = (user.email or email or "").strip()
             otp = random.randint(100000, 999999)
-            await self.otp_model.save_otp(email, otp)
+            await self.otp_model.save_otp(to_email, otp)
 
             user_name = (user.fullName if getattr(user, "fullName", None) else "").strip()
 
@@ -256,17 +256,20 @@ class AuthService:
 
             sent = get_email_service().send_event_email(
                 event_type=EmailEventType.PASSWORD_RESET,
-                to_email=(email or "").strip(),
+                to_email=to_email,
                 template_model={
                     "user_name": user_name or "there",
                     "otp": str(otp),
                 },
             )
             if not sent:
+                reason = (
+                    get_email_service().last_send_error or "Failed to send reset email."
+                )
                 return {
                     "success": False,
                     "data": None,
-                    "error": "Failed to send reset email.",
+                    "error": reason,
                 }
 
             return {
@@ -288,12 +291,14 @@ class AuthService:
         """
         try:
             # Validate user exists
-            user = await self.user_model.get_user({"email": email})
+            user = await self.user_model.get_user_by_email(email)
             if not user:
                 return {"success": False, "data": None, "error": "User not found."}
 
-            # Get OTP record
-            otp_record = await self.otp_model.get_otp(email)
+            lookup_email = (user.email or email or "").strip()
+            otp_record = await self.otp_model.get_otp(lookup_email)
+            if not otp_record and lookup_email != (email or "").strip():
+                otp_record = await self.otp_model.get_otp((email or "").strip())
             if not otp_record:
                 return {
                     "success": False,
@@ -306,7 +311,8 @@ class AuthService:
             created_at = otp_record["createdAt"]
             if datetime.utcnow() - created_at > timedelta(minutes=10):
                 # Delete expired OTP
-                await self.otp_model.delete_otp(email)
+                await self.otp_model.delete_otp(lookup_email)
+                await self.otp_model.delete_otp((email or "").strip())
                 return {
                     "success": False,
                     "data": None,
@@ -323,10 +329,11 @@ class AuthService:
 
             # Update password
             new_hashed_password = Utils.hash_password(new_password)
-            await self.user_model.update_password(email, new_hashed_password)
+            await self.user_model.update_password(lookup_email, new_hashed_password)
 
             # Delete used OTP
-            await self.otp_model.delete_otp(email)
+            await self.otp_model.delete_otp(lookup_email)
+            await self.otp_model.delete_otp((email or "").strip())
 
             # Generate new token for automatic login
             user_dict = user.dict()

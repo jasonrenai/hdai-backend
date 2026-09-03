@@ -18,7 +18,7 @@ class OTPModel:
 
     async def get_otp(self, email: str):
         """Retrieve OTP for a given email"""
-        return await self.collection.find_one({"email": email}, sort=[("created_at", -1)])
+        return await self.collection.find_one({"email": email}, sort=[("createdAt", -1)])
 
     async def delete_otp(self, email: str):
         """Delete OTP record after successful verification"""

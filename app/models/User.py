@@ -2,6 +2,7 @@ from typing import List, Optional
 from app.helpers.Database import MongoDB
 from bson import ObjectId
 import os
+import re
 from app.schemas.User import UserSchema
 from datetime import datetime
 from app.schemas.PyObjectId import PyObjectId
@@ -18,6 +19,20 @@ class UserModel:
         Retrieve a single user matching the given filters.
         """
         document = await self.collection.find_one(filters)
+        if document:
+            return UserSchema(**document)
+        return None
+
+    async def get_user_by_email(self, email: str) -> Optional[UserSchema]:
+        """Look up a user by email, ignoring case."""
+        raw = (email or "").strip()
+        if not raw:
+            return None
+        document = await self.collection.find_one({"email": raw})
+        if document is None:
+            document = await self.collection.find_one(
+                {"email": {"$regex": f"^{re.escape(raw)}$", "$options": "i"}}
+            )
         if document:
             return UserSchema(**document)
         return None

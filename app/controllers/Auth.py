@@ -9,6 +9,20 @@ from app.helpers.Utilities import Utils
 from app.dependencies import get_auth_service
 from app.helpers.auth_roles import is_admin_role
 
+
+def _auth_error_response(error: str, status_code: int = 400) -> JSONResponse:
+    """Return fields the Nexus forgot-password page reads (`message` / `details`)."""
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": False,
+            "data": None,
+            "error": error,
+            "message": error,
+            "details": error,
+        },
+    )
+
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
     
 @router.post("/signup", response_model=ServerResponse, status_code=201)
@@ -55,9 +69,11 @@ async def signin_user(body: GetUserSchema, service = Depends(get_auth_service)):
 async def forgot_password(body: ForgotPasswordRequest, service = Depends(get_auth_service)):
     try:
         data = await service.send_otp_email(body.email)
-        return Utils.create_response(data["data"],data["success"],data.get("error", ""))
+        if not data.get("success"):
+            return _auth_error_response(data.get("error") or "Failed to send reset email.")
+        return Utils.create_response(data["data"], data["success"], data.get("error", ""))
     except Exception as e:
-        raise HTTPException(status_code=400, detail={"data": None, "error":str(e),"success": False})
+        return _auth_error_response(str(e))
 
 
 @router.post("/reset-password", response_model=ServerResponse)
@@ -72,14 +88,10 @@ async def reset_password(password_data: ResetPassword, service = Depends(get_aut
                 status_code = 410
             elif data.get("error") == "Invalid OTP.":
                 status_code = 401
-                
-            raise HTTPException(
-                status_code=status_code,
-                detail={"data": None, "error": data.get("error"), "success": False}
-            )
+            return _auth_error_response(data.get("error") or "Failed to reset password.", status_code)
         return Utils.create_response(data["data"],data["success"],data.get("error", ""))
     except Exception as e:
-        raise HTTPException(status_code=400, detail={"data": None, "error":str(e),"success": False})
+        return _auth_error_response(str(e))
 
 
 @router.get("/users/get-all-users", response_model=ServerResponse)
