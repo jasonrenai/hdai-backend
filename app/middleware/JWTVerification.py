@@ -7,11 +7,10 @@ from typing import Dict, Any
 def jwt_validator(
     auth: HTTPAuthorizationCredentials = Security(HTTPBearer()),
 ) -> Dict[str, Any]:
-    secret_key: str = os.getenv("JWT_SECRET"),
-    algorithm: str = "RS256",
+    secret_key = os.getenv("JWT_SECRET")
     token = auth.credentials
     try:
-        payload = jwt.decode(token, secret_key)
+        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
         return payload
 
     except JWTError as e:

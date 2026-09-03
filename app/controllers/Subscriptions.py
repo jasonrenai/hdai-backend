@@ -174,9 +174,17 @@ async def current_subscription_from_stripe(
     service: SubscriptionsService = Depends(get_subscription_service),
     speaker_profiles: SpeakerProfileModel = Depends(get_speaker_profile_model),
 ):
-    _require_stripe_settings()
     uid = _user_id_from_jwt(jwt_payload)
+    empty = {
+        "hasActiveSubscription": False,
+        "planName": None,
+        "planLimits": None,
+        "planFeatures": None,
+        "planUsage": {"speakerProfiles": 0, "opportunities": None},
+        "stripeProductId": None,
+    }
     try:
+        _require_stripe_settings()
         payload = await service.current_subscription_payload(
             user_id=uid,
             speaker_profiles=speaker_profiles,
@@ -187,8 +195,6 @@ async def current_subscription_from_stripe(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"data": None, "error": str(e), "success": False},
         ) from e
-    except stripe.error.StripeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"data": None, "error": str(e), "success": False},
-        ) from e
+    except Exception as e:
+        logger.warning("current-subscription falling back to no plan: %s", e)
+        return Utils.create_response(empty, True, "")
