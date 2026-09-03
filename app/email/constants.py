@@ -19,8 +19,22 @@ SENDER_EMAILS = {
     SenderType.SUPPORT: "support@speakerpitcher.ai",
 }
 
+# Public site used in email links. Override with FRONTEND_BASE_URL (or the lane-specific vars).
+_DEFAULT_FRONTEND_BASE = "https://salmon-hill-0da99d60f.5.azurestaticapps.net"
+
+
+def frontend_base_url() -> str:
+    return (
+        os.getenv("FRONTEND_BASE_URL")
+        or os.getenv("PITCH_REVIEW_FRONTEND_BASE")
+        or os.getenv("EMAIL_VERIFICATION_FRONTEND_BASE")
+        or _DEFAULT_FRONTEND_BASE
+    ).rstrip("/")
+
+
+FRONTEND_BASE_URL = frontend_base_url()
 # Welcome template `cta_url` — "complete your setup" / onboarding (all welcome sends).
-WELCOME_EMAIL_CTA_BASE_URL = "https://kind-cliff-0e3c6e210.6.azurestaticapps.net/chat-speaker-onboard"
+WELCOME_EMAIL_CTA_BASE_URL = f"{FRONTEND_BASE_URL}/chat-speaker-onboard"
 WELCOME_EMAIL_CTA_URL = f"{WELCOME_EMAIL_CTA_BASE_URL}?source=email&email="
 
 
@@ -29,15 +43,8 @@ def build_welcome_email_cta_url(email: str | None) -> str:
     return f"{WELCOME_EMAIL_CTA_BASE_URL}?{urlencode({'source': 'email', 'email': normalized_email})}"
 
 # Frontend base for “review your pitch” links in pitch-ready alerts.
-PITCH_REVIEW_FRONTEND_BASE = os.getenv(
-    "PITCH_REVIEW_FRONTEND_BASE",
-    "https://kind-cliff-0e3c6e210.6.azurestaticapps.net",
-).rstrip("/")
-
-EMAIL_VERIFICATION_FRONTEND_BASE = os.getenv(
-    "EMAIL_VERIFICATION_FRONTEND_BASE",
-    "https://kind-cliff-0e3c6e210.6.azurestaticapps.net",
-).rstrip("/")
+PITCH_REVIEW_FRONTEND_BASE = FRONTEND_BASE_URL
+EMAIL_VERIFICATION_FRONTEND_BASE = FRONTEND_BASE_URL
 
 
 def build_email_verification_url(user_id: str, email: str | None = None) -> str:
@@ -165,10 +172,13 @@ def get_postmark_template_for_event(event_type: EmailEventType) -> tuple[int | N
 
 
 @lru_cache(maxsize=16)
-def resolve_postmark_template(event_type: EmailEventType) -> tuple[int, str]:
-    """Resolve template id/alias; cached per process (env assumed stable after startup)."""
+def resolve_postmark_template(event_type: EmailEventType) -> tuple[int | None, str]:
+    """Resolve template id/alias; cached per process (env assumed stable after startup).
+
+    Numeric IDs are account-specific. Only POSTMARK_TEMPLATE_ID_* is sent as TemplateId
+    so a new Postmark server can use aliases without the previous account's IDs.
+    """
     env_id, env_alias = get_postmark_template_for_event(event_type)
-    default_id, default_alias = DEFAULT_POSTMARK_TEMPLATES[event_type]
-    template_id = env_id if env_id is not None else default_id
+    _default_id, default_alias = DEFAULT_POSTMARK_TEMPLATES[event_type]
     template_alias = env_alias if env_alias else default_alias
-    return template_id, template_alias
+    return env_id, template_alias
