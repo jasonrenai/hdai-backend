@@ -22,12 +22,12 @@ def _env(name: str, default: Optional[str] = None) -> Optional[str]:
 # Temporary catalog — ProductConfig.name is tierKey (Solo / Core / Pro), not Stripe display name.
 # USD list price (dollars). price_id None → payment-link flow resolves Price from Stripe by product id.
 STRIPE_PRODUCTS: List[ProductConfig] = [
-    ProductConfig("prod_UdOMBnQAaLpDg0", None, "Solo", 49.0, "monthly"),
-    ProductConfig("prod_UdONfDl80QUCYy", None, "Core", 149.0, "monthly"),
-    ProductConfig("prod_UdOOBO0LKnlazQ", None, "Pro", 499.0, "monthly"),
-    ProductConfig("prod_UdOMcsNT3mELYo", None, "Solo", 490.0, "yearly"),
-    ProductConfig("prod_UdOO1uatwnegWM", None, "Core", 1490.0, "yearly"),
-    ProductConfig("prod_UdOPt0rqJPIsEB", None, "Pro", 4990.0, "yearly"),
+    ProductConfig("prod_VC34SAi6O7Q4gA", "price_1UBeylQvzttp1fSTqAnOw4xv", "Solo", 49.0, "monthly"),
+    ProductConfig("prod_VC34zjAKxU2eC8", "price_1UBeymQvzttp1fSTfxoKhZPg", "Core", 149.0, "monthly"),
+    ProductConfig("prod_VC34pBUkTTZZnL", "price_1UBeynQvzttp1fSTfRQTzObN", "Pro", 499.0, "monthly"),
+    ProductConfig("prod_VC34wOot9slL0L", "price_1UBeypQvzttp1fSTF620zY2K", "Solo", 490.0, "yearly"),
+    ProductConfig("prod_VC35Vgv1Aoxp72", "price_1UBeyqQvzttp1fSTeOpjJ5Al", "Core", 1490.0, "yearly"),
+    ProductConfig("prod_VC352dAHp8RK8c", "price_1UBeyqQvzttp1fSTr4bJggKn", "Pro", 4990.0, "yearly"),
 ]
 
 STRIPE_PRODUCT_IDS: frozenset[str] = frozenset(p.id for p in STRIPE_PRODUCTS)

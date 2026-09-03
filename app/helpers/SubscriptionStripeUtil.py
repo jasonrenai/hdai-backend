@@ -220,6 +220,13 @@ def compute_subscription_fields(
 # share labels with tiers but differ; tierKey drives entitlements and subscription_type.
 # Temporary catalog ids are listed first; legacy ids remain for existing subscriptions.
 STRIPE_PRODUCT_TIER_KEY: dict[str, str] = {
+    # HumanDrivenAI sandbox catalog
+    "prod_VC34SAi6O7Q4gA": "Solo",
+    "prod_VC34zjAKxU2eC8": "Core",
+    "prod_VC34pBUkTTZZnL": "Pro",
+    "prod_VC34wOot9slL0L": "Solo",
+    "prod_VC35Vgv1Aoxp72": "Core",
+    "prod_VC352dAHp8RK8c": "Pro",
     # Temporary catalog — Starter→Solo, Pro→Core, Team→Pro
     "prod_UdOMBnQAaLpDg0": "Solo",
     "prod_UdONfDl80QUCYy": "Core",
