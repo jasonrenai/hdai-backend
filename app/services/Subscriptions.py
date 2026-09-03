@@ -40,6 +40,13 @@ def _recurring_interval_on_price(price_obj: Any) -> Optional[str]:
     return getattr(rec, "interval", None) if not isinstance(rec, dict) else rec.get("interval")
 
 
+def _stripe_error_type():
+    err_mod = getattr(stripe, "error", None)
+    if err_mod is not None and hasattr(err_mod, "StripeError"):
+        return err_mod.StripeError
+    return getattr(stripe, "StripeError", Exception)
+
+
 def _stripe_recurring_interval_key(interval: Optional[str]) -> str:
     if interval in ("yearly", "year", "annual"):
         return "year"
@@ -365,16 +372,20 @@ async def create_stripe_payment_link(
     if not customer_id:
         return PaymentLinkResult(status=500, message="Error creating Stripe customer")
 
-    session = stripe.checkout.Session.create(
-        mode="subscription",
-        line_items=[{"price": price_id, "quantity": 1}],
-        customer=customer_id,
-        client_reference_id=str(user_id),
-        metadata=metadata,
-        subscription_data={"metadata": metadata},
-        success_url=success_url,
-        cancel_url=cancel_url or success_url,
-    )
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            customer=customer_id,
+            client_reference_id=str(user_id),
+            metadata=metadata,
+            subscription_data={"metadata": metadata},
+            success_url=success_url,
+            cancel_url=cancel_url or success_url,
+        )
+    except _stripe_error_type() as e:
+        logger.warning("Checkout Session.create failed: %s", e)
+        return PaymentLinkResult(status=502, message=str(e))
     session_data = as_dict(session)
     return PaymentLinkResult(
         status=200,
@@ -500,7 +511,15 @@ class SubscriptionsService:
                 payload.update(ts)
             return payload
 
-        subs = _list_subscriptions_for_customer(str(cid), status=None, limit=10)
+        try:
+            subs = _list_subscriptions_for_customer(str(cid), status=None, limit=10)
+        except _stripe_error_type() as e:
+            logger.warning(
+                "Stripe customer %s is not usable on this account: %s",
+                cid,
+                e,
+            )
+            return inactive
         primary = select_primary_subscription(subs)
         prod_id = plan_product_id_from_subscription(primary) if primary else None
         plan_name = plan_name_from_stripe_product_id(prod_id)
