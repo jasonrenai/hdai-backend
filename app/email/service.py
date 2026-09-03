@@ -126,6 +126,12 @@ class EmailService:
                     recipient,
                     exc,
                 )
+                lowered = str(exc).lower()
+                if "401" in lowered or "unauthorized" in lowered or "invalid" in lowered:
+                    logger.warning(
+                        "Postmark auth failed. POSTMARK_SERVER_API_TOKEN must be a "
+                        "Server API token (Servers → API Tokens), not an Account API token."
+                    )
                 return False
             try:
                 _send(tid=None, alias=template_alias)

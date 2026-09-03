@@ -114,7 +114,7 @@ TEMPLATE_VARIABLE_KEYS: dict[EmailEventType, tuple[str, ...]] = {
         "user_name",
         "intro",
         "opportunities",
-        # Scalars kept until Postmark Deadline_approaching is switched to a list.
+        # Scalars kept as a fallback when the opportunities list is empty.
         "event_name",
         "event_date",
         "event_location",
