@@ -17,6 +17,8 @@ from app.email.enums import EmailEventType
 from app.email.signup_emails import try_send_signup_emails
 from app.email.welcome_account import try_send_welcome_email_on_account_created
 
+logger = logging.getLogger(__name__)
+
 
 class AuthService:
     
@@ -24,6 +26,22 @@ class AuthService:
         self.user_model = UserModel()
         self.otp_model= OTPModel()
         self.uploader = AzureBlobUploader()
+
+    async def _user_from_speaker_profile_email(self, email: str):
+        """If the address is on a speaker profile, resolve the linked users row."""
+        from app.models.SpeakerProfile import SpeakerProfileModel
+
+        profile = await SpeakerProfileModel().get_profile_by_email(email)
+        if not profile:
+            return None
+        user_id = str(profile.get("user_id") or "").strip()
+        if not user_id:
+            return None
+        document = await self.user_model.get_user_document_by_id(user_id)
+        stored = str((document or {}).get("email") or "").strip()
+        if not stored:
+            return None
+        return await self.user_model.get_user_by_email(stored)
             
     async def get_user(self, email, password):
         """
@@ -244,6 +262,12 @@ class AuthService:
             # Validate user exists
             user = await self.user_model.get_user_by_email(email)
             if not user:
+                user = await self._user_from_speaker_profile_email(email)
+            if not user:
+                logger.warning(
+                    "Password reset skipped: no users row for %s",
+                    (email or "").strip(),
+                )
                 return {"success": False, "data": None, "error": "User not found."}
 
             to_email = (user.email or email or "").strip()
@@ -292,6 +316,8 @@ class AuthService:
         try:
             # Validate user exists
             user = await self.user_model.get_user_by_email(email)
+            if not user:
+                user = await self._user_from_speaker_profile_email(email)
             if not user:
                 return {"success": False, "data": None, "error": "User not found."}
 
