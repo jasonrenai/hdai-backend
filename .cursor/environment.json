@@ -1,0 +1,16 @@
+{
+  "name": "HD AI backend (dev)",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": ".venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 3003 --reload",
+      "description": "FastAPI dev server for the HD AI backend on http://localhost:3003 (Swagger UI at /api-docs)."
+    }
+  ],
+  "ports": [
+    { "name": "api", "port": 3003 }
+  ]
+}
