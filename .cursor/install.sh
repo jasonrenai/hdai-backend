@@ -43,8 +43,13 @@ MONGODB_CONNECTION_STRING=mongodb://localhost:27017
 DB_NAME=hdai_dev
 JWT_SECRET=${JWT_SECRET}
 
-# Skip real Postmark sends in local/dev.
-EMAIL_SENDING_ENABLED=false
+# Email sending is ON so the app delivers via Postmark. Provide the Postmark
+# Server API token via the Cloud Agent "Secrets" panel as POSTMARK_SERVER_API_TOKEN
+# (a real env-var secret takes precedence over this gitignored .env). Optionally
+# override the verified sender addresses with EMAIL_FROM_HELLO / EMAIL_FROM_ALERTS /
+# EMAIL_FROM_SUPPORT. Set EMAIL_SENDING_ENABLED=false to silence sends locally.
+EMAIL_SENDING_ENABLED=true
+# POSTMARK_SERVER_API_TOKEN=  # provided via Secrets; uncomment to override locally
 
 # Azurite well-known dev credentials so the blob client constructs without real
 # Azure (no network is required at construction; uploads are not exercised locally).
