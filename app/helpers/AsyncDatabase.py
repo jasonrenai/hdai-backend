@@ -11,14 +11,35 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _uri_uses_tls(uri: str) -> bool:
+    """Whether a MongoDB URI should negotiate TLS.
+
+    ``mongodb+srv://`` (Atlas) enables TLS by default; a plain ``mongodb://``
+    URI only uses TLS when explicitly requested via ``tls=true``/``ssl=true``.
+    """
+    if not uri:
+        return False
+    lowered = uri.lower()
+    if lowered.startswith("mongodb+srv://"):
+        return "tls=false" not in lowered and "ssl=false" not in lowered
+    return "tls=true" in lowered or "ssl=true" in lowered
+
+
 class AsyncMongoDB:
     """Async MongoDB connection manager using Motor"""
     client: AsyncIOMotorClient = None
 
     @classmethod
     def connect(cls, uri: str):
-        """Establish async MongoDB connection"""
-        cls.client = AsyncIOMotorClient(uri, tlsCAFile=certifi.where())
+        """Establish async MongoDB connection.
+
+        Only pass the certifi CA bundle for TLS/Atlas connections; a plain
+        local ``mongodb://`` URI speaks plaintext and must not force TLS.
+        """
+        kwargs = {}
+        if _uri_uses_tls(uri):
+            kwargs["tlsCAFile"] = certifi.where()
+        cls.client = AsyncIOMotorClient(uri, **kwargs)
 
     @classmethod
     def get_database(cls, db_name: str):
